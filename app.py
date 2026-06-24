@@ -11,7 +11,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.11 SMART BEST-MATCH SEARCH'
+APP_VERSION='V25.12 COMBINED ARTIST TITLE SEARCH'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -1427,6 +1427,41 @@ def universal_search_urls(artist='', title='', barcode=''):
         ])
     return links
 
+def combined_search_terms(artist='', title='', barcode=''):
+    artist=safe(artist)
+    title=safe(title)
+    code=normalize_barcode(barcode)
+    combined=' '.join([artist,title]).strip()
+    terms=[]
+    if combined:
+        terms.append(combined)
+    if artist and title:
+        terms.append(f'artist:{artist} release:{title}')
+        terms.append(f'"{artist}" "{title}"')
+    elif artist:
+        terms.append(artist)
+    elif title:
+        terms.append(title)
+    if code:
+        terms.append(code)
+    clean=[]
+    seen=set()
+    for term in terms:
+        term=safe(term).strip()
+        key=term.lower()
+        if term and key not in seen:
+            clean.append(term)
+            seen.add(key)
+    return clean
+
+def token_overlap_score(needle='', haystack=''):
+    needle_tokens=[t for t in re.findall(r'[a-z0-9]+', safe(needle).lower()) if len(t)>1]
+    hay_tokens=set(re.findall(r'[a-z0-9]+', safe(haystack).lower()))
+    if not needle_tokens or not hay_tokens:
+        return 0
+    hits=sum(1 for t in needle_tokens if t in hay_tokens)
+    return int((hits / max(len(needle_tokens),1)) * 100)
+
 
 def choose_best_search_result(results, artist='', title='', barcode=''):
     if not results:
@@ -1611,8 +1646,6 @@ def lookup_musicbrainz_broad_search(artist='', title='', barcode=''):
     title=safe(title)
     code=normalize_barcode(barcode)
     queries=[]
-    if code:
-        queries.append(f'barcode:{code}')
     if artist and title:
         queries.extend([
             f'artist:{artist} AND release:{title}',
@@ -1623,6 +1656,8 @@ def lookup_musicbrainz_broad_search(artist='', title='', barcode=''):
         queries.extend([f'artist:{artist}', artist])
     elif title:
         queries.extend([f'release:{title}', title])
+    if code:
+        queries.append(f'barcode:{code}')
     results=[]
     seen=set()
     for q in queries:
@@ -1699,14 +1734,14 @@ def lookup_discogs_broad_search(artist='', title='', barcode=''):
     except Exception:
         token=''
     queries=[]
-    if code:
-        queries.append(code)
     if artist and title:
         queries.append(f'{artist} {title}')
     elif artist:
         queries.append(artist)
     elif title:
         queries.append(title)
+    if code:
+        queries.append(code)
     results=[]
     seen=set()
     for q in queries:
@@ -1756,19 +1791,47 @@ def lookup_discogs_broad_search(artist='', title='', barcode=''):
             break
     return results[:15]
 
+def lookup_itunes_combined_search(artist='', title='', barcode=''):
+    return lookup_itunes_text_search(artist,title,barcode)
+
+def lookup_musicbrainz_combined_search(artist='', title='', barcode=''):
+    return lookup_musicbrainz_broad_search(artist,title,barcode)
+
+def lookup_discogs_combined_search(artist='', title='', barcode=''):
+    return lookup_discogs_broad_search(artist,title,barcode)
+
 def score_release_match(result, artist='', title=''):
     artist=safe(artist).lower()
     title=safe(title).lower()
-    hay=f"{safe(result.get('artist'))} {safe(result.get('title'))}".lower()
+    result_artist=safe(result.get('artist')).lower()
+    result_title=safe(result.get('title')).lower()
+    hay=f"{result_artist} {result_title}".lower()
     score=0
+    artist_overlap=token_overlap_score(artist,result_artist)
+    title_overlap=token_overlap_score(title,result_title)
+    combined_overlap=token_overlap_score(' '.join([artist,title]).strip(),hay)
     if artist:
-        for part in artist.split():
-            if part and part in hay:
-                score+=10
+        score+=artist_overlap // 5
     if title:
-        for part in title.split():
-            if part and part in hay:
-                score+=12
+        score+=title_overlap // 4
+    if artist and title:
+        score+=combined_overlap // 3
+        if artist_overlap and title_overlap:
+            score+=35
+        elif artist_overlap and not title_overlap:
+            score-=30
+        elif title_overlap and not artist_overlap:
+            score-=15
+        else:
+            score-=40
+    elif title and not title_overlap:
+        score-=20
+    if title and artist and artist_overlap and not title_overlap:
+        score-=20
+    if artist and artist in result_artist:
+        score+=12
+    if title and title in result_title:
+        score+=18
     if safe(result.get('image_url')):
         score+=5
     if safe(result.get('release_year')):
@@ -1798,42 +1861,43 @@ def lookup_by_artist_title_with_diagnostics(artist='', title='', barcode=''):
     artist=safe(artist)
     title=safe(title)
     code=normalize_barcode(barcode)
-    diagnostics.append({'Step':'Search terms','Status':f'Artist: {artist or "blank"} | Title: {title or "blank"} | Barcode: {code or "blank"}','Details':'This broad search is used when barcode-only lookup does not find a match.'})
+    terms=combined_search_terms(artist,title,code)
+    diagnostics.append({'Step':'Combined search terms','Status':f'Artist: {artist or "blank"} | Title: {title or "blank"} | Barcode: {code or "blank"}','Details':'Artist and title are searched together first: '+(terms[0] if terms else 'no search term')})
     results=[]
 
-    # Discogs broad search first for physical music culture/collector data.
+    # Discogs combined search first for physical music culture/collector data.
     try:
-        dres=lookup_discogs_broad_search(artist,title,code)
+        dres=lookup_discogs_combined_search(artist,title,code)
         if dres:
-            diagnostics.append({'Step':'Discogs broad search','Status':f'{len(dres)} match(es)','Details':'Discogs returned release candidates. Works best when DISCOGS_TOKEN is connected.'})
+            diagnostics.append({'Step':'Discogs combined search','Status':f'{len(dres)} match(es)','Details':'Discogs returned release candidates using artist and title together. Works best when DISCOGS_TOKEN is connected.'})
             results.extend(dres)
         else:
             token_msg='connected' if discogs_token_status() else 'not connected'
-            diagnostics.append({'Step':'Discogs broad search','Status':'No match','Details':f'Discogs returned no result. Discogs token status: {token_msg}.'})
+            diagnostics.append({'Step':'Discogs combined search','Status':'No match','Details':f'Discogs returned no combined result. Discogs token status: {token_msg}.'})
     except Exception as e:
-        diagnostics.append({'Step':'Discogs broad search','Status':'Error','Details':safe(e)})
+        diagnostics.append({'Step':'Discogs combined search','Status':'Error','Details':safe(e)})
 
     # Apple/iTunes album search is reliable for popular mainstream artists and gives good cover art.
     try:
-        ares=lookup_itunes_text_search(artist,title,code)
+        ares=lookup_itunes_combined_search(artist,title,code)
         if ares:
-            diagnostics.append({'Step':'Apple/iTunes album search','Status':f'{len(ares)} match(es)','Details':'Apple/iTunes returned album candidates and artwork. Good fallback for popular artists.'})
+            diagnostics.append({'Step':'Apple/iTunes combined search','Status':f'{len(ares)} match(es)','Details':'Apple/iTunes returned album candidates and artwork using artist and title together.'})
             results.extend(ares)
         else:
-            diagnostics.append({'Step':'Apple/iTunes album search','Status':'No match','Details':'Apple/iTunes returned no album candidate for these terms.'})
+            diagnostics.append({'Step':'Apple/iTunes combined search','Status':'No match','Details':'Apple/iTunes returned no album candidate for these combined terms.'})
     except Exception as e:
-        diagnostics.append({'Step':'Apple/iTunes album search','Status':'Error','Details':safe(e)})
+        diagnostics.append({'Step':'Apple/iTunes combined search','Status':'Error','Details':safe(e)})
 
-    # MusicBrainz broad search uses multiple query styles because strict Lucene queries can miss results.
+    # MusicBrainz combined search uses multiple query styles because strict Lucene queries can miss results.
     try:
-        mbres=lookup_musicbrainz_broad_search(artist,title,code)
+        mbres=lookup_musicbrainz_combined_search(artist,title,code)
         if mbres:
-            diagnostics.append({'Step':'MusicBrainz broad search','Status':f'{len(mbres)} match(es)','Details':'MusicBrainz returned release candidates using broad query attempts.'})
+            diagnostics.append({'Step':'MusicBrainz combined search','Status':f'{len(mbres)} match(es)','Details':'MusicBrainz returned release candidates using combined query attempts.'})
             results.extend(mbres)
         else:
-            diagnostics.append({'Step':'MusicBrainz broad search','Status':'No match','Details':'MusicBrainz returned no result after broad query attempts.'})
+            diagnostics.append({'Step':'MusicBrainz combined search','Status':'No match','Details':'MusicBrainz returned no result after combined query attempts.'})
     except Exception as e:
-        diagnostics.append({'Step':'MusicBrainz broad search','Status':'Error','Details':safe(e)})
+        diagnostics.append({'Step':'MusicBrainz combined search','Status':'Error','Details':safe(e)})
 
     unique=dedupe_and_rank_results(results,artist,title)
 

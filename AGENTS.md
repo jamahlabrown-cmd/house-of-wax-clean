@@ -10,11 +10,11 @@ House Of Wax is not just a record store. It is a marketplace, knowledge hub, tru
 
 Current target version:
 
-V25.13 SEARCH CONFIDENCE + ALTERNATIVES
+V25.15 LISTING DRAFTS + REVIEW QUEUE
 
 The live Streamlit app must show this marker near the top of the app:
 
-Running V25.13 SEARCH CONFIDENCE + ALTERNATIVES
+Running V25.15 LISTING DRAFTS + REVIEW QUEUE
 
 ## Critical deployment rule
 

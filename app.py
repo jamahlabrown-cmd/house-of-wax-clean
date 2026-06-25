@@ -11,7 +11,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.12 COMBINED ARTIST TITLE SEARCH'
+APP_VERSION='V25.13 SEARCH CONFIDENCE + ALTERNATIVES'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -1514,7 +1514,90 @@ def run_smart_best_match_search(artist='', title='', barcode=''):
         diagnostics.append({'Step':'Smart best-match picker','Status':'No best match','Details':'No automatic source returned a usable candidate. Use manual seed to build House Of Wax database.'})
     return best,ranked,diagnostics
 
-def render_best_match_card(best, key_prefix='main'):
+def match_identity(result):
+    return (
+        safe(result.get('source')).lower(),
+        safe(result.get('external_id')).lower(),
+        safe(result.get('artist')).lower(),
+        safe(result.get('title')).lower()
+    )
+
+def search_match_details(result, artist='', title=''):
+    result_artist=safe(result.get('artist'))
+    result_title=safe(result.get('title'))
+    artist_score=token_overlap_score(artist,result_artist)
+    title_score=token_overlap_score(title,result_title)
+    return {
+        'artist_matched':bool(not artist or artist_score),
+        'title_matched':bool(not title or title_score),
+        'has_image':bool(safe(result.get('image_url'))),
+        'has_year':bool(safe(result.get('release_year'))),
+        'has_label':bool(safe(result.get('label'))),
+        'has_source':bool(safe(result.get('source')))
+    }
+
+def match_confidence_label(result, artist='', title=''):
+    score=int(result.get('_final_score') or result.get('_match_score') or 0)
+    details=search_match_details(result,artist,title)
+    if details['artist_matched'] and details['title_matched'] and score >= 110:
+        return 'Strong'
+    if score >= 70 and (details['artist_matched'] or details['title_matched']):
+        return 'Medium'
+    return 'Weak'
+
+def match_explanation(result, artist='', title=''):
+    details=search_match_details(result,artist,title)
+    reasons=[]
+    if details['artist_matched'] and details['title_matched']:
+        reasons.append('artist and title matched the search terms')
+    elif details['artist_matched']:
+        reasons.append('artist matched, but the title needs review')
+    elif details['title_matched']:
+        reasons.append('title matched, but the artist needs review')
+    else:
+        reasons.append('artist and title did not strongly match')
+    reasons.append('image found' if details['has_image'] else 'no image found')
+    found=[]
+    if details['has_year']:
+        found.append('year')
+    if details['has_label']:
+        found.append('label')
+    if details['has_source']:
+        found.append('source')
+    reasons.append(('found '+', '.join(found)) if found else 'limited year/label/source details')
+    return 'Chosen because '+', '.join(reasons)+'.'
+
+def use_search_match(result, key_prefix='main'):
+    st.session_state['v24_autofill_listing']=result
+    st.session_state['v24_autofill_barcode']=st.session_state.get(f'v24_lookup_barcode_clean_{key_prefix}','')
+    try:
+        rid=create_or_update_how_release(st.session_state['v24_autofill_barcode'],result)
+        st.session_state['v25_release_id']=rid
+    except Exception:
+        pass
+
+def save_wrong_match_correction(result, barcode='', key_prefix='main'):
+    code=normalize_barcode(barcode) or st.session_state.get(f'v24_lookup_barcode_clean_{key_prefix}','')
+    summary=f"{safe(result.get('artist'))} - {safe(result.get('title'))} ({safe(result.get('source'))}, {safe(result.get('release_year'))})"
+    note='Seller marked Smart Search recommended match as wrong.'
+    release_id=None
+    try:
+        release_id=create_or_update_how_release(code,result,note) if code else None
+    except Exception:
+        release_id=None
+    try:
+        submit_release_correction(release_id,0,'recommended_match',summary,'Marked wrong',note)
+        return True
+    except Exception:
+        if code:
+            try:
+                create_or_update_how_release(code,result,note)
+                return True
+            except Exception:
+                return False
+        return False
+
+def render_best_match_card(best, key_prefix='main', ranked=None, artist='', title='', barcode=''):
     if not best:
         return
     st.markdown('### Recommended best match')
@@ -1534,16 +1617,43 @@ def render_best_match_card(best, key_prefix='main'):
             st.write(f"**Year:** {safe(best.get('release_year'))}")
             if safe(best.get('external_url')):
                 st.write(f"**Source URL:** {safe(best.get('external_url'))}")
+            confidence=match_confidence_label(best,artist,title)
+            st.write(f"**Confidence:** {confidence}")
             st.caption(f"Match score: {safe(best.get('_final_score')) or safe(best.get('_match_score'))}")
+            st.write(match_explanation(best,artist,title))
             if st.button('Use recommended match',key=f'use_recommended_match_{key_prefix}'):
-                st.session_state['v24_autofill_listing']=best
-                st.session_state['v24_autofill_barcode']=st.session_state.get(f'v24_lookup_barcode_clean_{key_prefix}','')
-                try:
-                    rid=create_or_update_how_release(st.session_state['v24_autofill_barcode'],best)
-                    st.session_state['v25_release_id']=rid
-                except Exception:
-                    pass
+                use_search_match(best,key_prefix)
                 st.success('Recommended match loaded into listing draft.')
+            if st.button('Mark recommended match as wrong',key=f'mark_recommended_wrong_{key_prefix}'):
+                saved=save_wrong_match_correction(best,barcode,key_prefix)
+                st.session_state[f'v25_wrong_match_{key_prefix}']=True
+                if saved:
+                    st.warning('Marked wrong and saved for House Of Wax review.')
+                else:
+                    st.warning('Marked wrong for this session. Add a manual correction if this item has no barcode yet.')
+
+    alternates=[]
+    best_key=match_identity(best)
+    for item in ranked or []:
+        if match_identity(item)!=best_key:
+            alternates.append(item)
+        if len(alternates)>=3:
+            break
+    if alternates:
+        st.markdown('### Top 3 Alternate Matches')
+        for i,item in enumerate(alternates,1):
+            with st.container(border=True):
+                c1,c2=st.columns([1,3])
+                with c1:
+                    if safe(item.get('image_url')):
+                        st.image(safe(item.get('image_url')),use_container_width=True)
+                with c2:
+                    st.write(f"**{i}. {safe(item.get('artist'))} - {safe(item.get('title'))}**")
+                    st.caption(f"{safe(item.get('source'))} • {safe(item.get('format'))} • {safe(item.get('release_year'))} • score {safe(item.get('_match_score'))}")
+                    st.write(match_explanation(item,artist,title))
+                    if st.button('Use this alternate',key=f'use_alternate_match_{key_prefix}_{i}'):
+                        use_search_match(item,key_prefix)
+                        st.success('Alternate match loaded into listing draft.')
 
 
 def show_universal_search_links(artist='', title='', barcode=''):
@@ -2094,11 +2204,18 @@ def render_barcode_lookup_widget(key_prefix='main'):
         else:
             st.warning('Smart search could not find a strong match. Use manual seed or backup links.')
 
-    render_best_match_card(st.session_state.get(f'v25_best_match_{key_prefix}'),key_prefix)
-
-    show_barcode_diagnostics(st.session_state.get(f'v25_lookup_diagnostics_{key_prefix}',[]))
     current_artist=st.session_state.get(f'v25_search_artist_{key_prefix}','')
     current_title=st.session_state.get(f'v25_search_title_{key_prefix}','')
+    render_best_match_card(
+        st.session_state.get(f'v25_best_match_{key_prefix}'),
+        key_prefix,
+        st.session_state.get(f'v24_barcode_matches_{key_prefix}',[]),
+        current_artist,
+        current_title,
+        barcode
+    )
+
+    show_barcode_diagnostics(st.session_state.get(f'v25_lookup_diagnostics_{key_prefix}',[]))
     show_universal_search_links(current_artist,current_title,barcode)
     manual_release_seed_form(current_artist,current_title,barcode,key_prefix)
 
@@ -2604,7 +2721,14 @@ def barcode_diagnostics_page():
         st.session_state['standalone_diag_matches']=ranked
         st.session_state['standalone_diag_results']=diagnostics
         st.session_state['standalone_best_match']=best
-    render_best_match_card(st.session_state.get('standalone_best_match'),'standalone_diag')
+    render_best_match_card(
+        st.session_state.get('standalone_best_match'),
+        'standalone_diag',
+        st.session_state.get('standalone_diag_matches',[]),
+        st.session_state.get('standalone_diag_artist',''),
+        st.session_state.get('standalone_diag_title',''),
+        code
+    )
 
     show_barcode_diagnostics(st.session_state.get('standalone_diag_results',[]))
     show_universal_search_links(st.session_state.get('standalone_diag_artist',''),st.session_state.get('standalone_diag_title',''),code)

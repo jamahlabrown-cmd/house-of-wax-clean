@@ -11,7 +11,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.15 LISTING DRAFTS + REVIEW QUEUE'
+APP_VERSION='V25.16 SELLER TRUST + LISTING QUALITY SCORE'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -2410,7 +2410,62 @@ def release_database_admin():
         st.markdown('### Seller corrections')
         st.dataframe(corrections,use_container_width=True)
 
-def listing_preview_card(category, artist, title, fmt, label, year, genre, mg, sg, price, qty, ship, image, description):
+def listing_quality_assessment(category='', artist='', title='', price=0, description='', mg='', sg='', image='', has_uploaded_photo=False, smart_confidence=''):
+    music=is_music_category(category)
+    try:
+        priced=float(price or 0)>0
+    except Exception:
+        priced=False
+    media_ok=bool(safe(mg)) and safe(mg)!='N/A'
+    sleeve_ok=bool(safe(sg)) and safe(sg)!='N/A'
+    condition_ok=media_ok or sleeve_ok
+    photo_ok=bool(safe(image)) or bool(has_uploaded_photo)
+    checks=[
+        ('Title present',bool(safe(title)),12),
+        ('Artist / brand present',bool(safe(artist)),10),
+        ('Category present',bool(safe(category)),10),
+        ('Price present',priced,10),
+        ('Description present',bool(safe(description)),12),
+        ('Condition present',condition_ok,12),
+        ('Photos present',photo_ok,12),
+    ]
+    if music:
+        checks.extend([
+            ('Media condition present',media_ok,8),
+            ('Sleeve / case condition present',sleeve_ok,6),
+            ('Release cover art may come from search; real condition photos are preferred',photo_ok,4),
+        ])
+    else:
+        checks.extend([
+            ('Exact item photos are preferred',photo_ok,10),
+            ('Official product images should only support exact item photos',photo_ok,4),
+        ])
+    if safe(smart_confidence):
+        checks.append((f'Smart Search confidence: {safe(smart_confidence)}',safe(smart_confidence) in ['Strong','Medium'],4))
+    possible=sum(weight for _,_,weight in checks)
+    earned=sum(weight for _,ok,weight in checks if ok)
+    score=int(round((earned / possible) * 100)) if possible else 0
+    if score>=80:
+        label='Strong listing'
+    elif score>=55:
+        label='Needs improvement'
+    else:
+        label='Weak listing'
+    return score,label,checks
+
+def render_listing_quality(score, label, checks, context='seller'):
+    st.write(f"**Listing Quality Score:** {score}/100 — {label}")
+    if label=='Weak listing':
+        st.warning('This listing is missing important trust details. You can save it, but review the checklist before submitting.')
+    elif label=='Needs improvement':
+        st.info('This listing can be improved before review.')
+    else:
+        st.success('This listing has strong trust signals.')
+    with st.expander('Listing quality checklist',expanded=(context=='admin')):
+        for text,ok,_ in checks:
+            st.write(('✓ ' if ok else '• Missing: ')+text)
+
+def listing_preview_card(category, artist, title, fmt, label, year, genre, mg, sg, price, qty, ship, image, description, has_uploaded_photo=False, smart_confidence='', quality_context='seller'):
     st.markdown('#### Listing preview')
     with st.container(border=True):
         c1,c2=st.columns([1,2])
@@ -2430,6 +2485,8 @@ def listing_preview_card(category, artist, title, fmt, label, year, genre, mg, s
             st.write(f"**Condition:** Media/Product {safe(mg)} • Sleeve/Packaging {safe(sg)}")
             st.write(f"**Price:** {money(price)} • **Qty:** {int(qty)} • **Shipping:** {money(ship)}")
             st.write(safe(description,'No description yet.'))
+            score,quality_label,checks=listing_quality_assessment(category,artist,title,price,description,mg,sg,image,has_uploaded_photo,smart_confidence)
+            render_listing_quality(score,quality_label,checks,quality_context)
 
 
 def upload_product(sid,key):
@@ -2490,7 +2547,10 @@ def upload_product(sid,key):
 
         st.markdown('#### Step 5: Preview listing')
         preview_description=desc or f'{artist} - {title}. {notes}'
-        listing_preview_card(category,artist,title,fmt,label,year,genre,mg,sg,price,qty,ship,imgurl,preview_description)
+        search_key='upload_product' if key=='normal_upload' else key
+        smart_match=st.session_state.get(f'v25_best_match_{search_key}',{})
+        smart_confidence=match_confidence_label(smart_match,artist,title) if smart_match else ''
+        listing_preview_card(category,artist,title,fmt,label,year,genre,mg,sg,price,qty,ship,imgurl,preview_description,img is not None,smart_confidence,'seller')
 
         st.markdown('#### Step 6: Submit listing')
         st.caption('Save as Draft if the listing is not ready. Submit for Review when it is ready for House Of Wax to check before it goes public.')
@@ -2513,7 +2573,10 @@ def upload_product(sid,key):
         image=saved_image or imgurl
         description=desc or f'{artist} — {title}. {notes}'
         listing_status='Submitted for Review' if submit_review else 'Draft'
+        score,quality_label,_=listing_quality_assessment(category,artist,title,price,description,mg,sg,image,bool(saved_image),smart_confidence)
         run("""INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(sid,sku,barcode,catalog,matrix,category,artist,title,fmt,label,year,genre,mg,sg,notes,description,float(price),int(qty),float(ship),image,'','',external_release_url,listing_status,'Fixed Price',now(),now()))
+        if submit_review and quality_label=='Weak listing':
+            st.warning(f'Submitted for review with a weak quality score ({score}/100). House Of Wax may request changes.')
         if is_music_category(category) and imgurl and not saved_image:
             st.success(f'Listing saved as {listing_status} using barcode/release image.')
         elif not is_music_category(category) and not image:
@@ -2622,8 +2685,9 @@ def listing_review_queue():
     pick=st.selectbox('Review listing',labels,key='listing_review_pick')
     pid=int(pick.split('|')[0].strip())
     row=listings[listings['id']==pid].iloc[0]
-    listing_preview_card(row.get('category'),row.get('artist'),row.get('title'),row.get('format'),row.get('label'),row.get('release_year'),row.get('genre'),row.get('media_grade'),row.get('sleeve_grade'),float(row.get('price') or 0),int(row.get('quantity') or 1),float(row.get('shipping_price') or 0),row.get('image_url'),row.get('description'))
+    listing_preview_card(row.get('category'),row.get('artist'),row.get('title'),row.get('format'),row.get('label'),row.get('release_year'),row.get('genre'),row.get('media_grade'),row.get('sleeve_grade'),float(row.get('price') or 0),int(row.get('quantity') or 1),float(row.get('shipping_price') or 0),row.get('image_url'),row.get('description'),bool(safe(row.get('image_url'))),'','admin')
     notes=st.text_area('Reviewer notes',value=safe(row.get('reviewer_notes')),key='listing_review_notes')
+    st.caption('Reviewer guidance: approve if the listing is clear and trustworthy. Mark Needs Changes if important info is missing. Reject if it looks unsafe, fake, misleading, or inappropriate.')
     c1,c2,c3=st.columns(3)
     if c1.button('Approve listing',key='approve_listing_review'):
         run("UPDATE products SET listing_status='Approved',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.success('Listing approved.')

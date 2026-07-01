@@ -11,7 +11,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.16 SELLER TRUST + LISTING QUALITY SCORE'
+APP_VERSION='V25.17 SELLER PROFILES + TRUST BADGES'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -170,7 +170,7 @@ def setup():
         created_at TEXT
     )""")
     c.commit(); c.close()
-    mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
+    mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
     for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V16 testing build: all core options are active.','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
@@ -518,6 +518,81 @@ def followers(sid):
     r=df('SELECT COUNT(*) c FROM seller_followers WHERE seller_id=?',(int(sid),)); return 0 if r.empty else int(r.iloc[0]['c'] or 0)
 def fee(total,auction=False): return round(float(total)*float(setting('auction_commission_percent' if auction else 'platform_commission_percent','9'))/100,2)
 
+def seller_profile_completion(sid):
+    s=get_seller(sid)
+    if s is None:
+        return 0,[]
+    checks=[
+        ('Seller/display name',bool(safe(s.get('store_name')))),
+        ('Short bio/about section',bool(safe(s.get('store_bio')) or safe(s.get('seller_story')))),
+        ('Location',bool(safe(s.get('city')) or safe(s.get('state')))),
+        ('Favorite genres/categories',bool(safe(s.get('specialties')))),
+        ('Contact preference',bool(safe(s.get('contact_preference')) or safe(s.get('instagram')) or safe(s.get('website')))),
+    ]
+    score=int(round(sum(1 for _,ok in checks if ok)/len(checks)*100))
+    return score,checks
+
+def seller_quality_listing_stats(sid):
+    prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved')",(int(sid),))
+    if prods.empty:
+        return 0,0,0
+    scores=[]
+    for _,p in prods.iterrows():
+        score,_,_=listing_quality_assessment(p.get('category'),p.get('artist'),p.get('title'),p.get('price'),p.get('description'),p.get('media_grade'),p.get('sleeve_grade'),p.get('image_url'),bool(safe(p.get('image_url'))),'')
+        scores.append(score)
+    strong=sum(1 for score in scores if score>=80)
+    avg=int(round(sum(scores)/len(scores))) if scores else 0
+    return len(prods),strong,avg
+
+def seller_trust_badges(sid):
+    profile_score,_=seller_profile_completion(sid)
+    approved_count,strong_count,avg_quality=seller_quality_listing_stats(sid)
+    badges_out=[]
+    if approved_count==0:
+        badges_out.append('New Seller')
+    if profile_score>=80:
+        badges_out.append('Profile Complete')
+    if approved_count>=1:
+        badges_out.append('Approved Listings')
+    if strong_count>=1 or avg_quality>=80:
+        badges_out.append('Quality Listings')
+    if approved_count>=3 and profile_score>=80 and (strong_count>=2 or avg_quality>=80):
+        badges_out.append('Trusted Seller')
+    manual=badges(sid)
+    if manual:
+        badges_out.extend([b.strip() for b in manual.split('•') if b.strip()])
+    clean=[]
+    for b in badges_out:
+        if b not in clean:
+            clean.append(b)
+    return clean
+
+def seller_trust_summary(sid):
+    profile_score,checks=seller_profile_completion(sid)
+    approved_count,strong_count,avg_quality=seller_quality_listing_stats(sid)
+    return {
+        'profile_score':profile_score,
+        'checks':checks,
+        'approved_count':approved_count,
+        'strong_count':strong_count,
+        'avg_quality':avg_quality,
+        'badges':seller_trust_badges(sid)
+    }
+
+def render_seller_trust_badges(sid, context='public'):
+    summary=seller_trust_summary(sid)
+    labels=summary['badges'] or ['New Seller']
+    brand_badges(labels)
+    st.caption('House Of Wax platform indicators based on profile completeness, approved listings, and listing quality. Not outside verification.')
+    if context!='public':
+        st.write(f"**Profile completeness:** {summary['profile_score']}%")
+        st.write(f"**Approved/public listings:** {summary['approved_count']} • **Strong quality listings:** {summary['strong_count']} • **Average quality:** {summary['avg_quality']}/100")
+        missing=[name for name,ok in summary['checks'] if not ok]
+        if missing:
+            st.warning('Missing profile details: '+', '.join(missing))
+        else:
+            st.success('Seller profile is complete.')
+
 # ---------- UI helpers ----------
 def header():
     apply_brand_style()
@@ -549,9 +624,13 @@ def buyer_profile_public(bid):
     st.write(f"**Bio:** {safe(b['bio'],'No buyer bio yet.')}"); feedback_public('Buyer',bid)
 def product_card(p):
     with st.container(border=True):
+        seller=get_seller(int(p['seller_id'])) if safe(p.get('seller_id')) else None
         if safe(p['image_url']): st.image(safe(p['image_url']),use_container_width=True)
         else: st.markdown('### 🎵')
         st.subheader(f"{safe(p['artist'])} — {safe(p['title'])}"); st.caption(f"{safe(p['category'])} • {safe(p['format'])} • Barcode: {safe(p['barcode'],'none')}"); st.write(f"**Price:** {money(p['price'])}")
+        if seller is not None:
+            st.caption('Seller: '+safe(seller.get('store_name')))
+            render_seller_trust_badges(int(seller.get('id')),'public')
         if st.button('View item',key=f"item_{int(p['id'])}"): st.session_state['product_id']=int(p['id']); st.rerun()
 def seller_profile(sid):
     s=get_seller(sid)
@@ -564,7 +643,7 @@ def seller_profile(sid):
         else: st.markdown('## 🏪')
     with col2:
         st.title(safe(s['store_name'])); st.caption(f"{safe(s['seller_level'])} • Rating {s['rating']}% • Sales {s['completed_sales']} • Followers {followers(sid)}")
-        if badges(sid): st.info('Badges: '+badges(sid))
+        render_seller_trust_badges(sid,'public')
         if safe(s['instagram']): st.write('Instagram: '+safe(s['instagram']))
         if safe(s['website']): st.link_button('Seller website',safe(s['website']))
     with st.expander('Follow this seller'):
@@ -582,7 +661,23 @@ def seller_profile(sid):
         st.subheader('Drops / events')
         for _,e in evs.iterrows():
             with st.container(border=True): st.write(f"**{safe(e['event_title'])}** — {safe(e['event_type'])}"); st.caption(safe(e['event_date'])); st.write(safe(e['description']))
-    st.subheader('About this seller'); st.write(safe(s['seller_story'],safe(s['store_bio'],'No story yet.'))); st.write('**Specialties:** '+safe(s['specialties'],'Not listed'))
+    st.subheader('About this seller')
+    if safe(s['seller_story']) or safe(s['store_bio']):
+        st.write(safe(s['seller_story'],safe(s['store_bio'])))
+    else:
+        st.info('Seller profile information is missing.')
+    location=', '.join([x for x in [safe(s.get('city')),safe(s.get('state'))] if x])
+    st.write('**Location:** '+safe(location,'Not listed'))
+    st.write('**Favorite genres/categories:** '+safe(s['specialties'],'Not listed'))
+    st.write('**Contact preference:** '+safe(s.get('contact_preference'),'Use House Of Wax messages when available.'))
+    st.caption('Reviews coming soon. Ratings will appear after completed buyer transactions.')
+    pol=df('SELECT * FROM seller_policies WHERE seller_id=?',(sid,))
+    if not pol.empty:
+        p=pol.iloc[0]
+        st.subheader('Store policies')
+        if safe(p.get('shipping_policy')): st.write('**Shipping:** '+safe(p.get('shipping_policy')))
+        if safe(p.get('return_policy')): st.write('**Returns:** '+safe(p.get('return_policy')))
+        if safe(p.get('local_pickup_policy')): st.write('**Pickup / meetups:** '+safe(p.get('local_pickup_policy')))
     st.subheader('Public seller feedback'); feedback_public('Seller',sid)
     st.subheader('Public inventory')
     prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved') ORDER BY created_at DESC",(sid,))
@@ -608,7 +703,10 @@ def product_detail(pid):
     with rcol:
         st.title(f"{safe(p['artist'])} — {safe(p['title'])}"); st.write('**Price:** '+money(p['price'])); st.write('**Shipping:** '+money(p['shipping_price']))
         for label,col in [('Category','category'),('Format','format'),('Label','label'),('Release year','release_year'),('Barcode / UPC / EAN','barcode'),('Catalog #','catalog_number'),('Matrix / runout','matrix_runout'),('Condition','media_grade')]: st.write(f"**{label}:** {safe(p[col],'Not listed')}")
-        if s is not None and st.button('View seller public profile'): st.session_state['seller_id']=int(s['id']); st.session_state.pop('product_id',None); st.rerun()
+        if s is not None:
+            st.write('**Seller:** '+safe(s.get('store_name')))
+            render_seller_trust_badges(int(s['id']),'public')
+            if st.button('View seller public profile'): st.session_state['seller_id']=int(s['id']); st.session_state.pop('product_id',None); st.rerun()
     st.subheader('Description'); st.write(safe(p['description'],'No description.'))
     st.divider(); st.subheader('Buyer actions')
     bid=buyer_pick(f'buy{pid}')
@@ -2594,14 +2692,24 @@ def seller_dashboard():
     s=get_seller(sid); st.success(f"Loaded seller: {safe(s['store_name'])} | {safe(s['email'])}")
     tabs=st.tabs(['Store profile','Policies','Upload product','Barcode scanner','Bulk import','Gallery','Listings','Orders','Messages','Announcements','Events/drops','Badges','Leave buyer feedback','Public feedback'])
     with tabs[0]:
+        st.subheader('Seller profile')
+        st.write('These optional details help buyers understand who they are buying from. Private email and phone are not shown publicly.')
+        render_seller_trust_badges(sid,'seller')
         with st.form('sp'):
-            store=st.text_input('Store name',value=safe(s['store_name'])); bio=st.text_area('Store bio',value=safe(s['store_bio'])); story=st.text_area('Seller story',value=safe(s['seller_story'])); spec=st.text_area('Specialties',value=safe(s['specialties'])); logo=st.file_uploader('Logo',type=['png','jpg','jpeg','webp']); banner=st.file_uploader('Banner',type=['png','jpg','jpeg','webp']); logo_url=st.text_input('Logo URL/path',value=safe(s['logo_url'])); banner_url=st.text_input('Banner URL/path',value=safe(s['banner_url'])); sub=st.form_submit_button('Save profile')
-        if sub: run("UPDATE sellers SET store_name=?,store_bio=?,seller_story=?,specialties=?,logo_url=?,banner_url=?,status='Approved',seller_level='Verified Seller',auction_override='Yes' WHERE id=?",(store,bio,story,spec,save_file(logo,'seller_logos') or logo_url,save_file(banner,'seller_banners') or banner_url,sid)); st.success('Saved.')
+            store=st.text_input('Seller/display name',value=safe(s['store_name']))
+            city=st.text_input('City',value=safe(s.get('city')))
+            state=st.text_input('State',value=safe(s.get('state')))
+            bio=st.text_area('Short bio / about section',value=safe(s['store_bio']))
+            story=st.text_area('Longer seller story',value=safe(s['seller_story']))
+            spec=st.text_area('Favorite music genres or product categories',value=safe(s['specialties']))
+            contact_pref=st.text_input('Contact preference',value=safe(s.get('contact_preference')),placeholder='Example: House Of Wax messages, Instagram DM, local pickup questions')
+            logo=st.file_uploader('Logo',type=['png','jpg','jpeg','webp']); banner=st.file_uploader('Banner',type=['png','jpg','jpeg','webp']); logo_url=st.text_input('Logo URL/path',value=safe(s['logo_url'])); banner_url=st.text_input('Banner URL/path',value=safe(s['banner_url'])); sub=st.form_submit_button('Save profile')
+        if sub: run("UPDATE sellers SET store_name=?,city=?,state=?,store_bio=?,seller_story=?,specialties=?,contact_preference=?,logo_url=?,banner_url=?,status='Approved',seller_level='Verified Seller',auction_override='Yes' WHERE id=?",(store,city,state,bio,story,spec,contact_pref,save_file(logo,'seller_logos') or logo_url,save_file(banner,'seller_banners') or banner_url,sid)); st.success('Seller profile saved.')
     with tabs[1]:
         p=df('SELECT * FROM seller_policies WHERE seller_id=?',(sid,)); pol=p.iloc[0] if not p.empty else {}
         with st.form('policy'):
-            shipping=st.text_area('Shipping policy',value=safe(pol.get('shipping_policy') if len(pol) else 'Ships within 3 business days.')); returns=st.text_area('Return policy',value=safe(pol.get('return_policy') if len(pol) else 'No buyer remorse returns unless seller approves.')); grading=st.text_area('Grading policy',value=safe(pol.get('grading_policy') if len(pol) else 'Collector grading standards.')); sub=st.form_submit_button('Save policies')
-        if sub: run('INSERT OR REPLACE INTO seller_policies(seller_id,shipping_policy,return_policy,grading_policy) VALUES(?,?,?,?)',(sid,shipping,returns,grading)); st.success('Policies saved.')
+            shipping=st.text_area('Shipping policy',value=safe(pol.get('shipping_policy') if len(pol) else 'Ships within 3 business days.')); returns=st.text_area('Return policy',value=safe(pol.get('return_policy') if len(pol) else 'No buyer remorse returns unless seller approves.')); grading=st.text_area('Grading policy',value=safe(pol.get('grading_policy') if len(pol) else 'Collector grading standards.')); pickup=st.text_area('Pickup / meetup / local policy notes',value=safe(pol.get('local_pickup_policy') if len(pol) else '')); sub=st.form_submit_button('Save policies')
+        if sub: run('INSERT OR REPLACE INTO seller_policies(seller_id,shipping_policy,return_policy,grading_policy,local_pickup_policy) VALUES(?,?,?,?,?)',(sid,shipping,returns,grading,pickup)); st.success('Policies saved.')
     with tabs[2]:
         render_barcode_lookup_widget('upload_product')
         upload_product(sid,'normal_upload')
@@ -2685,9 +2793,13 @@ def listing_review_queue():
     pick=st.selectbox('Review listing',labels,key='listing_review_pick')
     pid=int(pick.split('|')[0].strip())
     row=listings[listings['id']==pid].iloc[0]
+    seller_id=int(row.get('seller_id') or 0)
+    if seller_id:
+        st.markdown('#### Seller trust context')
+        render_seller_trust_badges(seller_id,'admin')
     listing_preview_card(row.get('category'),row.get('artist'),row.get('title'),row.get('format'),row.get('label'),row.get('release_year'),row.get('genre'),row.get('media_grade'),row.get('sleeve_grade'),float(row.get('price') or 0),int(row.get('quantity') or 1),float(row.get('shipping_price') or 0),row.get('image_url'),row.get('description'),bool(safe(row.get('image_url'))),'','admin')
     notes=st.text_area('Reviewer notes',value=safe(row.get('reviewer_notes')),key='listing_review_notes')
-    st.caption('Reviewer guidance: approve if the listing is clear and trustworthy. Mark Needs Changes if important info is missing. Reject if it looks unsafe, fake, misleading, or inappropriate.')
+    st.caption('Reviewer guidance: approve if the listing is clear and trustworthy. Profile completeness is one review factor. Mark Needs Changes if important info is missing. Reject if it looks unsafe, fake, misleading, or inappropriate.')
     c1,c2,c3=st.columns(3)
     if c1.button('Approve listing',key='approve_listing_review'):
         run("UPDATE products SET listing_status='Approved',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.success('Listing approved.')

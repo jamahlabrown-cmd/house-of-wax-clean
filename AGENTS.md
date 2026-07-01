@@ -10,11 +10,11 @@ House Of Wax is not just a record store. It is a marketplace, knowledge hub, tru
 
 Current target version:
 
-V25.16 SELLER TRUST + LISTING QUALITY SCORE
+V25.17 SELLER PROFILES + TRUST BADGES
 
 The live Streamlit app must show this marker near the top of the app:
 
-Running V25.16 SELLER TRUST + LISTING QUALITY SCORE
+Running V25.17 SELLER PROFILES + TRUST BADGES
 
 ## Critical deployment rule
 

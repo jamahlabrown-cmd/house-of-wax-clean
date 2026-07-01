@@ -11,7 +11,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.11 SMART BEST-MATCH SEARCH'
+APP_VERSION='V25.16 SELLER TRUST + LISTING QUALITY SCORE'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -60,6 +60,12 @@ def set_setting(k,v):
     run('INSERT OR REPLACE INTO app_settings(key,value) VALUES(?,?)',(k,str(v)))
 def email_exists(t,email):
     return bool(email) and not df(f'SELECT id FROM {t} WHERE lower(email)=lower(?)',(email.strip(),)).empty
+
+LISTING_REVIEW_STATUSES=['Draft','Submitted for Review','Approved','Needs Changes','Rejected']
+PUBLIC_LISTING_STATUSES=['Active','Approved']
+
+def listing_status_help():
+    st.info('Draft means not public. Submitted for Review means waiting for House Of Wax. Approved means it can appear publicly. Needs Changes means the seller must fix something. Rejected means it should not go live.')
 
 # ---------- Database ----------
 def setup():
@@ -164,7 +170,7 @@ def setup():
         created_at TEXT
     )""")
     c.commit(); c.close()
-    mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT'},'feedback':{'public':'TEXT'}}
+    mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
     for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V16 testing build: all core options are active.','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
@@ -579,7 +585,7 @@ def seller_profile(sid):
     st.subheader('About this seller'); st.write(safe(s['seller_story'],safe(s['store_bio'],'No story yet.'))); st.write('**Specialties:** '+safe(s['specialties'],'Not listed'))
     st.subheader('Public seller feedback'); feedback_public('Seller',sid)
     st.subheader('Public inventory')
-    prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Draft') ORDER BY created_at DESC",(sid,))
+    prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved') ORDER BY created_at DESC",(sid,))
     if prods.empty: st.info('No inventory yet.')
     else:
         cols=st.columns(3)
@@ -1054,7 +1060,7 @@ def marketplace():
     st.write('Browse everything available on House Of Wax: independent seller inventory, House Of Wax Official items, branded merchandise, records, cassettes, CDs, posters, clothing, memorabilia, and culture goods.')
     if 'seller_id' in st.session_state: seller_profile(int(st.session_state['seller_id'])); return
     if 'product_id' in st.session_state: product_detail(int(st.session_state['product_id'])); return
-    prods=df("SELECT * FROM products WHERE listing_status IN ('Active','Draft') ORDER BY created_at DESC")
+    prods=df("SELECT * FROM products WHERE listing_status IN ('Active','Approved') ORDER BY created_at DESC")
     if prods.empty: st.info('No inventory yet. Use Test Setup or Seller Tools.'); return
     q=st.text_input('Search title, artist, barcode, catalog, category')
     if q:
@@ -1427,6 +1433,41 @@ def universal_search_urls(artist='', title='', barcode=''):
         ])
     return links
 
+def combined_search_terms(artist='', title='', barcode=''):
+    artist=safe(artist)
+    title=safe(title)
+    code=normalize_barcode(barcode)
+    combined=' '.join([artist,title]).strip()
+    terms=[]
+    if combined:
+        terms.append(combined)
+    if artist and title:
+        terms.append(f'artist:{artist} release:{title}')
+        terms.append(f'"{artist}" "{title}"')
+    elif artist:
+        terms.append(artist)
+    elif title:
+        terms.append(title)
+    if code:
+        terms.append(code)
+    clean=[]
+    seen=set()
+    for term in terms:
+        term=safe(term).strip()
+        key=term.lower()
+        if term and key not in seen:
+            clean.append(term)
+            seen.add(key)
+    return clean
+
+def token_overlap_score(needle='', haystack=''):
+    needle_tokens=[t for t in re.findall(r'[a-z0-9]+', safe(needle).lower()) if len(t)>1]
+    hay_tokens=set(re.findall(r'[a-z0-9]+', safe(haystack).lower()))
+    if not needle_tokens or not hay_tokens:
+        return 0
+    hits=sum(1 for t in needle_tokens if t in hay_tokens)
+    return int((hits / max(len(needle_tokens),1)) * 100)
+
 
 def choose_best_search_result(results, artist='', title='', barcode=''):
     if not results:
@@ -1479,7 +1520,90 @@ def run_smart_best_match_search(artist='', title='', barcode=''):
         diagnostics.append({'Step':'Smart best-match picker','Status':'No best match','Details':'No automatic source returned a usable candidate. Use manual seed to build House Of Wax database.'})
     return best,ranked,diagnostics
 
-def render_best_match_card(best, key_prefix='main'):
+def match_identity(result):
+    return (
+        safe(result.get('source')).lower(),
+        safe(result.get('external_id')).lower(),
+        safe(result.get('artist')).lower(),
+        safe(result.get('title')).lower()
+    )
+
+def search_match_details(result, artist='', title=''):
+    result_artist=safe(result.get('artist'))
+    result_title=safe(result.get('title'))
+    artist_score=token_overlap_score(artist,result_artist)
+    title_score=token_overlap_score(title,result_title)
+    return {
+        'artist_matched':bool(not artist or artist_score),
+        'title_matched':bool(not title or title_score),
+        'has_image':bool(safe(result.get('image_url'))),
+        'has_year':bool(safe(result.get('release_year'))),
+        'has_label':bool(safe(result.get('label'))),
+        'has_source':bool(safe(result.get('source')))
+    }
+
+def match_confidence_label(result, artist='', title=''):
+    score=int(result.get('_final_score') or result.get('_match_score') or 0)
+    details=search_match_details(result,artist,title)
+    if details['artist_matched'] and details['title_matched'] and score >= 110:
+        return 'Strong'
+    if score >= 70 and (details['artist_matched'] or details['title_matched']):
+        return 'Medium'
+    return 'Weak'
+
+def match_explanation(result, artist='', title=''):
+    details=search_match_details(result,artist,title)
+    reasons=[]
+    if details['artist_matched'] and details['title_matched']:
+        reasons.append('artist and title matched the search terms')
+    elif details['artist_matched']:
+        reasons.append('artist matched, but the title needs review')
+    elif details['title_matched']:
+        reasons.append('title matched, but the artist needs review')
+    else:
+        reasons.append('artist and title did not strongly match')
+    reasons.append('image found' if details['has_image'] else 'no image found')
+    found=[]
+    if details['has_year']:
+        found.append('year')
+    if details['has_label']:
+        found.append('label')
+    if details['has_source']:
+        found.append('source')
+    reasons.append(('found '+', '.join(found)) if found else 'limited year/label/source details')
+    return 'Chosen because '+', '.join(reasons)+'.'
+
+def use_search_match(result, key_prefix='main'):
+    st.session_state['v24_autofill_listing']=result
+    st.session_state['v24_autofill_barcode']=st.session_state.get(f'v24_lookup_barcode_clean_{key_prefix}','')
+    try:
+        rid=create_or_update_how_release(st.session_state['v24_autofill_barcode'],result)
+        st.session_state['v25_release_id']=rid
+    except Exception:
+        pass
+
+def save_wrong_match_correction(result, barcode='', key_prefix='main'):
+    code=normalize_barcode(barcode) or st.session_state.get(f'v24_lookup_barcode_clean_{key_prefix}','')
+    summary=f"{safe(result.get('artist'))} - {safe(result.get('title'))} ({safe(result.get('source'))}, {safe(result.get('release_year'))})"
+    note='Seller marked Smart Search recommended match as wrong.'
+    release_id=None
+    try:
+        release_id=create_or_update_how_release(code,result,note) if code else None
+    except Exception:
+        release_id=None
+    try:
+        submit_release_correction(release_id,0,'recommended_match',summary,'Marked wrong',note)
+        return True
+    except Exception:
+        if code:
+            try:
+                create_or_update_how_release(code,result,note)
+                return True
+            except Exception:
+                return False
+        return False
+
+def render_best_match_card(best, key_prefix='main', ranked=None, artist='', title='', barcode=''):
     if not best:
         return
     st.markdown('### Recommended best match')
@@ -1499,16 +1623,43 @@ def render_best_match_card(best, key_prefix='main'):
             st.write(f"**Year:** {safe(best.get('release_year'))}")
             if safe(best.get('external_url')):
                 st.write(f"**Source URL:** {safe(best.get('external_url'))}")
+            confidence=match_confidence_label(best,artist,title)
+            st.write(f"**Confidence:** {confidence}")
             st.caption(f"Match score: {safe(best.get('_final_score')) or safe(best.get('_match_score'))}")
+            st.write(match_explanation(best,artist,title))
             if st.button('Use recommended match',key=f'use_recommended_match_{key_prefix}'):
-                st.session_state['v24_autofill_listing']=best
-                st.session_state['v24_autofill_barcode']=st.session_state.get(f'v24_lookup_barcode_clean_{key_prefix}','')
-                try:
-                    rid=create_or_update_how_release(st.session_state['v24_autofill_barcode'],best)
-                    st.session_state['v25_release_id']=rid
-                except Exception:
-                    pass
+                use_search_match(best,key_prefix)
                 st.success('Recommended match loaded into listing draft.')
+            if st.button('Mark recommended match as wrong',key=f'mark_recommended_wrong_{key_prefix}'):
+                saved=save_wrong_match_correction(best,barcode,key_prefix)
+                st.session_state[f'v25_wrong_match_{key_prefix}']=True
+                if saved:
+                    st.warning('Marked wrong and saved for House Of Wax review.')
+                else:
+                    st.warning('Marked wrong for this session. Add a manual correction if this item has no barcode yet.')
+
+    alternates=[]
+    best_key=match_identity(best)
+    for item in ranked or []:
+        if match_identity(item)!=best_key:
+            alternates.append(item)
+        if len(alternates)>=3:
+            break
+    if alternates:
+        st.markdown('### Top 3 Alternate Matches')
+        for i,item in enumerate(alternates,1):
+            with st.container(border=True):
+                c1,c2=st.columns([1,3])
+                with c1:
+                    if safe(item.get('image_url')):
+                        st.image(safe(item.get('image_url')),use_container_width=True)
+                with c2:
+                    st.write(f"**{i}. {safe(item.get('artist'))} - {safe(item.get('title'))}**")
+                    st.caption(f"{safe(item.get('source'))} • {safe(item.get('format'))} • {safe(item.get('release_year'))} • score {safe(item.get('_match_score'))}")
+                    st.write(match_explanation(item,artist,title))
+                    if st.button('Use this alternate',key=f'use_alternate_match_{key_prefix}_{i}'):
+                        use_search_match(item,key_prefix)
+                        st.success('Alternate match loaded into listing draft.')
 
 
 def show_universal_search_links(artist='', title='', barcode=''):
@@ -1611,8 +1762,6 @@ def lookup_musicbrainz_broad_search(artist='', title='', barcode=''):
     title=safe(title)
     code=normalize_barcode(barcode)
     queries=[]
-    if code:
-        queries.append(f'barcode:{code}')
     if artist and title:
         queries.extend([
             f'artist:{artist} AND release:{title}',
@@ -1623,6 +1772,8 @@ def lookup_musicbrainz_broad_search(artist='', title='', barcode=''):
         queries.extend([f'artist:{artist}', artist])
     elif title:
         queries.extend([f'release:{title}', title])
+    if code:
+        queries.append(f'barcode:{code}')
     results=[]
     seen=set()
     for q in queries:
@@ -1699,14 +1850,14 @@ def lookup_discogs_broad_search(artist='', title='', barcode=''):
     except Exception:
         token=''
     queries=[]
-    if code:
-        queries.append(code)
     if artist and title:
         queries.append(f'{artist} {title}')
     elif artist:
         queries.append(artist)
     elif title:
         queries.append(title)
+    if code:
+        queries.append(code)
     results=[]
     seen=set()
     for q in queries:
@@ -1756,19 +1907,47 @@ def lookup_discogs_broad_search(artist='', title='', barcode=''):
             break
     return results[:15]
 
+def lookup_itunes_combined_search(artist='', title='', barcode=''):
+    return lookup_itunes_text_search(artist,title,barcode)
+
+def lookup_musicbrainz_combined_search(artist='', title='', barcode=''):
+    return lookup_musicbrainz_broad_search(artist,title,barcode)
+
+def lookup_discogs_combined_search(artist='', title='', barcode=''):
+    return lookup_discogs_broad_search(artist,title,barcode)
+
 def score_release_match(result, artist='', title=''):
     artist=safe(artist).lower()
     title=safe(title).lower()
-    hay=f"{safe(result.get('artist'))} {safe(result.get('title'))}".lower()
+    result_artist=safe(result.get('artist')).lower()
+    result_title=safe(result.get('title')).lower()
+    hay=f"{result_artist} {result_title}".lower()
     score=0
+    artist_overlap=token_overlap_score(artist,result_artist)
+    title_overlap=token_overlap_score(title,result_title)
+    combined_overlap=token_overlap_score(' '.join([artist,title]).strip(),hay)
     if artist:
-        for part in artist.split():
-            if part and part in hay:
-                score+=10
+        score+=artist_overlap // 5
     if title:
-        for part in title.split():
-            if part and part in hay:
-                score+=12
+        score+=title_overlap // 4
+    if artist and title:
+        score+=combined_overlap // 3
+        if artist_overlap and title_overlap:
+            score+=35
+        elif artist_overlap and not title_overlap:
+            score-=30
+        elif title_overlap and not artist_overlap:
+            score-=15
+        else:
+            score-=40
+    elif title and not title_overlap:
+        score-=20
+    if title and artist and artist_overlap and not title_overlap:
+        score-=20
+    if artist and artist in result_artist:
+        score+=12
+    if title and title in result_title:
+        score+=18
     if safe(result.get('image_url')):
         score+=5
     if safe(result.get('release_year')):
@@ -1798,42 +1977,43 @@ def lookup_by_artist_title_with_diagnostics(artist='', title='', barcode=''):
     artist=safe(artist)
     title=safe(title)
     code=normalize_barcode(barcode)
-    diagnostics.append({'Step':'Search terms','Status':f'Artist: {artist or "blank"} | Title: {title or "blank"} | Barcode: {code or "blank"}','Details':'This broad search is used when barcode-only lookup does not find a match.'})
+    terms=combined_search_terms(artist,title,code)
+    diagnostics.append({'Step':'Combined search terms','Status':f'Artist: {artist or "blank"} | Title: {title or "blank"} | Barcode: {code or "blank"}','Details':'Artist and title are searched together first: '+(terms[0] if terms else 'no search term')})
     results=[]
 
-    # Discogs broad search first for physical music culture/collector data.
+    # Discogs combined search first for physical music culture/collector data.
     try:
-        dres=lookup_discogs_broad_search(artist,title,code)
+        dres=lookup_discogs_combined_search(artist,title,code)
         if dres:
-            diagnostics.append({'Step':'Discogs broad search','Status':f'{len(dres)} match(es)','Details':'Discogs returned release candidates. Works best when DISCOGS_TOKEN is connected.'})
+            diagnostics.append({'Step':'Discogs combined search','Status':f'{len(dres)} match(es)','Details':'Discogs returned release candidates using artist and title together. Works best when DISCOGS_TOKEN is connected.'})
             results.extend(dres)
         else:
             token_msg='connected' if discogs_token_status() else 'not connected'
-            diagnostics.append({'Step':'Discogs broad search','Status':'No match','Details':f'Discogs returned no result. Discogs token status: {token_msg}.'})
+            diagnostics.append({'Step':'Discogs combined search','Status':'No match','Details':f'Discogs returned no combined result. Discogs token status: {token_msg}.'})
     except Exception as e:
-        diagnostics.append({'Step':'Discogs broad search','Status':'Error','Details':safe(e)})
+        diagnostics.append({'Step':'Discogs combined search','Status':'Error','Details':safe(e)})
 
     # Apple/iTunes album search is reliable for popular mainstream artists and gives good cover art.
     try:
-        ares=lookup_itunes_text_search(artist,title,code)
+        ares=lookup_itunes_combined_search(artist,title,code)
         if ares:
-            diagnostics.append({'Step':'Apple/iTunes album search','Status':f'{len(ares)} match(es)','Details':'Apple/iTunes returned album candidates and artwork. Good fallback for popular artists.'})
+            diagnostics.append({'Step':'Apple/iTunes combined search','Status':f'{len(ares)} match(es)','Details':'Apple/iTunes returned album candidates and artwork using artist and title together.'})
             results.extend(ares)
         else:
-            diagnostics.append({'Step':'Apple/iTunes album search','Status':'No match','Details':'Apple/iTunes returned no album candidate for these terms.'})
+            diagnostics.append({'Step':'Apple/iTunes combined search','Status':'No match','Details':'Apple/iTunes returned no album candidate for these combined terms.'})
     except Exception as e:
-        diagnostics.append({'Step':'Apple/iTunes album search','Status':'Error','Details':safe(e)})
+        diagnostics.append({'Step':'Apple/iTunes combined search','Status':'Error','Details':safe(e)})
 
-    # MusicBrainz broad search uses multiple query styles because strict Lucene queries can miss results.
+    # MusicBrainz combined search uses multiple query styles because strict Lucene queries can miss results.
     try:
-        mbres=lookup_musicbrainz_broad_search(artist,title,code)
+        mbres=lookup_musicbrainz_combined_search(artist,title,code)
         if mbres:
-            diagnostics.append({'Step':'MusicBrainz broad search','Status':f'{len(mbres)} match(es)','Details':'MusicBrainz returned release candidates using broad query attempts.'})
+            diagnostics.append({'Step':'MusicBrainz combined search','Status':f'{len(mbres)} match(es)','Details':'MusicBrainz returned release candidates using combined query attempts.'})
             results.extend(mbres)
         else:
-            diagnostics.append({'Step':'MusicBrainz broad search','Status':'No match','Details':'MusicBrainz returned no result after broad query attempts.'})
+            diagnostics.append({'Step':'MusicBrainz combined search','Status':'No match','Details':'MusicBrainz returned no result after combined query attempts.'})
     except Exception as e:
-        diagnostics.append({'Step':'MusicBrainz broad search','Status':'Error','Details':safe(e)})
+        diagnostics.append({'Step':'MusicBrainz combined search','Status':'Error','Details':safe(e)})
 
     unique=dedupe_and_rank_results(results,artist,title)
 
@@ -2030,11 +2210,18 @@ def render_barcode_lookup_widget(key_prefix='main'):
         else:
             st.warning('Smart search could not find a strong match. Use manual seed or backup links.')
 
-    render_best_match_card(st.session_state.get(f'v25_best_match_{key_prefix}'),key_prefix)
-
-    show_barcode_diagnostics(st.session_state.get(f'v25_lookup_diagnostics_{key_prefix}',[]))
     current_artist=st.session_state.get(f'v25_search_artist_{key_prefix}','')
     current_title=st.session_state.get(f'v25_search_title_{key_prefix}','')
+    render_best_match_card(
+        st.session_state.get(f'v25_best_match_{key_prefix}'),
+        key_prefix,
+        st.session_state.get(f'v24_barcode_matches_{key_prefix}',[]),
+        current_artist,
+        current_title,
+        barcode
+    )
+
+    show_barcode_diagnostics(st.session_state.get(f'v25_lookup_diagnostics_{key_prefix}',[]))
     show_universal_search_links(current_artist,current_title,barcode)
     manual_release_seed_form(current_artist,current_title,barcode,key_prefix)
 
@@ -2223,49 +2410,153 @@ def release_database_admin():
         st.markdown('### Seller corrections')
         st.dataframe(corrections,use_container_width=True)
 
+def listing_quality_assessment(category='', artist='', title='', price=0, description='', mg='', sg='', image='', has_uploaded_photo=False, smart_confidence=''):
+    music=is_music_category(category)
+    try:
+        priced=float(price or 0)>0
+    except Exception:
+        priced=False
+    media_ok=bool(safe(mg)) and safe(mg)!='N/A'
+    sleeve_ok=bool(safe(sg)) and safe(sg)!='N/A'
+    condition_ok=media_ok or sleeve_ok
+    photo_ok=bool(safe(image)) or bool(has_uploaded_photo)
+    checks=[
+        ('Title present',bool(safe(title)),12),
+        ('Artist / brand present',bool(safe(artist)),10),
+        ('Category present',bool(safe(category)),10),
+        ('Price present',priced,10),
+        ('Description present',bool(safe(description)),12),
+        ('Condition present',condition_ok,12),
+        ('Photos present',photo_ok,12),
+    ]
+    if music:
+        checks.extend([
+            ('Media condition present',media_ok,8),
+            ('Sleeve / case condition present',sleeve_ok,6),
+            ('Release cover art may come from search; real condition photos are preferred',photo_ok,4),
+        ])
+    else:
+        checks.extend([
+            ('Exact item photos are preferred',photo_ok,10),
+            ('Official product images should only support exact item photos',photo_ok,4),
+        ])
+    if safe(smart_confidence):
+        checks.append((f'Smart Search confidence: {safe(smart_confidence)}',safe(smart_confidence) in ['Strong','Medium'],4))
+    possible=sum(weight for _,_,weight in checks)
+    earned=sum(weight for _,ok,weight in checks if ok)
+    score=int(round((earned / possible) * 100)) if possible else 0
+    if score>=80:
+        label='Strong listing'
+    elif score>=55:
+        label='Needs improvement'
+    else:
+        label='Weak listing'
+    return score,label,checks
+
+def render_listing_quality(score, label, checks, context='seller'):
+    st.write(f"**Listing Quality Score:** {score}/100 — {label}")
+    if label=='Weak listing':
+        st.warning('This listing is missing important trust details. You can save it, but review the checklist before submitting.')
+    elif label=='Needs improvement':
+        st.info('This listing can be improved before review.')
+    else:
+        st.success('This listing has strong trust signals.')
+    with st.expander('Listing quality checklist',expanded=(context=='admin')):
+        for text,ok,_ in checks:
+            st.write(('✓ ' if ok else '• Missing: ')+text)
+
+def listing_preview_card(category, artist, title, fmt, label, year, genre, mg, sg, price, qty, ship, image, description, has_uploaded_photo=False, smart_confidence='', quality_context='seller'):
+    st.markdown('#### Listing preview')
+    with st.container(border=True):
+        c1,c2=st.columns([1,2])
+        with c1:
+            if safe(image):
+                st.image(safe(image),use_container_width=True)
+            else:
+                st.info('No image selected yet.')
+        with c2:
+            heading=' - '.join([p for p in [safe(artist),safe(title)] if p]) or 'Untitled listing'
+            st.subheader(heading)
+            st.caption(f"{safe(category)} • {safe(fmt) or 'Format not set'} • {safe(year) or 'Year not set'}")
+            if safe(label):
+                st.write(f"**Label / Brand:** {safe(label)}")
+            if safe(genre):
+                st.write(f"**Genre / style:** {safe(genre)}")
+            st.write(f"**Condition:** Media/Product {safe(mg)} • Sleeve/Packaging {safe(sg)}")
+            st.write(f"**Price:** {money(price)} • **Qty:** {int(qty)} • **Shipping:** {money(ship)}")
+            st.write(safe(description,'No description yet.'))
+            score,quality_label,checks=listing_quality_assessment(category,artist,title,price,description,mg,sg,image,has_uploaded_photo,smart_confidence)
+            render_listing_quality(score,quality_label,checks,quality_context)
+
 
 def upload_product(sid,key):
     defaults=v24_listing_defaults()
-    st.markdown('### Add / upload product')
-    st.write('Use the barcode lookup first for records, CDs, and cassettes. Then review these fields before saving.')
+    st.markdown('### Guided product upload')
+    st.write('Work through each step, confirm any House Of Wax search data, add seller-specific details, then review the preview before submitting.')
+    listing_status_help()
+    if defaults:
+        source_bits=[v for v in [defaults.get('artist'),defaults.get('title'),defaults.get('label'),defaults.get('release_year')] if safe(v)]
+        if source_bits:
+            st.info('House Of Wax search/database fields are prefilled below. Review them before submitting.')
     with st.form(key):
+        st.markdown('#### Step 1: Search item')
+        st.caption('Use the Smart Search area above for records, CDs, cassettes, and known music releases. You can also enter details manually here.')
         c1,c2,c3=st.columns(3)
-        sku=c1.text_input('SKU')
-        barcode=c2.text_input('Barcode / UPC / EAN',value=defaults.get('barcode',''))
-        catalog=c3.text_input('Catalog number',value=defaults.get('catalog_number',''))
-        matrix=st.text_input('Matrix / runout')
+        barcode=c1.text_input('Barcode / UPC / EAN - from House Of Wax search or manual',value=defaults.get('barcode',''))
+        catalog=c2.text_input('Catalog number - from House Of Wax search or manual',value=defaults.get('catalog_number',''))
+        matrix=c3.text_input('Matrix / runout - seller provides when visible')
 
+        st.markdown('#### Step 2: Confirm match')
+        st.caption('These release/product identity fields may come from House Of Wax search/database. Correct anything that does not match the item.')
         c4,c5,c6=st.columns(3)
         category=c4.selectbox('Category',['Vinyl Records','CDs','Cassettes','Clothing','Music Memorabilia','Culture Goods','House Of Wax Merch','Official Drops','Slipmats & Accessories'])
-        artist=c5.text_input('Artist / Brand',value=defaults.get('artist',''))
-        title=c6.text_input('Title / Product',value=defaults.get('title',''))
-
+        artist=c5.text_input('Artist / Brand - search/database or seller corrected',value=defaults.get('artist',''))
+        title=c6.text_input('Title / Product - search/database or seller corrected',value=defaults.get('title',''))
         c7,c8,c9=st.columns(3)
         fmt_default=defaults.get('format','') or ('Vinyl' if category=='Vinyl Records' else '')
-        fmt=c7.text_input('Format',value=fmt_default)
-        label=c8.text_input('Label / Brand',value=defaults.get('label',''))
-        year=c9.text_input('Release year',value=defaults.get('release_year',''))
+        fmt=c7.text_input('Format - search/database or seller corrected',value=fmt_default)
+        label=c8.text_input('Label / Brand - search/database or seller corrected',value=defaults.get('label',''))
+        year=c9.text_input('Release year - search/database or seller corrected',value=defaults.get('release_year',''))
+        genre=st.text_input('Genre / style - search/database or seller corrected',value=defaults.get('genre',''))
+        external_release_url=st.text_input('External release URL - from House Of Wax search/database',value=defaults.get('external_url',''))
 
-        genre=st.text_input('Genre / style',value=defaults.get('genre',''))
-        mg=st.selectbox('Media/product grade',['Mint','Near Mint','VG+','VG','Good','Used','New','N/A'])
-        sg=st.selectbox('Sleeve/packaging grade',['Mint','Near Mint','VG+','VG','Good','Used','New','N/A'])
-        notes=st.text_area('Condition notes')
-        desc=st.text_area('Description')
-
+        st.markdown('#### Step 3: Add seller details')
+        st.caption('Seller-provided fields describe your actual item, price, quantity, and condition.')
+        sku=st.text_input('SKU - seller provides')
+        if is_music_category(category):
+            st.info('Music item guidance: condition should include media condition and sleeve/case condition when relevant.')
+        else:
+            st.info('Non-music item guidance: describe the exact item, size, defects, packaging, and whether it is new or used.')
+        c10,c11=st.columns(2)
+        mg=c10.selectbox('Media/product grade - seller provides',['Mint','Near Mint','VG+','VG','Good','Used','New','N/A'])
+        sg=c11.selectbox('Sleeve/packaging grade - seller provides',['Mint','Near Mint','VG+','VG','Good','Used','New','N/A'])
+        notes=st.text_area('Condition notes - seller provides')
+        desc=st.text_area('Description - seller provides or edits')
         c10,c11,c12=st.columns(3)
         price=c10.number_input('Price',min_value=0.0,step=.01)
         qty=c11.number_input('Quantity',min_value=1,value=1)
         ship=c12.number_input('Shipping price',min_value=0.0,step=.01)
 
-        st.markdown('### Product image')
+        st.markdown('#### Step 4: Add photos')
         if is_music_category(category):
-            st.info('Music item: the barcode/release image is used by default when available. You can still upload an actual item photo if you want condition proof.')
+            st.info('Music item: release cover art can come from search. Add real condition photos when possible.')
         else:
-            st.warning('Non-music item: upload or enter a real/official image for this exact item.')
-        img=st.file_uploader('Optional seller photo / exact item image',type=['png','jpg','jpeg','webp'])
-        imgurl=st.text_input('Image URL',value=defaults.get('image_url',''))
-        external_release_url=st.text_input('External release URL',value=defaults.get('external_url',''))
-        sub=st.form_submit_button('Upload product')
+            st.warning('Non-music item: use exact item photos. Official product images are okay only as supporting images.')
+        img=st.file_uploader('Seller photo / exact item image - seller provides',type=['png','jpg','jpeg','webp'])
+        imgurl=st.text_input('Image URL - search cover art or supporting official image',value=defaults.get('image_url',''))
+
+        st.markdown('#### Step 5: Preview listing')
+        preview_description=desc or f'{artist} - {title}. {notes}'
+        search_key='upload_product' if key=='normal_upload' else key
+        smart_match=st.session_state.get(f'v25_best_match_{search_key}',{})
+        smart_confidence=match_confidence_label(smart_match,artist,title) if smart_match else ''
+        listing_preview_card(category,artist,title,fmt,label,year,genre,mg,sg,price,qty,ship,imgurl,preview_description,img is not None,smart_confidence,'seller')
+
+        st.markdown('#### Step 6: Submit listing')
+        st.caption('Save as Draft if the listing is not ready. Submit for Review when it is ready for House Of Wax to check before it goes public.')
+        c13,c14=st.columns(2)
+        save_draft=c13.form_submit_button('Save as Draft')
+        submit_review=c14.form_submit_button('Submit for Review')
     release_id=st.session_state.get('v25_release_id')
     if release_id:
         with st.expander('Suggest a correction to the House Of Wax release database'):
@@ -2277,17 +2568,21 @@ def upload_product(sid,key):
                 old_val=defaults.get(field_name,'')
                 submit_release_correction(int(release_id),sid,field_name,old_val,suggested,note)
                 st.success('Correction submitted for review.')
-    if sub:
+    if save_draft or submit_review:
         saved_image=save_file(img,'product_images')
         image=saved_image or imgurl
         description=desc or f'{artist} — {title}. {notes}'
-        run("""INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(sid,sku,barcode,catalog,matrix,category,artist,title,fmt,label,year,genre,mg,sg,notes,description,float(price),int(qty),float(ship),image,'','',external_release_url,'Active','Fixed Price',now(),now()))
+        listing_status='Submitted for Review' if submit_review else 'Draft'
+        score,quality_label,_=listing_quality_assessment(category,artist,title,price,description,mg,sg,image,bool(saved_image),smart_confidence)
+        run("""INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(sid,sku,barcode,catalog,matrix,category,artist,title,fmt,label,year,genre,mg,sg,notes,description,float(price),int(qty),float(ship),image,'','',external_release_url,listing_status,'Fixed Price',now(),now()))
+        if submit_review and quality_label=='Weak listing':
+            st.warning(f'Submitted for review with a weak quality score ({score}/100). House Of Wax may request changes.')
         if is_music_category(category) and imgurl and not saved_image:
-            st.success('Product uploaded using barcode/release image.')
+            st.success(f'Listing saved as {listing_status} using barcode/release image.')
         elif not is_music_category(category) and not image:
-            st.warning('Product uploaded, but this non-music item should have an exact item or official product image before going public.')
+            st.warning(f'Listing saved as {listing_status}, but this non-music item should have an exact item or official product image before review.')
         else:
-            st.success('Product uploaded and public.')
+            st.success(f'Listing saved as {listing_status}.')
 
 
 def seller_dashboard():
@@ -2331,9 +2626,15 @@ def seller_dashboard():
                 image=save_file(img,'product_gallery') or url
                 if image: run('INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),image,cap,now())); st.success('Gallery image added.')
     with tabs[6]:
+        listing_status_help()
         prods=df('SELECT * FROM products WHERE seller_id=? ORDER BY created_at DESC',(sid,)); st.dataframe(prods,use_container_width=True)
         if not prods.empty:
-            pid=st.selectbox('Listing ID',prods['id'].tolist()); status=st.selectbox('Status',['Active','Draft','Sold','Removed'])
+            pid=st.selectbox('Listing ID',prods['id'].tolist())
+            row=prods[prods['id']==pid].iloc[0]
+            st.write(f"**Current status:** {safe(row.get('listing_status'))}")
+            if safe(row.get('reviewer_notes')):
+                st.warning('Reviewer notes: '+safe(row.get('reviewer_notes')))
+            status=st.selectbox('Seller action',['Draft','Submitted for Review','Sold','Removed'],help='Sellers can keep a listing private, submit it for House Of Wax review, or remove/sell it after review.')
             if st.button('Update listing'): run('UPDATE products SET listing_status=?,updated_at=? WHERE id=? AND seller_id=?',(status,now(),int(pid),sid)); st.success('Updated.')
     with tabs[7]:
         orders=df('SELECT o.*,b.name buyer_name,b.email buyer_email,b.rating buyer_rating FROM orders o LEFT JOIN buyers b ON o.buyer_id=b.id WHERE o.seller_id=? ORDER BY o.created_at DESC',(sid,)); st.dataframe(orders,use_container_width=True)
@@ -2359,7 +2660,7 @@ def seller_dashboard():
             if st.button('Submit public buyer feedback'): run("INSERT INTO feedback(order_id,reviewer_type,reviewer_id,reviewee_type,reviewee_id,rating,comment,public,created_at) VALUES(?,'Seller',?,'Buyer',?,?,?,'Yes',?)",(int(oid),sid,int(o['buyer_id']),int(rating),comment,now())); update_rating('Buyer',int(o['buyer_id'])); st.success('Feedback posted.')
     with tabs[13]: feedback_public('Seller',sid)
 def auctions():
-    header(); st.header('Auctions'); sid=seller_pick('auction_seller'); prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Draft')",(sid,))
+    header(); st.header('Auctions'); sid=seller_pick('auction_seller'); prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved')",(sid,))
     if not prods.empty:
         with st.form('auction'): pid=st.selectbox('Product',prods['id'].tolist()); title=st.text_input('Auction title'); start=st.number_input('Starting bid',min_value=0.0,step=1.0); end=st.text_input('End time'); sub=st.form_submit_button('Create live auction')
         if sub: run("INSERT INTO auctions(product_id,seller_id,auction_title,starting_bid,reserve_price,buy_now_price,bid_increment,start_time,end_time,status,notes,created_at) VALUES(?,?,?,?,?,?,1,?,?,'Live','',?)",(int(pid),sid,title,float(start),0,0,now(),end,now())); st.success('Auction created.')
@@ -2371,6 +2672,29 @@ def culture():
         with st.container(border=True):
             if safe(p['image_url']): st.image(safe(p['image_url']),use_container_width=True)
             st.subheader(safe(p['title'])); st.caption(f"{safe(p['category'])} • {safe(p['author'])}"); st.write(safe(p['body']))
+def listing_review_queue():
+    st.subheader('Listing Review Queue')
+    listing_status_help()
+    listings=df("""SELECT p.*,s.store_name,s.email seller_email FROM products p LEFT JOIN sellers s ON p.seller_id=s.id WHERE p.listing_status IN ('Submitted for Review','Needs Changes','Rejected','Draft') ORDER BY p.updated_at DESC,p.created_at DESC""")
+    if listings.empty:
+        st.info('No listings are waiting for review.')
+        return
+    cols=[c for c in ['id','store_name','artist','title','category','price','listing_status','reviewer_notes','created_at','updated_at'] if c in listings.columns]
+    st.dataframe(listings[cols],use_container_width=True)
+    labels=[f"{int(r.id)} | {safe(r.store_name)} | {safe(r.artist)} - {safe(r.title)} | {safe(r.listing_status)}" for _,r in listings.iterrows()]
+    pick=st.selectbox('Review listing',labels,key='listing_review_pick')
+    pid=int(pick.split('|')[0].strip())
+    row=listings[listings['id']==pid].iloc[0]
+    listing_preview_card(row.get('category'),row.get('artist'),row.get('title'),row.get('format'),row.get('label'),row.get('release_year'),row.get('genre'),row.get('media_grade'),row.get('sleeve_grade'),float(row.get('price') or 0),int(row.get('quantity') or 1),float(row.get('shipping_price') or 0),row.get('image_url'),row.get('description'),bool(safe(row.get('image_url'))),'','admin')
+    notes=st.text_area('Reviewer notes',value=safe(row.get('reviewer_notes')),key='listing_review_notes')
+    st.caption('Reviewer guidance: approve if the listing is clear and trustworthy. Mark Needs Changes if important info is missing. Reject if it looks unsafe, fake, misleading, or inappropriate.')
+    c1,c2,c3=st.columns(3)
+    if c1.button('Approve listing',key='approve_listing_review'):
+        run("UPDATE products SET listing_status='Approved',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.success('Listing approved.')
+    if c2.button('Mark Needs Changes',key='needs_changes_listing_review'):
+        run("UPDATE products SET listing_status='Needs Changes',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.warning('Listing marked Needs Changes.')
+    if c3.button('Reject listing',key='reject_listing_review'):
+        run("UPDATE products SET listing_status='Rejected',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.error('Listing rejected.')
 def admin():
     header(); st.header('Admin')
     if ADMIN_PASSWORD:
@@ -2378,22 +2702,23 @@ def admin():
         if not st.button('Enter admin'): return
         if pwd!=ADMIN_PASSWORD: st.error('Wrong password.'); return
     else: st.info('No admin password set. Testing build allows admin access.')
-    tabs=st.tabs(['Overview','Sellers','Buyers','Community tools','Reports','Cleanup'])
+    tabs=st.tabs(['Overview','Listing Review','Sellers','Buyers','Community tools','Reports','Cleanup'])
     with tabs[0]:
         if st.button('Create/repair House Of Wax Official seller'):
             sid=ensure_house_of_wax_official(); st.success(f'House Of Wax Official seller ready. Seller ID {sid}')
         c1,c2,c3,c4=st.columns(4); c1.metric('Buyers',len(table('buyers'))); c2.metric('Sellers',len(table('sellers'))); c3.metric('Products',len(table('products'))); c4.metric('Orders',len(table('orders')))
-    with tabs[1]: st.dataframe(table('sellers'),use_container_width=True)
-    with tabs[2]: st.dataframe(table('buyers'),use_container_width=True)
-    with tabs[3]:
+    with tabs[1]: listing_review_queue()
+    with tabs[2]: st.dataframe(table('sellers'),use_container_width=True)
+    with tabs[3]: st.dataframe(table('buyers'),use_container_width=True)
+    with tabs[4]:
         sid=seller_pick('adminseller'); badge=st.text_input('Badge',placeholder='Soul Specialist, Jazz Dealer, Verified Seller'); typ=st.selectbox('Badge type',['Community','Specialty','Performance','Verified'])
         if st.button('Add badge'): run("INSERT INTO seller_badges(seller_id,badge_name,badge_type,active,created_at) VALUES(?,?,?,'Yes',?)",(sid,badge,typ,now())); st.success('Badge added.')
         if st.button('Create seller spotlight culture post'):
             s=get_seller(sid); run("INSERT INTO culture_posts(title,category,author,body,image_url,status,created_at) VALUES(?,'Seller Spotlight','House Of Wax',?,?,'Published',?)",(f"Seller Spotlight: {safe(s['store_name'])}",safe(s['seller_story'],safe(s['store_bio'])),safe(s['banner_url']) or safe(s['logo_url']),now())); st.success('Spotlight created.')
         st.subheader('Messages'); st.dataframe(table('messages'),use_container_width=True); st.subheader('Feedback'); st.dataframe(table('feedback'),use_container_width=True)
-    with tabs[4]:
-        rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','orders','feedback','messages','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(rep); st.dataframe(data,use_container_width=True); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
     with tabs[5]:
+        rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','orders','feedback','messages','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(rep); st.dataframe(data,use_container_width=True); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
+    with tabs[6]:
         t=st.selectbox('Table',['buyers','sellers','products','product_gallery','orders','feedback','messages','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(t); st.dataframe(data,use_container_width=True)
         if not data.empty:
             rid=st.selectbox('Row ID',data['id'].tolist()); confirm=st.checkbox('Confirm delete')
@@ -2540,7 +2865,14 @@ def barcode_diagnostics_page():
         st.session_state['standalone_diag_matches']=ranked
         st.session_state['standalone_diag_results']=diagnostics
         st.session_state['standalone_best_match']=best
-    render_best_match_card(st.session_state.get('standalone_best_match'),'standalone_diag')
+    render_best_match_card(
+        st.session_state.get('standalone_best_match'),
+        'standalone_diag',
+        st.session_state.get('standalone_diag_matches',[]),
+        st.session_state.get('standalone_diag_artist',''),
+        st.session_state.get('standalone_diag_title',''),
+        code
+    )
 
     show_barcode_diagnostics(st.session_state.get('standalone_diag_results',[]))
     show_universal_search_links(st.session_state.get('standalone_diag_artist',''),st.session_state.get('standalone_diag_title',''),code)

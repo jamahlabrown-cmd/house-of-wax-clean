@@ -11,7 +11,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.18.2 TESTING MESSAGE CLEANUP'
+APP_VERSION='V25.19 PURCHASE REQUEST + INVENTORY STATUS SPRINT'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -64,6 +64,8 @@ def email_exists(t,email):
 LISTING_REVIEW_STATUSES=['Draft','Submitted for Review','Approved','Needs Changes','Rejected']
 PUBLIC_LISTING_STATUSES=['Active','Approved','Public']
 INQUIRY_STATUSES=['New','Seller Responded','Closed']
+PURCHASE_REQUEST_STATUSES=['New','Seller Accepted','Seller Declined','Pending Pickup/Payment','Sold','Closed']
+UNAVAILABLE_LISTING_STATUSES=['Pending Pickup/Payment','Pending','Sold']
 
 def listing_status_help():
     st.info('Draft means not public. Submitted for Review means waiting for House Of Wax. Approved/Public/Active means it can appear publicly. Needs Changes means the seller must fix something. Rejected means it should not go live.')
@@ -80,6 +82,7 @@ def setup():
     cur.execute('''CREATE TABLE IF NOT EXISTS feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER,reviewer_type TEXT,reviewer_id INTEGER,reviewee_type TEXT,reviewee_id INTEGER,rating INTEGER,comment TEXT,public TEXT DEFAULT 'Yes',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,sender_type TEXT,subject TEXT,message TEXT,status TEXT DEFAULT 'New',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS listing_inquiries(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,message TEXT,status TEXT DEFAULT 'New',created_at TEXT,updated_at TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS purchase_requests(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,fulfillment_preference TEXT,offer_price REAL DEFAULT 0,buyer_message TEXT,status TEXT DEFAULT 'New',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_followers(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,buyer_id INTEGER,created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_badges(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,badge_name TEXT,badge_type TEXT,active TEXT DEFAULT 'Yes',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS store_announcements(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,title TEXT,body TEXT,status TEXT DEFAULT 'Active',created_at TEXT)''')
@@ -628,6 +631,20 @@ def buyer_profile_public(bid):
     c1,c2,c3,c4=st.columns(4); c1.metric('Status',safe(b['status'])); c2.metric('Rating',f"{b['rating']}%"); c3.metric('Purchases',int(b['completed_purchases'] or 0)); c4.metric('Unpaid orders',int(b['unpaid_orders'] or 0))
     st.write(f"**Bio:** {safe(b['bio'],'No buyer bio yet.')}"); feedback_public('Buyer',bid)
 
+def is_public_listing(p):
+    return safe(p.get('listing_status')) in PUBLIC_LISTING_STATUSES+UNAVAILABLE_LISTING_STATUSES
+
+def is_available_listing(p):
+    return safe(p.get('listing_status')) in PUBLIC_LISTING_STATUSES
+
+def listing_availability_label(p):
+    status=safe(p.get('listing_status'))
+    if status=='Sold':
+        return 'Sold'
+    if status in ['Pending Pickup/Payment','Pending']:
+        return 'Pending'
+    return 'Available'
+
 def render_buyer_inquiry_form(p, seller, key_prefix):
     status=safe(p.get('listing_status'))
     if status not in PUBLIC_LISTING_STATUSES:
@@ -659,26 +676,65 @@ def render_buyer_inquiry_form(p, seller, key_prefix):
                 (int(p['id']),int(p['seller_id']),int(buyer_id or 0),name,contact,method,message,'New',now(),now()))
             st.success('Inquiry sent. The seller can view it inside Seller Tools.')
 
+def render_purchase_request_form(p, key_prefix):
+    if not is_available_listing(p):
+        st.info('Purchase requests are available only while a listing is available.')
+        return
+    known_buyers=table('buyers')
+    buyer_id=0
+    buyer_name=''
+    buyer_contact=''
+    if not known_buyers.empty:
+        use_buyer=st.checkbox('Use an existing buyer profile',value=False,key=f'purchase_existing_buyer_{key_prefix}')
+        if use_buyer:
+            buyer_id=buyer_pick(f'purchase_buyer_{key_prefix}')
+            buyer=get_buyer(buyer_id)
+            if buyer is not None:
+                buyer_name=safe(buyer.get('name'))
+                buyer_contact=safe(buyer.get('email')) or safe(buyer.get('phone'))
+    with st.form(f'purchase_request_form_{key_prefix}'):
+        name=st.text_input('Buyer name',value=buyer_name,key=f'purchase_name_{key_prefix}')
+        contact=st.text_input('Buyer email or phone',value=buyer_contact,key=f'purchase_contact_{key_prefix}')
+        method=st.selectbox('Preferred contact method',['Email','Phone','Text message','House Of Wax message'],key=f'purchase_method_{key_prefix}')
+        fulfillment=st.selectbox('Pickup or shipping preference',['Shipping','Local pickup','Either / discuss with seller'],key=f'purchase_fulfillment_{key_prefix}')
+        offer=st.number_input('Optional offer price',min_value=0.0,step=1.0,value=0.0,key=f'purchase_offer_{key_prefix}')
+        message=st.text_area('Buyer message',key=f'purchase_message_{key_prefix}',placeholder='Confirm availability, shipping/pickup details, or make an offer.')
+        sub=st.form_submit_button('Send purchase request')
+    if sub:
+        if not safe(name) or not safe(contact):
+            st.warning('Add your name and contact info before sending a purchase request.')
+        else:
+            run('''INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,preferred_contact_method,fulfillment_preference,offer_price,buyer_message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',
+                (int(p['id']),int(p['seller_id']),int(buyer_id or 0),name,contact,method,fulfillment,float(offer or 0),message,'New',now(),now()))
+            st.success('Purchase request sent. The seller can review it inside Seller Tools.')
+
 def product_card(p):
     with st.container(border=True):
         seller=get_seller(int(p['seller_id'])) if safe(p.get('seller_id')) else None
         if safe(p['image_url']): st.image(safe(p['image_url']),use_container_width=True)
         else: st.markdown('### 🎵')
         st.subheader(f"{safe(p['artist'])} — {safe(p['title'])}"); st.caption(f"{safe(p['category'])} • {safe(p['format'])} • Barcode: {safe(p['barcode'],'none')}"); st.write(f"**Price:** {money(p['price'])}")
+        status_label=listing_availability_label(p)
+        if status_label!='Available':
+            st.warning(status_label)
         if seller is not None:
             st.caption('Seller: '+safe(seller.get('store_name')))
             render_seller_trust_badges(int(seller.get('id')),'public')
-        if safe(p.get('listing_status')) in PUBLIC_LISTING_STATUSES:
+        if is_available_listing(p):
             st.caption('Questions before buying? Contact the seller through House Of Wax.')
             if st.button('Contact Seller / Ask About This Item',key=f"ask_item_{int(p['id'])}",use_container_width=True):
                 st.session_state['product_id']=int(p['id'])
                 st.session_state[f'open_inquiry_{int(p["id"])}']=True
                 st.rerun()
+            if st.button('Request to Buy',key=f"buy_request_item_{int(p['id'])}",use_container_width=True):
+                st.session_state['product_id']=int(p['id'])
+                st.session_state[f'open_purchase_{int(p["id"])}']=True
+                st.rerun()
         if st.button('View item',key=f"item_{int(p['id'])}",use_container_width=True): st.session_state['product_id']=int(p['id']); st.rerun()
 def seller_profile(sid):
     s=get_seller(sid)
     if s is None: st.error('Seller not found.'); return
-    if st.button('← Back'): st.session_state.pop('seller_id',None); st.rerun()
+    if st.button('← Back to marketplace'): st.session_state.pop('seller_id',None); st.rerun()
     if safe(s['banner_url']): st.image(safe(s['banner_url']),use_container_width=True)
     col1,col2=st.columns([1,4])
     with col1:
@@ -723,7 +779,7 @@ def seller_profile(sid):
         if safe(p.get('local_pickup_policy')): st.write('**Pickup / meetups:** '+safe(p.get('local_pickup_policy')))
     st.subheader('Public seller feedback'); feedback_public('Seller',sid)
     st.subheader('Public inventory')
-    prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved','Public') ORDER BY created_at DESC",(sid,))
+    prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved','Public','Pending Pickup/Payment','Pending','Sold') ORDER BY created_at DESC",(sid,))
     if prods.empty: st.info('No inventory yet.')
     else:
         cols=st.columns(3)
@@ -733,7 +789,8 @@ def product_detail(pid):
     r=df('SELECT * FROM products WHERE id=?',(int(pid),))
     if r.empty: st.error('Product missing.'); st.session_state.pop('product_id',None); return
     p=r.iloc[0]; s=get_seller(int(p['seller_id']))
-    is_public=safe(p.get('listing_status')) in PUBLIC_LISTING_STATUSES
+    is_public=is_public_listing(p)
+    is_available=is_available_listing(p)
     if st.button('← Back to marketplace'): st.session_state.pop('product_id',None); st.rerun()
     l,rcol=st.columns([1.2,1])
     with l:
@@ -746,27 +803,39 @@ def product_detail(pid):
                 if safe(g['image_url']): st.image(safe(g['image_url']),caption=safe(g['caption']),use_container_width=True)
     with rcol:
         st.title(f"{safe(p['artist'])} — {safe(p['title'])}"); st.write('**Price:** '+money(p['price'])); st.write('**Shipping:** '+money(p['shipping_price']))
+        status_label=listing_availability_label(p)
+        if status_label!='Available':
+            st.warning(status_label)
         for label,col in [('Category','category'),('Format','format'),('Label','label'),('Release year','release_year'),('Barcode / UPC / EAN','barcode'),('Catalog #','catalog_number'),('Matrix / runout','matrix_runout'),('Condition','media_grade')]: st.write(f"**{label}:** {safe(p[col],'Not listed')}")
         if s is not None:
             st.write('**Seller:** '+safe(s.get('store_name')))
             render_seller_trust_badges(int(s['id']),'public')
-            if is_public:
+            if is_available:
                 st.caption('Questions before buying? Contact the seller through House Of Wax.')
                 if st.button('Contact Seller / Ask About This Item',key=f'detail_ask_top_{pid}',use_container_width=True):
                     st.session_state[f'open_inquiry_{pid}']=True
+                    st.rerun()
+                if st.button('Request to Buy',key=f'detail_purchase_top_{pid}',use_container_width=True):
+                    st.session_state[f'open_purchase_{pid}']=True
                     st.rerun()
             if st.button('View seller public profile'): st.session_state['seller_id']=int(s['id']); st.session_state.pop('product_id',None); st.rerun()
     st.subheader('Description'); st.write(safe(p['description'],'No description.'))
     st.divider(); st.subheader('Buyer actions')
     if not is_public:
-        st.info('Buyer inquiry tools appear only for Approved, Active, or Public listings.')
+        st.info('Buyer actions appear only for public marketplace listings.')
         return
-    st.session_state.pop(f'open_inquiry_{pid}',False)
-    with st.expander('Ask About This Item / Contact Seller',expanded=True):
-        render_buyer_inquiry_form(p,s,f'product_{pid}')
+    if is_available:
+        st.session_state.pop(f'open_inquiry_{pid}',False)
+        with st.expander('Ask About This Item / Contact Seller',expanded=True):
+            render_buyer_inquiry_form(p,s,f'product_{pid}')
+        purchase_expanded=bool(st.session_state.pop(f'open_purchase_{pid}',False))
+        with st.expander('Request to Buy',expanded=purchase_expanded):
+            render_purchase_request_form(p,f'product_{pid}')
+    else:
+        st.info(f"This listing is {listing_availability_label(p).lower()}, so public buyer actions are turned off.")
     bid=buyer_pick(f'buy{pid}')
-    with st.expander('Request to buy / message seller',expanded=True):
-        action=st.selectbox('Action',['Request to Buy','Ask a Question','Make Offer'],key=f'act{pid}'); msg=st.text_area('Message',key=f'msg{pid}')
+    with st.expander('Message seller',expanded=False):
+        action=st.selectbox('Action',['Ask a Question','Make Offer'],key=f'act{pid}'); msg=st.text_area('Message',key=f'msg{pid}')
         if st.button('Send to seller',key=f'send{pid}'):
             total=float(p['price'] or 0)+float(p['shipping_price'] or 0); pf=fee(total)
             run('''INSERT INTO orders(product_id,seller_id,buyer_id,order_type,status,item_price,shipping_price,platform_fee,seller_payout,buyer_message,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',(pid,int(p['seller_id']),bid,action,'New',float(p['price'] or 0),float(p['shipping_price'] or 0),pf,total-pf,msg,now(),now()))
@@ -1213,14 +1282,14 @@ def marketplace():
     st.write('Browse everything available on House Of Wax: independent seller inventory, House Of Wax Official items, branded merchandise, records, cassettes, CDs, posters, clothing, memorabilia, and culture goods.')
     if 'seller_id' in st.session_state: seller_profile(int(st.session_state['seller_id'])); return
     if 'product_id' in st.session_state: product_detail(int(st.session_state['product_id'])); return
-    prods=df("SELECT * FROM products WHERE listing_status IN ('Active','Approved','Public') ORDER BY created_at DESC")
+    prods=df("SELECT * FROM products WHERE listing_status IN ('Active','Approved','Public','Pending Pickup/Payment','Pending','Sold') ORDER BY created_at DESC")
     if prods.empty:
         all_products=table('products')
         if all_products.empty:
             st.info('No inventory yet. Use Seller Tools to create a listing, then submit it for review and approve it before it appears publicly.')
         else:
             statuses=', '.join([f"{safe(k)}: {int(v)}" for k,v in all_products['listing_status'].fillna('Blank').value_counts().items()])
-            st.info('Buyer inquiry buttons appear only on Approved, Active, or Public marketplace listings. Current non-public listing statuses: '+safe(statuses,'none'))
+            st.info('Buyer actions appear only on Approved, Active, Public, Pending, or Sold marketplace listings. Current non-public listing statuses: '+safe(statuses,'none'))
             st.write('To make the button appear: open My House of Wax, turn on Testing mode, open Admin, approve a submitted listing in Listing Review, then return to Marketplace.')
         return
     q=st.text_input('Search title, artist, barcode, catalog, category')
@@ -2805,6 +2874,92 @@ def admin_inquiry_view():
     if st.button('Mark Inquiry Closed',key=f'admin_inquiry_closed_{iid}'):
         run("UPDATE listing_inquiries SET status='Closed',updated_at=? WHERE id=?",(now(),iid)); st.success('Inquiry closed.')
 
+def update_purchase_request_status(request_id, status, seller_id=None):
+    if seller_id is None:
+        req=df('SELECT product_id FROM purchase_requests WHERE id=?',(int(request_id),))
+        run('UPDATE purchase_requests SET status=?,updated_at=? WHERE id=?',(status,now(),int(request_id)))
+    else:
+        req=df('SELECT product_id FROM purchase_requests WHERE id=? AND seller_id=?',(int(request_id),int(seller_id)))
+        run('UPDATE purchase_requests SET status=?,updated_at=? WHERE id=? AND seller_id=?',(status,now(),int(request_id),int(seller_id)))
+    if not req.empty:
+        pid=int(req.iloc[0]['product_id'])
+        if status=='Pending Pickup/Payment':
+            run("UPDATE products SET listing_status='Pending Pickup/Payment',updated_at=? WHERE id=?",(now(),pid))
+        elif status=='Sold':
+            run("UPDATE products SET listing_status='Sold',updated_at=? WHERE id=?",(now(),pid))
+
+def seller_purchase_request_view(sid):
+    st.subheader('Purchase requests')
+    st.info('Purchase requests are separate from general buyer inquiries. Use these statuses to manage availability before payment/pickup/shipping is finalized.')
+    requests=df("""SELECT pr.*,p.artist,p.title,p.category,p.listing_status,p.price FROM purchase_requests pr LEFT JOIN products p ON pr.product_id=p.id WHERE pr.seller_id=? ORDER BY pr.created_at DESC""",(sid,))
+    if requests.empty:
+        st.info('No purchase requests yet.')
+        return
+    status_filter=st.selectbox('Purchase request status filter',['All']+PURCHASE_REQUEST_STATUSES,key='seller_purchase_status_filter')
+    shown=requests if status_filter=='All' else requests[requests['status']==status_filter]
+    cols=[c for c in ['id','artist','title','buyer_name','buyer_contact','fulfillment_preference','offer_price','buyer_message','status','listing_status','created_at'] if c in shown.columns]
+    st.dataframe(shown[cols],use_container_width=True)
+    if shown.empty:
+        st.info('No purchase requests match that status.')
+        return
+    labels=[f"{int(r.id)} | {safe(r.artist)} - {safe(r.title)} | {safe(r.buyer_name)} | {safe(r.status)}" for _,r in shown.iterrows()]
+    pick=st.selectbox('Open purchase request',labels,key='seller_purchase_pick')
+    rid=int(pick.split('|')[0].strip())
+    row=shown[shown['id']==rid].iloc[0]
+    with st.container(border=True):
+        st.write(f"**Listing:** {safe(row.get('artist'))} - {safe(row.get('title'))}")
+        st.write(f"**Listing status:** {safe(row.get('listing_status'))}")
+        st.write(f"**Buyer:** {safe(row.get('buyer_name'))}")
+        st.write(f"**Buyer contact:** {safe(row.get('buyer_contact'))}")
+        st.write(f"**Preferred contact method:** {safe(row.get('preferred_contact_method'))}")
+        st.write(f"**Pickup/shipping:** {safe(row.get('fulfillment_preference'))}")
+        st.write(f"**Offer:** {money(row.get('offer_price')) if float(row.get('offer_price') or 0)>0 else 'No offer entered'}")
+        st.write(f"**Message:** {safe(row.get('buyer_message'),'No message.')}")
+        st.caption(f"Request status: {safe(row.get('status'))} • Received {safe(row.get('created_at'))}")
+    c1,c2,c3,c4,c5=st.columns(5)
+    if c1.button('Mark Seller Accepted',key=f'seller_purchase_accept_{rid}'):
+        update_purchase_request_status(rid,'Seller Accepted',sid); st.success('Purchase request accepted.')
+    if c2.button('Mark Seller Declined',key=f'seller_purchase_decline_{rid}'):
+        update_purchase_request_status(rid,'Seller Declined',sid); st.warning('Purchase request declined.')
+    if c3.button('Mark Pending Pickup/Payment',key=f'seller_purchase_pending_{rid}'):
+        update_purchase_request_status(rid,'Pending Pickup/Payment',sid); st.warning('Listing marked Pending.')
+    if c4.button('Mark Sold',key=f'seller_purchase_sold_{rid}'):
+        update_purchase_request_status(rid,'Sold',sid); st.success('Listing marked Sold.')
+    if c5.button('Mark Closed',key=f'seller_purchase_closed_{rid}'):
+        update_purchase_request_status(rid,'Closed',sid); st.success('Purchase request closed.')
+
+def admin_purchase_request_view():
+    st.subheader('Purchase Request Review')
+    requests=df("""SELECT pr.*,p.artist,p.title,p.listing_status,s.store_name FROM purchase_requests pr LEFT JOIN products p ON pr.product_id=p.id LEFT JOIN sellers s ON pr.seller_id=s.id ORDER BY pr.created_at DESC""")
+    if requests.empty:
+        st.info('No purchase requests yet.')
+        return
+    status_filter=st.selectbox('Purchase request status filter',['All']+PURCHASE_REQUEST_STATUSES,key='admin_purchase_status_filter')
+    shown=requests if status_filter=='All' else requests[requests['status']==status_filter]
+    cols=[c for c in ['id','store_name','artist','title','buyer_name','buyer_contact','fulfillment_preference','offer_price','status','listing_status','created_at'] if c in shown.columns]
+    st.dataframe(shown[cols],use_container_width=True)
+    c1,c2=st.columns(2)
+    c1.metric('Pending listings',len(df("SELECT id FROM products WHERE listing_status IN ('Pending Pickup/Payment','Pending')")))
+    c2.metric('Sold listings',len(df("SELECT id FROM products WHERE listing_status='Sold'")))
+    if shown.empty:
+        st.info('No purchase requests match that status.')
+        return
+    labels=[f"{int(r.id)} | {safe(r.store_name)} | {safe(r.artist)} - {safe(r.title)} | {safe(r.status)}" for _,r in shown.iterrows()]
+    pick=st.selectbox('Open purchase request',labels,key='admin_purchase_pick')
+    rid=int(pick.split('|')[0].strip())
+    row=shown[shown['id']==rid].iloc[0]
+    with st.container(border=True):
+        st.write(f"**Seller:** {safe(row.get('store_name'))}")
+        st.write(f"**Listing:** {safe(row.get('artist'))} - {safe(row.get('title'))}")
+        st.write(f"**Listing status:** {safe(row.get('listing_status'))}")
+        st.write(f"**Buyer:** {safe(row.get('buyer_name'))} • {safe(row.get('buyer_contact'))}")
+        st.write(f"**Pickup/shipping:** {safe(row.get('fulfillment_preference'))}")
+        st.write(f"**Offer:** {money(row.get('offer_price')) if float(row.get('offer_price') or 0)>0 else 'No offer entered'}")
+        st.write(f"**Message:** {safe(row.get('buyer_message'),'No message.')}")
+        st.caption(f"Request status: {safe(row.get('status'))} • Received {safe(row.get('created_at'))}")
+    if st.button('Mark Purchase Request Closed',key=f'admin_purchase_closed_{rid}'):
+        update_purchase_request_status(rid,'Closed'); st.success('Purchase request closed.')
+
 
 def seller_dashboard():
     header(); st.header('Seller dashboard')
@@ -2813,7 +2968,7 @@ def seller_dashboard():
     else:
         email=st.text_input('Seller email',value='seller@test.com'); code=st.text_input('Access code',value='test123',type='password'); r=df('SELECT * FROM sellers WHERE lower(email)=lower(?) AND access_code=?',(email.strip(),code)); sid=ensure_seller() if r.empty else int(r.iloc[0]['id'])
     s=get_seller(sid); st.success(f"Loaded seller: {safe(s['store_name'])} | {safe(s['email'])}")
-    tabs=st.tabs(['Store profile','Policies','Upload product','Barcode scanner','Bulk import','Gallery','Listings','Inquiries','Orders','Messages','Announcements','Events/drops','Badges','Leave buyer feedback','Public feedback'])
+    tabs=st.tabs(['Store profile','Policies','Upload product','Barcode scanner','Bulk import','Gallery','Listings','Inquiries','Purchase requests','Orders','Messages','Announcements','Events/drops','Badges','Leave buyer feedback','Public feedback'])
     with tabs[0]:
         st.subheader('Seller profile')
         st.write('These optional details help buyers understand who they are buying from. Private email and phone are not shown publicly.')
@@ -2865,11 +3020,13 @@ def seller_dashboard():
             st.write(f"**Current status:** {safe(row.get('listing_status'))}")
             if safe(row.get('reviewer_notes')):
                 st.warning('Reviewer notes: '+safe(row.get('reviewer_notes')))
-            status=st.selectbox('Seller action',['Draft','Submitted for Review','Sold','Removed'],help='Sellers can keep a listing private, submit it for House Of Wax review, or remove/sell it after review.')
+            status=st.selectbox('Seller action',['Draft','Submitted for Review','Pending Pickup/Payment','Sold','Removed'],help='Sellers can keep a listing private, submit it for House Of Wax review, mark it pending, or remove/sell it after review.')
             if st.button('Update listing'): run('UPDATE products SET listing_status=?,updated_at=? WHERE id=? AND seller_id=?',(status,now(),int(pid),sid)); st.success('Updated.')
     with tabs[7]:
         seller_inquiry_view(sid)
     with tabs[8]:
+        seller_purchase_request_view(sid)
+    with tabs[9]:
         orders=df('SELECT o.*,b.name buyer_name,b.email buyer_email,b.rating buyer_rating FROM orders o LEFT JOIN buyers b ON o.buyer_id=b.id WHERE o.seller_id=? ORDER BY o.created_at DESC',(sid,)); st.dataframe(orders,use_container_width=True)
         if not orders.empty:
             bids=orders['buyer_id'].dropna().astype(int).unique().tolist(); bp=st.selectbox('View buyer public trust profile',bids); buyer_profile_public(int(bp)); oid=st.selectbox('Order ID',orders['id'].tolist()); status=st.selectbox('Order status',['New','Contacted','Invoice Sent','Paid','Shipped','Completed','Cancelled','Disputed'])
@@ -2877,21 +3034,21 @@ def seller_dashboard():
                 run('UPDATE orders SET status=?,updated_at=? WHERE id=? AND seller_id=?',(status,now(),int(oid),sid))
                 if status=='Completed': row=orders[orders['id']==oid].iloc[0]; run('UPDATE sellers SET completed_sales=completed_sales+1 WHERE id=?',(sid,)); run('UPDATE buyers SET completed_purchases=completed_purchases+1 WHERE id=?',(int(row['buyer_id']),))
                 st.success('Order updated.')
-    with tabs[9]: st.dataframe(df('SELECT * FROM messages WHERE seller_id=? ORDER BY created_at DESC',(sid,)),use_container_width=True)
-    with tabs[10]:
+    with tabs[10]: st.dataframe(df('SELECT * FROM messages WHERE seller_id=? ORDER BY created_at DESC',(sid,)),use_container_width=True)
+    with tabs[11]:
         with st.form('ann'): title=st.text_input('Announcement title'); body=st.text_area('Announcement body'); sub=st.form_submit_button('Post announcement')
         if sub: run("INSERT INTO store_announcements(seller_id,title,body,status,created_at) VALUES(?,?,?,'Active',?)",(sid,title,body,now())); st.success('Posted.')
         st.dataframe(df('SELECT * FROM store_announcements WHERE seller_id=?',(sid,)),use_container_width=True)
-    with tabs[11]:
+    with tabs[12]:
         with st.form('ev'): title=st.text_input('Drop/event title'); typ=st.selectbox('Type',['Record Drop','Auction Drop','Sale','Live Event','Other']); date=st.text_input('Date/time'); desc=st.text_area('Description'); sub=st.form_submit_button('Save event')
         if sub: run("INSERT INTO seller_events(seller_id,event_title,event_type,event_date,description,status,created_at) VALUES(?,?,?,?,?,'Active',?)",(sid,title,typ,date,desc,now())); st.success('Saved.')
-    with tabs[12]: st.write(badges(sid) or 'No badges yet.'); st.dataframe(df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),use_container_width=True)
-    with tabs[13]:
+    with tabs[13]: st.write(badges(sid) or 'No badges yet.'); st.dataframe(df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),use_container_width=True)
+    with tabs[14]:
         orders=df("SELECT * FROM orders WHERE seller_id=? AND status='Completed'",(sid,)); st.dataframe(orders,use_container_width=True)
         if not orders.empty:
             oid=st.selectbox('Completed order',orders['id'].tolist(),key='sellerfb'); o=orders[orders['id']==oid].iloc[0]; rating=st.slider('Buyer rating',1,5,5); comment=st.text_area('Public buyer feedback')
             if st.button('Submit public buyer feedback'): run("INSERT INTO feedback(order_id,reviewer_type,reviewer_id,reviewee_type,reviewee_id,rating,comment,public,created_at) VALUES(?,'Seller',?,'Buyer',?,?,?,'Yes',?)",(int(oid),sid,int(o['buyer_id']),int(rating),comment,now())); update_rating('Buyer',int(o['buyer_id'])); st.success('Feedback posted.')
-    with tabs[14]: feedback_public('Seller',sid)
+    with tabs[15]: feedback_public('Seller',sid)
 def auctions():
     header(); st.header('Auctions'); sid=seller_pick('auction_seller'); prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved','Public')",(sid,))
     if not prods.empty:
@@ -2939,25 +3096,26 @@ def admin():
         if not st.button('Enter admin'): return
         if pwd!=ADMIN_PASSWORD: st.error('Wrong password.'); return
     else: st.info('No admin password set. Testing build allows admin access.')
-    tabs=st.tabs(['Overview','Listing Review','Inquiries','Sellers','Buyers','Community tools','Reports','Cleanup'])
+    tabs=st.tabs(['Overview','Listing Review','Inquiries','Purchase Requests','Sellers','Buyers','Community tools','Reports','Cleanup'])
     with tabs[0]:
         if st.button('Create/repair House Of Wax Official seller'):
             sid=ensure_house_of_wax_official(); st.success(f'House Of Wax Official seller ready. Seller ID {sid}')
         c1,c2,c3,c4=st.columns(4); c1.metric('Buyers',len(table('buyers'))); c2.metric('Sellers',len(table('sellers'))); c3.metric('Products',len(table('products'))); c4.metric('Orders',len(table('orders')))
     with tabs[1]: listing_review_queue()
     with tabs[2]: admin_inquiry_view()
-    with tabs[3]: st.dataframe(table('sellers'),use_container_width=True)
-    with tabs[4]: st.dataframe(table('buyers'),use_container_width=True)
-    with tabs[5]:
+    with tabs[3]: admin_purchase_request_view()
+    with tabs[4]: st.dataframe(table('sellers'),use_container_width=True)
+    with tabs[5]: st.dataframe(table('buyers'),use_container_width=True)
+    with tabs[6]:
         sid=seller_pick('adminseller'); badge=st.text_input('Badge',placeholder='Soul Specialist, Jazz Dealer, Verified Seller'); typ=st.selectbox('Badge type',['Community','Specialty','Performance','Verified'])
         if st.button('Add badge'): run("INSERT INTO seller_badges(seller_id,badge_name,badge_type,active,created_at) VALUES(?,?,?,'Yes',?)",(sid,badge,typ,now())); st.success('Badge added.')
         if st.button('Create seller spotlight culture post'):
             s=get_seller(sid); run("INSERT INTO culture_posts(title,category,author,body,image_url,status,created_at) VALUES(?,'Seller Spotlight','House Of Wax',?,?,'Published',?)",(f"Seller Spotlight: {safe(s['store_name'])}",safe(s['seller_story'],safe(s['store_bio'])),safe(s['banner_url']) or safe(s['logo_url']),now())); st.success('Spotlight created.')
         st.subheader('Messages'); st.dataframe(table('messages'),use_container_width=True); st.subheader('Feedback'); st.dataframe(table('feedback'),use_container_width=True)
-    with tabs[6]:
-        rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(rep); st.dataframe(data,use_container_width=True); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
     with tabs[7]:
-        t=st.selectbox('Table',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(t); st.dataframe(data,use_container_width=True)
+        rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(rep); st.dataframe(data,use_container_width=True); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
+    with tabs[8]:
+        t=st.selectbox('Table',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(t); st.dataframe(data,use_container_width=True)
         if not data.empty:
             rid=st.selectbox('Row ID',data['id'].tolist()); confirm=st.checkbox('Confirm delete')
             if st.button('Delete row') and confirm: run(f'DELETE FROM {t} WHERE id=?',(int(rid),)); st.success('Deleted.')
@@ -3173,6 +3331,11 @@ def app_mode():
 testing_mode=app_mode()
 st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub, Sell on House Of Wax. Accounts/tools: My House of Wax.')
 menu=st.sidebar.radio('House Of Wax',['Home','Marketplace','Knowledge Hub','Sell on House Of Wax','About','Trust & Safety','Contact / Newsletter','My House of Wax'])
+if menu=='Marketplace' and ('seller_id' in st.session_state or 'product_id' in st.session_state):
+    if st.sidebar.button('Main Marketplace',key='main_marketplace_reset'):
+        st.session_state.pop('seller_id',None)
+        st.session_state.pop('product_id',None)
+        st.rerun()
 if menu=='Home': home()
 elif menu=='Marketplace': marketplace()
 elif menu=='Knowledge Hub': knowledge_hub()

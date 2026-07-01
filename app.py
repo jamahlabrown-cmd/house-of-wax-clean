@@ -11,7 +11,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.18 BUYER INQUIRY + SELLER CONTACT FLOW'
+APP_VERSION='V25.18.1 BUYER INQUIRY BUTTON VISIBILITY FIX'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -62,11 +62,11 @@ def email_exists(t,email):
     return bool(email) and not df(f'SELECT id FROM {t} WHERE lower(email)=lower(?)',(email.strip(),)).empty
 
 LISTING_REVIEW_STATUSES=['Draft','Submitted for Review','Approved','Needs Changes','Rejected']
-PUBLIC_LISTING_STATUSES=['Active','Approved']
+PUBLIC_LISTING_STATUSES=['Active','Approved','Public']
 INQUIRY_STATUSES=['New','Seller Responded','Closed']
 
 def listing_status_help():
-    st.info('Draft means not public. Submitted for Review means waiting for House Of Wax. Approved means it can appear publicly. Needs Changes means the seller must fix something. Rejected means it should not go live.')
+    st.info('Draft means not public. Submitted for Review means waiting for House Of Wax. Approved/Public/Active means it can appear publicly. Needs Changes means the seller must fix something. Rejected means it should not go live.')
 
 # ---------- Database ----------
 def setup():
@@ -535,7 +535,7 @@ def seller_profile_completion(sid):
     return score,checks
 
 def seller_quality_listing_stats(sid):
-    prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved')",(int(sid),))
+    prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved','Public')",(int(sid),))
     if prods.empty:
         return 0,0,0
     scores=[]
@@ -665,12 +665,13 @@ def product_card(p):
         if seller is not None:
             st.caption('Seller: '+safe(seller.get('store_name')))
             render_seller_trust_badges(int(seller.get('id')),'public')
-        if st.button('View item',key=f"item_{int(p['id'])}"): st.session_state['product_id']=int(p['id']); st.rerun()
         if safe(p.get('listing_status')) in PUBLIC_LISTING_STATUSES:
-            if st.button('Ask About This Item',key=f"ask_item_{int(p['id'])}"):
+            st.caption('Questions before buying? Contact the seller through House Of Wax.')
+            if st.button('Contact Seller / Ask About This Item',key=f"ask_item_{int(p['id'])}",use_container_width=True):
                 st.session_state['product_id']=int(p['id'])
                 st.session_state[f'open_inquiry_{int(p["id"])}']=True
                 st.rerun()
+        if st.button('View item',key=f"item_{int(p['id'])}",use_container_width=True): st.session_state['product_id']=int(p['id']); st.rerun()
 def seller_profile(sid):
     s=get_seller(sid)
     if s is None: st.error('Seller not found.'); return
@@ -719,7 +720,7 @@ def seller_profile(sid):
         if safe(p.get('local_pickup_policy')): st.write('**Pickup / meetups:** '+safe(p.get('local_pickup_policy')))
     st.subheader('Public seller feedback'); feedback_public('Seller',sid)
     st.subheader('Public inventory')
-    prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved') ORDER BY created_at DESC",(sid,))
+    prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved','Public') ORDER BY created_at DESC",(sid,))
     if prods.empty: st.info('No inventory yet.')
     else:
         cols=st.columns(3)
@@ -746,13 +747,19 @@ def product_detail(pid):
         if s is not None:
             st.write('**Seller:** '+safe(s.get('store_name')))
             render_seller_trust_badges(int(s['id']),'public')
+            if is_public:
+                st.caption('Questions before buying? Contact the seller through House Of Wax.')
+                if st.button('Contact Seller / Ask About This Item',key=f'detail_ask_top_{pid}',use_container_width=True):
+                    st.session_state[f'open_inquiry_{pid}']=True
+                    st.rerun()
             if st.button('View seller public profile'): st.session_state['seller_id']=int(s['id']); st.session_state.pop('product_id',None); st.rerun()
     st.subheader('Description'); st.write(safe(p['description'],'No description.'))
     st.divider(); st.subheader('Buyer actions')
     if not is_public:
-        st.info('Buyer inquiry tools appear only for approved or active public listings.')
+        st.info('Buyer inquiry tools appear only for Approved, Active, or Public listings.')
         return
-    with st.expander('Ask About This Item',expanded=bool(st.session_state.pop(f'open_inquiry_{pid}',False))):
+    st.session_state.pop(f'open_inquiry_{pid}',False)
+    with st.expander('Ask About This Item / Contact Seller',expanded=True):
         render_buyer_inquiry_form(p,s,f'product_{pid}')
     bid=buyer_pick(f'buy{pid}')
     with st.expander('Request to buy / message seller',expanded=True):
@@ -1203,8 +1210,16 @@ def marketplace():
     st.write('Browse everything available on House Of Wax: independent seller inventory, House Of Wax Official items, branded merchandise, records, cassettes, CDs, posters, clothing, memorabilia, and culture goods.')
     if 'seller_id' in st.session_state: seller_profile(int(st.session_state['seller_id'])); return
     if 'product_id' in st.session_state: product_detail(int(st.session_state['product_id'])); return
-    prods=df("SELECT * FROM products WHERE listing_status IN ('Active','Approved') ORDER BY created_at DESC")
-    if prods.empty: st.info('No inventory yet. Use Test Setup or Seller Tools.'); return
+    prods=df("SELECT * FROM products WHERE listing_status IN ('Active','Approved','Public') ORDER BY created_at DESC")
+    if prods.empty:
+        all_products=table('products')
+        if all_products.empty:
+            st.info('No inventory yet. Use Seller Tools to create a listing, then submit it for review and approve it before it appears publicly.')
+        else:
+            statuses=', '.join([f"{safe(k)}: {int(v)}" for k,v in all_products['listing_status'].fillna('Blank').value_counts().items()])
+            st.info('Buyer inquiry buttons appear only on Approved, Active, or Public marketplace listings. Current non-public listing statuses: '+safe(statuses,'none'))
+            st.write('To make the button appear: open My House of Wax, turn on Testing mode, open Admin, approve a submitted listing in Listing Review, then return to Marketplace.')
+        return
     q=st.text_input('Search title, artist, barcode, catalog, category')
     if q:
         term=q.lower(); prods=prods[prods['artist'].fillna('').str.lower().str.contains(term)|prods['title'].fillna('').str.lower().str.contains(term)|prods['barcode'].fillna('').str.lower().str.contains(term)|prods['catalog_number'].fillna('').str.lower().str.contains(term)|prods['category'].fillna('').str.lower().str.contains(term)]
@@ -2875,7 +2890,7 @@ def seller_dashboard():
             if st.button('Submit public buyer feedback'): run("INSERT INTO feedback(order_id,reviewer_type,reviewer_id,reviewee_type,reviewee_id,rating,comment,public,created_at) VALUES(?,'Seller',?,'Buyer',?,?,?,'Yes',?)",(int(oid),sid,int(o['buyer_id']),int(rating),comment,now())); update_rating('Buyer',int(o['buyer_id'])); st.success('Feedback posted.')
     with tabs[14]: feedback_public('Seller',sid)
 def auctions():
-    header(); st.header('Auctions'); sid=seller_pick('auction_seller'); prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved')",(sid,))
+    header(); st.header('Auctions'); sid=seller_pick('auction_seller'); prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved','Public')",(sid,))
     if not prods.empty:
         with st.form('auction'): pid=st.selectbox('Product',prods['id'].tolist()); title=st.text_input('Auction title'); start=st.number_input('Starting bid',min_value=0.0,step=1.0); end=st.text_input('End time'); sub=st.form_submit_button('Create live auction')
         if sub: run("INSERT INTO auctions(product_id,seller_id,auction_title,starting_bid,reserve_price,buy_now_price,bid_increment,start_time,end_time,status,notes,created_at) VALUES(?,?,?,?,?,?,1,?,?,'Live','',?)",(int(pid),sid,title,float(start),0,0,now(),end,now())); st.success('Auction created.')

@@ -10,11 +10,11 @@ House Of Wax is not just a record store. It is a marketplace, knowledge hub, tru
 
 Current target version:
 
-V25.18.1 BUYER INQUIRY BUTTON VISIBILITY FIX
+V25.18.2 TESTING MESSAGE CLEANUP
 
 The live Streamlit app must show this marker near the top of the app:
 
-Running V25.18.1 BUYER INQUIRY BUTTON VISIBILITY FIX
+Running V25.18.2 TESTING MESSAGE CLEANUP
 
 ## Critical deployment rule
 

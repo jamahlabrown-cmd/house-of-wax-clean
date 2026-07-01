@@ -11,7 +11,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.19 PURCHASE REQUEST + INVENTORY STATUS SPRINT'
+APP_VERSION='V25.20 ACCOUNT ROLES + ADMIN LOCKDOWN'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -66,9 +66,22 @@ PUBLIC_LISTING_STATUSES=['Active','Approved','Public']
 INQUIRY_STATUSES=['New','Seller Responded','Closed']
 PURCHASE_REQUEST_STATUSES=['New','Seller Accepted','Seller Declined','Pending Pickup/Payment','Sold','Closed']
 UNAVAILABLE_LISTING_STATUSES=['Pending Pickup/Payment','Pending','Sold']
+ACCOUNT_ROLES=['Buyer','Seller','Admin']
 
 def listing_status_help():
     st.info('Draft means not public. Submitted for Review means waiting for House Of Wax. Approved/Public/Active means it can appear publicly. Needs Changes means the seller must fix something. Rejected means it should not go live.')
+
+def current_account_role():
+    return st.session_state.get('account_role','Buyer')
+
+def is_admin_unlocked():
+    return current_account_role()=='Admin' or bool(st.session_state.get('testing_mode_enabled',False))
+
+def prototype_role_notice():
+    st.info('Prototype role control is active. Production launch will require real login and permission checks.')
+
+def admin_access_warning():
+    st.warning('Admin tools are visible because Testing mode/Admin mode is enabled.')
 
 # ---------- Database ----------
 def setup():
@@ -708,6 +721,25 @@ def render_purchase_request_form(p, key_prefix):
                 (int(p['id']),int(p['seller_id']),int(buyer_id or 0),name,contact,method,fulfillment,float(offer or 0),message,'New',now(),now()))
             st.success('Purchase request sent. The seller can review it inside Seller Tools.')
 
+def buyer_request_history(bid):
+    st.subheader('Buyer inquiries and purchase requests')
+    st.caption('These views show activity tied to the selected buyer profile. Requests sent without selecting a buyer profile are still delivered to the seller, but will not appear here.')
+    inquiries=df("""SELECT i.*,p.artist,p.title,p.listing_status,s.store_name FROM listing_inquiries i LEFT JOIN products p ON i.product_id=p.id LEFT JOIN sellers s ON i.seller_id=s.id WHERE i.buyer_id=? ORDER BY i.created_at DESC""",(int(bid),))
+    purchases=df("""SELECT pr.*,p.artist,p.title,p.listing_status,s.store_name FROM purchase_requests pr LEFT JOIN products p ON pr.product_id=p.id LEFT JOIN sellers s ON pr.seller_id=s.id WHERE pr.buyer_id=? ORDER BY pr.created_at DESC""",(int(bid),))
+    itab,ptab=st.tabs(['My inquiries','My purchase requests'])
+    with itab:
+        if inquiries.empty:
+            st.info('No buyer inquiries are linked to this buyer profile yet.')
+        else:
+            cols=[c for c in ['id','store_name','artist','title','preferred_contact_method','message','status','listing_status','created_at'] if c in inquiries.columns]
+            st.dataframe(inquiries[cols],use_container_width=True)
+    with ptab:
+        if purchases.empty:
+            st.info('No purchase requests are linked to this buyer profile yet.')
+        else:
+            cols=[c for c in ['id','store_name','artist','title','fulfillment_preference','offer_price','buyer_message','status','listing_status','created_at'] if c in purchases.columns]
+            st.dataframe(purchases[cols],use_container_width=True)
+
 def product_card(p):
     with st.container(border=True):
         seller=get_seller(int(p['seller_id'])) if safe(p.get('seller_id')) else None
@@ -834,13 +866,14 @@ def product_detail(pid):
     else:
         st.info(f"This listing is {listing_availability_label(p).lower()}, so public buyer actions are turned off.")
     bid=buyer_pick(f'buy{pid}')
-    with st.expander('Message seller',expanded=False):
-        action=st.selectbox('Action',['Ask a Question','Make Offer'],key=f'act{pid}'); msg=st.text_area('Message',key=f'msg{pid}')
-        if st.button('Send to seller',key=f'send{pid}'):
-            total=float(p['price'] or 0)+float(p['shipping_price'] or 0); pf=fee(total)
-            run('''INSERT INTO orders(product_id,seller_id,buyer_id,order_type,status,item_price,shipping_price,platform_fee,seller_payout,buyer_message,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',(pid,int(p['seller_id']),bid,action,'New',float(p['price'] or 0),float(p['shipping_price'] or 0),pf,total-pf,msg,now(),now()))
-            run('''INSERT INTO messages(product_id,seller_id,buyer_id,sender_type,subject,message,status,created_at) VALUES(?,?,?,?,?,?,?,?)''',(pid,int(p['seller_id']),bid,'Buyer',action,msg,'New',now()))
-            st.success('Sent. It appears in seller orders and messages.')
+    if is_available:
+        with st.expander('Message seller',expanded=False):
+            action=st.selectbox('Action',['Ask a Question','Make Offer'],key=f'act{pid}'); msg=st.text_area('Message',key=f'msg{pid}')
+            if st.button('Send to seller',key=f'send{pid}'):
+                total=float(p['price'] or 0)+float(p['shipping_price'] or 0); pf=fee(total)
+                run('''INSERT INTO orders(product_id,seller_id,buyer_id,order_type,status,item_price,shipping_price,platform_fee,seller_payout,buyer_message,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',(pid,int(p['seller_id']),bid,action,'New',float(p['price'] or 0),float(p['shipping_price'] or 0),pf,total-pf,msg,now(),now()))
+                run('''INSERT INTO messages(product_id,seller_id,buyer_id,sender_type,subject,message,status,created_at) VALUES(?,?,?,?,?,?,?,?)''',(pid,int(p['seller_id']),bid,'Buyer',action,msg,'New',now()))
+                st.success('Sent. It appears in seller orders and messages.')
     with st.expander('Report listing'):
         reason=st.selectbox('Reason',['Counterfeit / Bootleg','Misgraded','Wrong information','Spam','Other']); details=st.text_area('Details')
         if st.button('Submit report'): run("INSERT INTO listing_flags(product_id,seller_id,buyer_id,reason,details,status,created_at) VALUES(?,?,?,?,?,'Open',?)",(pid,int(p['seller_id']),bid,reason,details,now())); st.success('Report submitted.')
@@ -1311,6 +1344,7 @@ def seller_stores():
             if st.button('Open public profile',key=f"openseller{int(s['id'])}"): st.session_state['seller_id']=int(s['id']); st.rerun()
 def buyer_dashboard():
     header(); st.header('Buyer dashboard')
+    prototype_role_notice()
     mode=st.radio('Open buyer by',['Choose existing buyer','Create/open by email'],horizontal=True)
     if mode=='Choose existing buyer': bid=buyer_pick('buyerdb')
     else:
@@ -1318,20 +1352,21 @@ def buyer_dashboard():
         if st.button('Create/open buyer'): st.session_state['buyer_id']=create_buyer(email,name)
         bid=st.session_state.get('buyer_id',ensure_buyer())
     b=get_buyer(bid); st.success(f"Loaded buyer: {safe(b['name'])} | {safe(b['email'])}")
-    tabs=st.tabs(['Profile','Orders','Messages','Following','Leave seller feedback','Public feedback'])
+    tabs=st.tabs(['Profile','Inquiries / Purchase Requests','Orders','Messages','Following','Leave seller feedback','Public feedback'])
     with tabs[0]:
         with st.form('bp'):
             name=st.text_input('Name',value=safe(b['name'])); email=st.text_input('Email',value=safe(b['email'])); bio=st.text_area('Bio',value=safe(b['bio'])); sub=st.form_submit_button('Save buyer profile')
         if sub: run('UPDATE buyers SET name=?,email=?,bio=? WHERE id=?',(name,email,bio,bid)); st.success('Saved.')
-    with tabs[1]: st.dataframe(df('SELECT * FROM orders WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),use_container_width=True)
-    with tabs[2]: st.dataframe(df('SELECT * FROM messages WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),use_container_width=True)
-    with tabs[3]: st.dataframe(df('SELECT f.*,s.store_name,s.rating FROM seller_followers f LEFT JOIN sellers s ON f.seller_id=s.id WHERE f.buyer_id=?',(bid,)),use_container_width=True)
-    with tabs[4]:
+    with tabs[1]: buyer_request_history(bid)
+    with tabs[2]: st.dataframe(df('SELECT * FROM orders WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),use_container_width=True)
+    with tabs[3]: st.dataframe(df('SELECT * FROM messages WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),use_container_width=True)
+    with tabs[4]: st.dataframe(df('SELECT f.*,s.store_name,s.rating FROM seller_followers f LEFT JOIN sellers s ON f.seller_id=s.id WHERE f.buyer_id=?',(bid,)),use_container_width=True)
+    with tabs[5]:
         orders=df("SELECT * FROM orders WHERE buyer_id=? AND status='Completed' ORDER BY created_at DESC",(bid,)); st.dataframe(orders,use_container_width=True)
         if not orders.empty:
             oid=st.selectbox('Completed order',orders['id'].tolist()); o=orders[orders['id']==oid].iloc[0]; rating=st.slider('Seller rating',1,5,5); comment=st.text_area('Public seller feedback')
             if st.button('Submit public seller feedback'): run("INSERT INTO feedback(order_id,reviewer_type,reviewer_id,reviewee_type,reviewee_id,rating,comment,public,created_at) VALUES(?,'Buyer',?,'Seller',?,?,?,'Yes',?)",(int(oid),bid,int(o['seller_id']),int(rating),comment,now())); update_rating('Seller',int(o['seller_id'])); st.success('Feedback posted.')
-    with tabs[5]: buyer_profile_public(bid)
+    with tabs[6]: buyer_profile_public(bid)
 
 # ---------- V24 Barcode Lookup + Auto-Fill ----------
 MUSIC_CATEGORIES=['Vinyl Records','CDs','Cassettes']
@@ -2963,6 +2998,7 @@ def admin_purchase_request_view():
 
 def seller_dashboard():
     header(); st.header('Seller dashboard')
+    prototype_role_notice()
     mode=st.radio('Open seller by',['Choose existing seller','Email + access code'],horizontal=True)
     if mode=='Choose existing seller': sid=seller_pick('sellerdb')
     else:
@@ -3091,6 +3127,11 @@ def listing_review_queue():
         run("UPDATE products SET listing_status='Rejected',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.error('Listing rejected.')
 def admin():
     header(); st.header('Admin')
+    if not is_admin_unlocked():
+        st.error('Admin tools are locked. Switch to Admin role or turn on Testing mode to open prototype admin tools.')
+        return
+    admin_access_warning()
+    prototype_role_notice()
     if ADMIN_PASSWORD:
         pwd=st.text_input('Admin password',type='password')
         if not st.button('Enter admin'): return
@@ -3290,15 +3331,24 @@ def barcode_diagnostics_page():
 def my_house_of_wax():
     header()
     st.header('My House of Wax')
+    role=current_account_role()
     st.write('Your branded account area for buying, selling, messages, feedback, content tools, admin tools, and testing tools.')
-    st.info('For a cleaner public site, dashboards live here instead of being spread across the main navigation.')
-
-    workspace_options=['Buyer Account','Seller Tools']
-    if testing_mode:
-        workspace_options += ['Content Admin','Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
+    prototype_role_notice()
+    st.caption(f'Current role: {role}')
+    if is_admin_unlocked():
+        admin_access_warning()
+    if role=='Buyer':
+        st.info('Buyer area: Marketplace, listing details, seller questions, purchase requests, and buyer account activity.')
+        workspace_options=['Buyer Account']
+    elif role=='Seller':
+        st.info('Seller area: Seller Tools, upload product, seller profile, inquiries, purchase requests, listing status, and reviewer notes.')
+        workspace_options=['Seller Tools']
     else:
-        workspace_options += ['Content Admin']
-    section=st.radio('Choose your workspace',workspace_options)
+        st.info('Admin area: review queue, inquiry review, purchase request review, listing approvals, reports, and demo tools.')
+        workspace_options=['Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
+    if testing_mode and role!='Admin':
+        workspace_options += ['Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
+    section=st.radio('Choose your workspace',workspace_options,key='my_house_workspace')
 
     if section=='Buyer Account':
         buyer_dashboard()
@@ -3325,7 +3375,12 @@ def my_house_of_wax():
 
 def app_mode():
     # Public mode cleans the main site; testing mode exposes internal prototype tools.
-    return st.sidebar.toggle('Testing mode', value=False, help='Turn on to show prototype/admin/testing tools inside My House of Wax.')
+    role=st.sidebar.selectbox('Prototype account role',ACCOUNT_ROLES,index=ACCOUNT_ROLES.index(st.session_state.get('account_role','Buyer')),key='account_role')
+    st.sidebar.caption('Prototype role control only. Production launch will require real login and permission checks.')
+    testing=st.sidebar.toggle('Testing mode', value=False, help='Turn on to show prototype/admin/testing tools inside My House of Wax.',key='testing_mode_enabled')
+    if role=='Admin' or testing:
+        st.sidebar.warning('Admin tools are visible because Testing mode/Admin mode is enabled.')
+    return testing
 
 
 testing_mode=app_mode()

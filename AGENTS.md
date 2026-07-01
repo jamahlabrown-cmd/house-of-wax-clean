@@ -10,11 +10,11 @@ House Of Wax is not just a record store. It is a marketplace, knowledge hub, tru
 
 Current target version:
 
-V25.19 PURCHASE REQUEST + INVENTORY STATUS SPRINT
+V25.20 ACCOUNT ROLES + ADMIN LOCKDOWN
 
 The live Streamlit app must show this marker near the top of the app:
 
-Running V25.19 PURCHASE REQUEST + INVENTORY STATUS SPRINT
+Running V25.20 ACCOUNT ROLES + ADMIN LOCKDOWN
 
 ## Critical deployment rule
 

@@ -13,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.22 HOSTED DATABASE PREP + DATA SAFETY'
+APP_VERSION='V25.23 MOBILE + DESIGN POLISH'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -205,11 +205,12 @@ def setup():
     mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.18.1 testing tools active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.23 testing tools active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
-    old_announcement='V16 testing'+' build: all core options are active.'
-    if setting('announcement')==old_announcement:
-        set_setting('announcement','V25.18.1 testing tools active')
+    old_announcement='V16'+' testing build: all core options are active.'
+    old_v25_18_announcement='V25.18.1'+' testing tools active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement]:
+        set_setting('announcement','V25.23 testing tools active')
 setup()
 
 
@@ -248,7 +249,7 @@ def apply_brand_style():
     }
 
     h1, h2, h3 {
-        letter-spacing: -0.03em;
+        letter-spacing: 0;
         color: var(--how-cream) !important;
     }
 
@@ -258,7 +259,14 @@ def apply_brand_style():
 
     .block-container {
         padding-top: 1.8rem;
+        padding-left: min(5vw, 2.5rem);
+        padding-right: min(5vw, 2.5rem);
         max-width: 1180px;
+    }
+
+    [data-testid="stImage"] img {
+        border-radius: 10px;
+        object-fit: cover;
     }
 
     div[data-testid="stMetric"] {
@@ -293,6 +301,7 @@ def apply_brand_style():
         letter-spacing: .01em;
         padding: .55rem 1rem;
         box-shadow: 0 10px 30px rgba(0,0,0,.22);
+        white-space: normal;
     }
 
     .stButton > button:hover {
@@ -345,7 +354,7 @@ def apply_brand_style():
         color: var(--how-cream);
         font-size: clamp(2.5rem, 6vw, 5.2rem);
         line-height: .9;
-        letter-spacing: -.06em;
+        letter-spacing: 0;
         font-weight: 950;
         margin-bottom: .6rem;
     }
@@ -379,8 +388,41 @@ def apply_brand_style():
         color: var(--how-cream);
         font-size: 2rem;
         font-weight: 900;
-        letter-spacing: -.04em;
+        letter-spacing: 0;
         margin-bottom: .2rem;
+    }
+
+    .how-mobile-note {
+        color: rgba(246,239,227,.72);
+        font-size: .9rem;
+        line-height: 1.45;
+    }
+
+    @media (max-width: 760px) {
+        .block-container {
+            padding: 1rem .85rem 2rem .85rem;
+        }
+
+        .how-hero {
+            border-radius: 18px;
+            padding: 22px;
+        }
+
+        .how-title {
+            font-size: 2.2rem;
+            line-height: 1;
+        }
+
+        div[data-testid="column"] {
+            min-width: 100% !important;
+            width: 100% !important;
+            flex: 1 1 100% !important;
+        }
+
+        .stButton > button {
+            width: 100%;
+            min-height: 2.7rem;
+        }
     }
 
     .how-section-copy {
@@ -701,6 +743,10 @@ def listing_primary_image(p):
         return safe(gallery.iloc[0]['image_url'])
     return ''
 
+def has_listing_photos(pid):
+    gallery=listing_gallery_images(pid)
+    return not gallery.empty and gallery['image_url'].fillna('').apply(is_local_uploaded_image).any()
+
 def render_listing_photo_gallery(pid, primary_image='', context='public'):
     gallery=listing_gallery_images(pid)
     if gallery.empty:
@@ -712,7 +758,7 @@ def render_listing_photo_gallery(pid, primary_image='', context='public'):
     for i,(_,g) in enumerate(gallery.iterrows()):
         with cols[i%3]:
             if safe(g.get('image_url')):
-                st.image(safe(g.get('image_url')),caption=safe(g.get('caption'),'Supporting photo'),use_container_width=True)
+                st.image(safe(g.get('image_url')),caption=safe(g.get('caption'),'Supporting photo'),width='stretch')
 
 def render_buyer_inquiry_form(p, seller, key_prefix):
     status=safe(p.get('listing_status'))
@@ -788,46 +834,60 @@ def buyer_request_history(bid):
             st.info('No buyer inquiries are linked to this buyer profile yet.')
         else:
             cols=[c for c in ['id','store_name','artist','title','preferred_contact_method','message','status','listing_status','created_at'] if c in inquiries.columns]
-            st.dataframe(inquiries[cols],use_container_width=True)
+            st.dataframe(inquiries[cols],width='stretch')
     with ptab:
         if purchases.empty:
             st.info('No purchase requests are linked to this buyer profile yet.')
         else:
             cols=[c for c in ['id','store_name','artist','title','fulfillment_preference','offer_price','buyer_message','status','listing_status','created_at'] if c in purchases.columns]
-            st.dataframe(purchases[cols],use_container_width=True)
+            st.dataframe(purchases[cols],width='stretch')
 
 def product_card(p):
     with st.container(border=True):
         seller=get_seller(int(p['seller_id'])) if safe(p.get('seller_id')) else None
         image=listing_primary_image(p)
-        if image: st.image(image,use_container_width=True)
-        else: st.markdown('### 🎵')
-        st.subheader(f"{safe(p['artist'])} — {safe(p['title'])}"); st.caption(f"{safe(p['category'])} • {safe(p['format'])} • Barcode: {safe(p['barcode'],'none')}"); st.write(f"**Price:** {money(p['price'])}")
+        if image: st.image(image,width='stretch')
+        else: st.info('No listing image yet.')
+        title_text=' - '.join([part for part in [safe(p.get('artist')),safe(p.get('title'))] if part]) or 'Untitled listing'
+        st.subheader(title_text)
+        st.caption(f"{safe(p.get('category'))} • {safe(p.get('format')) or 'Format not set'} • Barcode: {safe(p.get('barcode'),'none')}")
         status_label=listing_availability_label(p)
-        if status_label!='Available':
-            st.warning(status_label)
+        price_col,status_col=st.columns(2)
+        price_col.metric('Price',money(p['price']))
+        if status_label=='Available':
+            status_col.success('Available')
+        elif status_label=='Pending':
+            status_col.warning(status_label)
+        elif status_label=='Sold':
+            status_col.error(status_label)
+        else:
+            status_col.info(status_label)
+        score,quality_label,_=listing_quality_assessment(safe(p.get('category')),safe(p.get('artist')),safe(p.get('title')),p.get('price'),safe(p.get('description')),safe(p.get('media_grade')),safe(p.get('sleeve_grade')),safe(p.get('image_url')),has_listing_photos(int(p['id'])),safe(p.get('smart_confidence')))
+        st.caption(f"Listing quality: {quality_label} ({score}/100)")
         if seller is not None:
             st.caption('Seller: '+safe(seller.get('store_name')))
             render_seller_trust_badges(int(seller.get('id')),'public')
         if is_available_listing(p):
             st.caption('Questions before buying? Contact the seller through House Of Wax.')
-            if st.button('Contact Seller / Ask About This Item',key=f"ask_item_{int(p['id'])}",use_container_width=True):
+            if st.button('Contact Seller / Ask About This Item',key=f"ask_item_{int(p['id'])}",width='stretch'):
                 st.session_state['product_id']=int(p['id'])
                 st.session_state[f'open_inquiry_{int(p["id"])}']=True
                 st.rerun()
-            if st.button('Request to Buy',key=f"buy_request_item_{int(p['id'])}",use_container_width=True):
+            if st.button('Request to Buy',key=f"buy_request_item_{int(p['id'])}",width='stretch'):
                 st.session_state['product_id']=int(p['id'])
                 st.session_state[f'open_purchase_{int(p["id"])}']=True
                 st.rerun()
-        if st.button('View item',key=f"item_{int(p['id'])}",use_container_width=True): st.session_state['product_id']=int(p['id']); st.rerun()
+        else:
+            st.caption('Buyer actions are hidden unless the listing is approved, public, active, and available.')
+        if st.button('View item',key=f"item_{int(p['id'])}",width='stretch'): st.session_state['product_id']=int(p['id']); st.rerun()
 def seller_profile(sid):
     s=get_seller(sid)
     if s is None: st.error('Seller not found.'); return
     if st.button('← Back to marketplace'): st.session_state.pop('seller_id',None); st.rerun()
-    if safe(s['banner_url']): st.image(safe(s['banner_url']),use_container_width=True)
+    if safe(s['banner_url']): st.image(safe(s['banner_url']),width='stretch')
     col1,col2=st.columns([1,4])
     with col1:
-        if safe(s['logo_url']): st.image(safe(s['logo_url']),use_container_width=True)
+        if safe(s['logo_url']): st.image(safe(s['logo_url']),width='stretch')
         else: st.markdown('## 🏪')
     with col2:
         st.title(safe(s['store_name'])); st.caption(f"{safe(s['seller_level'])} • Rating {s['rating']}% • Sales {s['completed_sales']} • Followers {followers(sid)}")
@@ -884,7 +944,7 @@ def product_detail(pid):
     l,rcol=st.columns([1.2,1])
     with l:
         primary_image=listing_primary_image(p)
-        if primary_image: st.image(primary_image,use_container_width=True)
+        if primary_image: st.image(primary_image,width='stretch')
         else: st.markdown('## 🎵')
         render_listing_photo_gallery(pid,primary_image,'public')
     with rcol:
@@ -898,10 +958,10 @@ def product_detail(pid):
             render_seller_trust_badges(int(s['id']),'public')
             if is_available:
                 st.caption('Questions before buying? Contact the seller through House Of Wax.')
-                if st.button('Contact Seller / Ask About This Item',key=f'detail_ask_top_{pid}',use_container_width=True):
+                if st.button('Contact Seller / Ask About This Item',key=f'detail_ask_top_{pid}',width='stretch'):
                     st.session_state[f'open_inquiry_{pid}']=True
                     st.rerun()
-                if st.button('Request to Buy',key=f'detail_purchase_top_{pid}',use_container_width=True):
+                if st.button('Request to Buy',key=f'detail_purchase_top_{pid}',width='stretch'):
                     st.session_state[f'open_purchase_{pid}']=True
                     st.rerun()
             if st.button('View seller public profile'): st.session_state['seller_id']=int(s['id']); st.session_state.pop('product_id',None); st.rerun()
@@ -985,7 +1045,7 @@ def make_social_pack(title,category,summary,body,tip):
 
 def knowledge_card(row, key_prefix='knowledge'):
     with st.container(border=True):
-        if safe(row.get('image_url')): st.image(safe(row.get('image_url')),use_container_width=True)
+        if safe(row.get('image_url')): st.image(safe(row.get('image_url')),width='stretch')
         st.subheader(safe(row.get('title')))
         st.caption(f"{safe(row.get('category'))} • {safe(row.get('level'))} • {safe(row.get('audience'))}")
         st.write(safe(row.get('summary')))
@@ -1007,7 +1067,7 @@ def knowledge_hub():
             st.session_state.pop('selected_knowledge_id',None); st.rerun()
         st.title(safe(post['title']))
         st.caption(f"{safe(post['category'])} • {safe(post['level'])} • For {safe(post['audience'])}")
-        if safe(post['image_url']): st.image(safe(post['image_url']),use_container_width=True)
+        if safe(post['image_url']): st.image(safe(post['image_url']),width='stretch')
         st.markdown('### Quick answer')
         st.write(safe(post['summary']))
         st.markdown('### Full guide')
@@ -1114,7 +1174,7 @@ def content_admin():
             run("""INSERT INTO knowledge_posts(title,category,audience,level,summary,body,house_tip,image_url,status,featured,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (title,category,audience,level,summary,body,tip,img,status,featured,now(),now()))
             st.success('Knowledge article saved.')
-        st.dataframe(table('knowledge_posts'),use_container_width=True)
+        st.dataframe(table('knowledge_posts'),width='stretch')
     with tabs[1]:
         with st.form('glossary_form'):
             term=st.text_input('Term')
@@ -1128,7 +1188,7 @@ def content_admin():
             run("""INSERT OR REPLACE INTO glossary_terms(term,category,plain_definition,why_it_matters,example,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)""",
                 (term,category,definition,why,example,status,now(),now()))
             st.success('Glossary term saved.')
-        st.dataframe(table('glossary_terms'),use_container_width=True)
+        st.dataframe(table('glossary_terms'),width='stretch')
     with tabs[2]:
         posts=table('knowledge_posts')
         if posts.empty: st.info('Create an article first.')
@@ -1146,7 +1206,7 @@ def content_admin():
                 st.success('Draft saved.')
     with tabs[3]:
         drafts=table('content_drafts')
-        st.dataframe(drafts,use_container_width=True)
+        st.dataframe(drafts,width='stretch')
         if not drafts.empty:
             did=st.selectbox('Draft ID',drafts['id'].tolist())
             status=st.selectbox('Draft status',['Draft','Ready','Posted','Archived'])
@@ -1165,11 +1225,11 @@ def content_admin():
             run("""INSERT INTO content_calendar(content_type,topic,platform,planned_date,status,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)""",
                 (ctype,topic,platform,pdate,status,notes,now(),now()))
             st.success('Calendar item saved.')
-        st.dataframe(table('content_calendar'),use_container_width=True)
+        st.dataframe(table('content_calendar'),width='stretch')
     with tabs[5]:
         rep=st.selectbox('Content report',['knowledge_posts','glossary_terms','content_drafts','content_calendar','homepage_blocks','quick_tips','did_you_know','newsletter_signups'])
         data=table(rep)
-        st.dataframe(data,use_container_width=True)
+        st.dataframe(data,width='stretch')
         st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
 
 
@@ -1312,7 +1372,7 @@ def homepage_editor():
     st.subheader('Homepage Editor')
     tabs=st.tabs(['Homepage Blocks','Quick Tips','Did You Know','Newsletter Signups'])
     with tabs[0]:
-        st.dataframe(table('homepage_blocks'),use_container_width=True)
+        st.dataframe(table('homepage_blocks'),width='stretch')
         with st.form('home_block_form'):
             bn=st.selectbox('Block',['hero','featured_story','weekly_focus','genre_spotlight','editorial_pick','newsletter'])
             title=st.text_input('Title'); sub=st.text_input('Subtitle'); body=st.text_area('Body')
@@ -1323,7 +1383,7 @@ def homepage_editor():
                 run("INSERT INTO homepage_blocks(block_name,title,subtitle,body,button_text,button_target,status,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",(bn,title,sub,body,btn,target,status,int(order),now(),now()))
                 st.success('Homepage block saved.')
     with tabs[1]:
-        st.dataframe(table('quick_tips'),use_container_width=True)
+        st.dataframe(table('quick_tips'),width='stretch')
         with st.form('tip_form'):
             tip=st.text_area('Quick tip'); cat=st.text_input('Category')
             status=st.selectbox('Status',['Active','Draft','Hidden'],key='tip_status')
@@ -1331,7 +1391,7 @@ def homepage_editor():
                 run("INSERT INTO quick_tips(tip_text,category,status,created_at,updated_at) VALUES(?,?,?,?,?)",(tip,cat,status,now(),now()))
                 st.success('Quick tip saved.')
     with tabs[2]:
-        st.dataframe(table('did_you_know'),use_container_width=True)
+        st.dataframe(table('did_you_know'),width='stretch')
         with st.form('fact_form'):
             fact=st.text_area('Fact'); cat=st.text_input('Category',key='fact_cat')
             status=st.selectbox('Status',['Active','Draft','Hidden'],key='fact_status')
@@ -1340,7 +1400,7 @@ def homepage_editor():
                 st.success('Fact saved.')
     with tabs[3]:
         data=table('newsletter_signups')
-        st.dataframe(data,use_container_width=True)
+        st.dataframe(data,width='stretch')
         if not data.empty:
             st.download_button('Download newsletter signups',data.to_csv(index=False),file_name='newsletter_signups.csv')
 
@@ -1348,7 +1408,7 @@ def test_setup():
     header(); st.header('Test setup')
     if st.button('Create/repair demo buyer, seller, and product'): st.success(f'Demo ready: buyer/seller/product IDs {seed_all()}')
     st.code('Buyer: buyer@test.com\nSeller: seller@test.com\nSeller access code: test123')
-    st.subheader('Buyers'); st.dataframe(table('buyers'),use_container_width=True); st.subheader('Sellers'); st.dataframe(table('sellers'),use_container_width=True); st.subheader('Products'); st.dataframe(table('products'),use_container_width=True)
+    st.subheader('Buyers'); st.dataframe(table('buyers'),width='stretch'); st.subheader('Sellers'); st.dataframe(table('sellers'),width='stretch'); st.subheader('Products'); st.dataframe(table('products'),width='stretch')
 def register():
     header(); st.header('Sell on House Of Wax / Create Accounts')
     st.info('House Of Wax is the platform. Independent sellers list their own inventory. House Of Wax can also sell through its official seller account for branded merch, official drops, curated goods, and platform items. Seller tools now live under My House of Wax. Before public launch, sellers should review Seller Standards and House Of Wax trust expectations.'); btab,stab=st.tabs(['Buyer','Seller store'])
@@ -1366,7 +1426,8 @@ def register():
             else: run('''INSERT INTO sellers(store_name,owner_name,email,phone,city,state,website,instagram,store_bio,seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,disputes,strikes,auction_override,access_code,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(store,owner,email,'','','','','',bio,story,spec,save_file(logo,'seller_logos'),save_file(banner,'seller_banners'),'Approved','Verified Seller',100,0,0,0,'Yes',code,now())); st.success('Seller store active.')
 def marketplace():
     header(); st.header('Marketplace')
-    st.write('Browse everything available on House Of Wax: independent seller inventory, House Of Wax Official items, branded merchandise, records, cassettes, CDs, posters, clothing, memorabilia, and culture goods.')
+    st.write('Browse approved and public House Of Wax listings from independent sellers and House Of Wax Official.')
+    st.caption('Cards show item image, price, status, seller trust signals, listing quality, and buyer actions when the item is available.')
     if 'seller_id' in st.session_state: seller_profile(int(st.session_state['seller_id'])); return
     if 'product_id' in st.session_state: product_detail(int(st.session_state['product_id'])); return
     prods=df("SELECT * FROM products WHERE listing_status IN ('Active','Approved','Public','Pending Pickup/Payment','Pending','Sold') ORDER BY created_at DESC")
@@ -1379,12 +1440,12 @@ def marketplace():
             st.info('Buyer actions appear only on Approved, Active, Public, Pending, or Sold marketplace listings. Current non-public listing statuses: '+safe(statuses,'none'))
             st.write('To make the button appear: open My House of Wax, turn on Testing mode, open Admin, approve a submitted listing in Listing Review, then return to Marketplace.')
         return
-    q=st.text_input('Search title, artist, barcode, catalog, category')
+    q=st.text_input('Search marketplace',placeholder='Title, artist, barcode, catalog, or category')
     if q:
         term=q.lower(); prods=prods[prods['artist'].fillna('').str.lower().str.contains(term)|prods['title'].fillna('').str.lower().str.contains(term)|prods['barcode'].fillna('').str.lower().str.contains(term)|prods['catalog_number'].fillna('').str.lower().str.contains(term)|prods['category'].fillna('').str.lower().str.contains(term)]
-    cols=st.columns(3)
+    cols=st.columns(2)
     for i,(_,p) in enumerate(prods.iterrows()):
-        with cols[i%3]: product_card(p)
+        with cols[i%2]: product_card(p)
 def seller_stores():
     header(); st.header('Seller stores')
     if 'seller_id' in st.session_state: seller_profile(int(st.session_state['seller_id'])); return
@@ -1392,7 +1453,7 @@ def seller_stores():
     if sellers.empty: st.info('No sellers yet.'); return
     for _,s in sellers.iterrows():
         with st.container(border=True):
-            if safe(s['banner_url']): st.image(safe(s['banner_url']),use_container_width=True)
+            if safe(s['banner_url']): st.image(safe(s['banner_url']),width='stretch')
             st.subheader(safe(s['store_name'])); st.caption(f"{safe(s['seller_level'])} • Rating {s['rating']}% • Followers {followers(int(s['id']))}"); st.write(safe(s['store_bio']))
             if badges(int(s['id'])): st.info('Badges: '+badges(int(s['id'])))
             if st.button('Open public profile',key=f"openseller{int(s['id'])}"): st.session_state['seller_id']=int(s['id']); st.rerun()
@@ -1412,11 +1473,11 @@ def buyer_dashboard():
             name=st.text_input('Name',value=safe(b['name'])); email=st.text_input('Email',value=safe(b['email'])); bio=st.text_area('Bio',value=safe(b['bio'])); sub=st.form_submit_button('Save buyer profile')
         if sub: run('UPDATE buyers SET name=?,email=?,bio=? WHERE id=?',(name,email,bio,bid)); st.success('Saved.')
     with tabs[1]: buyer_request_history(bid)
-    with tabs[2]: st.dataframe(df('SELECT * FROM orders WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),use_container_width=True)
-    with tabs[3]: st.dataframe(df('SELECT * FROM messages WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),use_container_width=True)
-    with tabs[4]: st.dataframe(df('SELECT f.*,s.store_name,s.rating FROM seller_followers f LEFT JOIN sellers s ON f.seller_id=s.id WHERE f.buyer_id=?',(bid,)),use_container_width=True)
+    with tabs[2]: st.dataframe(df('SELECT * FROM orders WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),width='stretch')
+    with tabs[3]: st.dataframe(df('SELECT * FROM messages WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),width='stretch')
+    with tabs[4]: st.dataframe(df('SELECT f.*,s.store_name,s.rating FROM seller_followers f LEFT JOIN sellers s ON f.seller_id=s.id WHERE f.buyer_id=?',(bid,)),width='stretch')
     with tabs[5]:
-        orders=df("SELECT * FROM orders WHERE buyer_id=? AND status='Completed' ORDER BY created_at DESC",(bid,)); st.dataframe(orders,use_container_width=True)
+        orders=df("SELECT * FROM orders WHERE buyer_id=? AND status='Completed' ORDER BY created_at DESC",(bid,)); st.dataframe(orders,width='stretch')
         if not orders.empty:
             oid=st.selectbox('Completed order',orders['id'].tolist()); o=orders[orders['id']==oid].iloc[0]; rating=st.slider('Seller rating',1,5,5); comment=st.text_area('Public seller feedback')
             if st.button('Submit public seller feedback'): run("INSERT INTO feedback(order_id,reviewer_type,reviewer_id,reviewee_type,reviewee_id,rating,comment,public,created_at) VALUES(?,'Buyer',?,'Seller',?,?,?,'Yes',?)",(int(oid),bid,int(o['seller_id']),int(rating),comment,now())); update_rating('Seller',int(o['seller_id'])); st.success('Feedback posted.')
@@ -1930,7 +1991,7 @@ def render_best_match_card(best, key_prefix='main', ranked=None, artist='', titl
         c1,c2=st.columns([1,2])
         with c1:
             if safe(best.get('image_url')):
-                st.image(safe(best.get('image_url')),use_container_width=True)
+                st.image(safe(best.get('image_url')),width='stretch')
             else:
                 st.info('No image returned.')
         with c2:
@@ -1971,7 +2032,7 @@ def render_best_match_card(best, key_prefix='main', ranked=None, artist='', titl
                 c1,c2=st.columns([1,3])
                 with c1:
                     if safe(item.get('image_url')):
-                        st.image(safe(item.get('image_url')),use_container_width=True)
+                        st.image(safe(item.get('image_url')),width='stretch')
                 with c2:
                     st.write(f"**{i}. {safe(item.get('artist'))} - {safe(item.get('title'))}**")
                     st.caption(f"{safe(item.get('source'))} • {safe(item.get('format'))} • {safe(item.get('release_year'))} • score {safe(item.get('_match_score'))}")
@@ -2000,7 +2061,7 @@ def render_source_health_panel(key_prefix='main'):
         if st.button('Run source health check',key=f'source_health_check_button_{key_prefix}'):
             st.session_state[f'source_health_results_{key_prefix}']=quick_source_health_check()
         if st.session_state.get(f'source_health_results_{key_prefix}'):
-            st.dataframe(pd.DataFrame(st.session_state[f'source_health_results_{key_prefix}']),use_container_width=True)
+            st.dataframe(pd.DataFrame(st.session_state[f'source_health_results_{key_prefix}']),width='stretch')
         st.caption('If Apple/iTunes and MusicBrainz show connection errors, the app cannot reach outside APIs from the deployed environment. In that case use the manual links and internal House Of Wax database workflow.')
 
 def manual_release_seed_form(artist='', title='', barcode='', key_prefix='main'):
@@ -2431,7 +2492,7 @@ def lookup_barcode_with_diagnostics(barcode):
 def show_barcode_diagnostics(diagnostics):
     if diagnostics:
         st.markdown('### Lookup diagnostics')
-        st.dataframe(pd.DataFrame(diagnostics),use_container_width=True)
+        st.dataframe(pd.DataFrame(diagnostics),width='stretch')
         final=diagnostics[-1]
         if final.get('Status')=='Manual entry needed':
             st.warning('No match found. This does not always mean the barcode is bad. It may mean Discogs is not connected yet, MusicBrainz does not have the release, or the item is non-music/merch.')
@@ -2555,7 +2616,7 @@ def render_barcode_lookup_widget(key_prefix='main'):
         colA,colB=st.columns([1,2])
         with colA:
             if safe(selected.get('image_url')):
-                st.image(safe(selected.get('image_url')),use_container_width=True)
+                st.image(safe(selected.get('image_url')),width='stretch')
             else:
                 st.info('No image returned.')
         with colB:
@@ -2695,7 +2756,7 @@ def release_database_admin():
         where="WHERE barcode LIKE ? OR artist LIKE ? OR title LIKE ? OR label LIKE ? OR catalog_number LIKE ?"
         params=(like,like,like,like,like)
     releases=df(f"SELECT * FROM how_releases {where} ORDER BY id DESC LIMIT 200",params)
-    st.dataframe(releases,use_container_width=True)
+    st.dataframe(releases,width='stretch')
     if not releases.empty:
         labels=[f"{int(r.id)} - {safe(r.artist)} - {safe(r.title)} [{safe(r.barcode)}]" for _,r in releases.iterrows()]
         pick=st.selectbox('Review release',labels,key='v25_release_admin_pick')
@@ -2725,9 +2786,9 @@ def release_database_admin():
         sources=df("SELECT * FROM how_release_sources WHERE release_id=? ORDER BY id DESC",(rid,))
         corrections=df("SELECT * FROM how_release_corrections WHERE release_id=? ORDER BY id DESC",(rid,))
         st.markdown('### Sources')
-        st.dataframe(sources,use_container_width=True)
+        st.dataframe(sources,width='stretch')
         st.markdown('### Seller corrections')
-        st.dataframe(corrections,use_container_width=True)
+        st.dataframe(corrections,width='stretch')
 
 def listing_quality_assessment(category='', artist='', title='', price=0, description='', mg='', sg='', image='', has_uploaded_photo=False, smart_confidence=''):
     music=is_music_category(category)
@@ -2776,7 +2837,7 @@ def listing_quality_assessment(category='', artist='', title='', price=0, descri
     return score,label,checks
 
 def render_listing_quality(score, label, checks, context='seller'):
-    st.write(f"**Listing Quality Score:** {score}/100 — {label}")
+    st.metric('Listing Quality Score',f'{score}/100',label)
     if label=='Weak listing':
         st.warning('This listing is missing important trust details. You can save it, but review the checklist before submitting.')
     elif label=='Needs improvement':
@@ -2791,14 +2852,14 @@ def listing_preview_card(category, artist, title, fmt, label, year, genre, mg, s
     st.markdown('#### Listing preview')
     photo_previews=photo_previews or []
     with st.container(border=True):
-        c1,c2=st.columns([1,2])
+        c1,c2=st.columns([1,1.6])
         with c1:
             if photo_previews:
                 st.caption(photo_previews[0][0])
-                st.image(photo_previews[0][1],use_container_width=True)
+                st.image(photo_previews[0][1],width='stretch')
             elif safe(image):
                 st.caption('Search/database image or supporting product image')
-                st.image(safe(image),use_container_width=True)
+                st.image(safe(image),width='stretch')
             else:
                 st.info('No image selected yet.')
             if len(photo_previews)>1:
@@ -2806,7 +2867,7 @@ def listing_preview_card(category, artist, title, fmt, label, year, genre, mg, s
                 cols=st.columns(2)
                 for i,(caption,img) in enumerate(photo_previews[1:5]):
                     with cols[i%2]:
-                        st.image(img,caption=caption,use_container_width=True)
+                        st.image(img,caption=caption,width='stretch')
         with c2:
             heading=' - '.join([p for p in [safe(artist),safe(title)] if p]) or 'Untitled listing'
             st.subheader(heading)
@@ -2952,7 +3013,7 @@ def seller_inquiry_view(sid):
     status_filter=st.selectbox('Inquiry status filter',['All']+INQUIRY_STATUSES,key='seller_inquiry_status_filter')
     shown=inquiries if status_filter=='All' else inquiries[inquiries['status']==status_filter]
     cols=[c for c in ['id','artist','title','buyer_name','buyer_contact','preferred_contact_method','message','status','created_at'] if c in shown.columns]
-    st.dataframe(shown[cols],use_container_width=True)
+    st.dataframe(shown[cols],width='stretch')
     if shown.empty:
         st.info('No inquiries match that status.')
         return
@@ -2984,7 +3045,7 @@ def admin_inquiry_view():
     status_filter=st.selectbox('Inquiry status filter',['All']+INQUIRY_STATUSES,key='admin_inquiry_status_filter')
     shown=inquiries if status_filter=='All' else inquiries[inquiries['status']==status_filter]
     cols=[c for c in ['id','store_name','artist','title','buyer_name','buyer_contact','preferred_contact_method','message','status','created_at'] if c in shown.columns]
-    st.dataframe(shown[cols],use_container_width=True)
+    st.dataframe(shown[cols],width='stretch')
     if shown.empty:
         st.info('No inquiries match that status.')
         return
@@ -3026,7 +3087,7 @@ def seller_purchase_request_view(sid):
     status_filter=st.selectbox('Purchase request status filter',['All']+PURCHASE_REQUEST_STATUSES,key='seller_purchase_status_filter')
     shown=requests if status_filter=='All' else requests[requests['status']==status_filter]
     cols=[c for c in ['id','artist','title','buyer_name','buyer_contact','fulfillment_preference','offer_price','buyer_message','status','listing_status','created_at'] if c in shown.columns]
-    st.dataframe(shown[cols],use_container_width=True)
+    st.dataframe(shown[cols],width='stretch')
     if shown.empty:
         st.info('No purchase requests match that status.')
         return
@@ -3065,7 +3126,7 @@ def admin_purchase_request_view():
     status_filter=st.selectbox('Purchase request status filter',['All']+PURCHASE_REQUEST_STATUSES,key='admin_purchase_status_filter')
     shown=requests if status_filter=='All' else requests[requests['status']==status_filter]
     cols=[c for c in ['id','store_name','artist','title','buyer_name','buyer_contact','fulfillment_preference','offer_price','status','listing_status','created_at'] if c in shown.columns]
-    st.dataframe(shown[cols],use_container_width=True)
+    st.dataframe(shown[cols],width='stretch')
     c1,c2=st.columns(2)
     c1.metric('Pending listings',len(df("SELECT id FROM products WHERE listing_status IN ('Pending Pickup/Payment','Pending')")))
     c2.metric('Sold listings',len(df("SELECT id FROM products WHERE listing_status='Sold'")))
@@ -3128,13 +3189,13 @@ def seller_dashboard():
     with tabs[4]:
         csv=st.file_uploader('Upload CSV',type=['csv']); st.caption('Supports barcode,catalog_number,matrix_runout,artist,title,format,label,release_year,genre,price,quantity,image_url')
         if csv is not None:
-            data=pd.read_csv(csv); st.dataframe(data,use_container_width=True)
+            data=pd.read_csv(csv); st.dataframe(data,width='stretch')
             if st.button('Import CSV products'):
                 n=0
                 for _,r in data.iterrows(): run('''INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(sid,safe(r.get('sku')),safe(r.get('barcode')),safe(r.get('catalog_number')),safe(r.get('matrix_runout')),safe(r.get('category'),'Vinyl Records'),safe(r.get('artist')),safe(r.get('title')),safe(r.get('format'),'Vinyl'),safe(r.get('label')),safe(r.get('release_year')),safe(r.get('genre')),safe(r.get('media_grade')),safe(r.get('sleeve_grade')),safe(r.get('condition_notes')),safe(r.get('description')),float(r.get('price',0) or 0),int(r.get('quantity',1) or 1),float(r.get('shipping_price',0) or 0),safe(r.get('image_url')),safe(r.get('video_url')),safe(r.get('audio_url')),safe(r.get('external_release_url')),safe(r.get('listing_status'),'Active'),'Fixed Price',now(),now())); n+=1
                 st.success(f'Imported {n}.')
     with tabs[5]:
-        prods=df('SELECT * FROM products WHERE seller_id=?',(sid,)); st.dataframe(prods,use_container_width=True)
+        prods=df('SELECT * FROM products WHERE seller_id=?',(sid,)); st.dataframe(prods,width='stretch')
         if not prods.empty:
             pid=st.selectbox('Product for gallery',prods['id'].tolist()); img=st.file_uploader('Gallery image',type=['png','jpg','jpeg','webp']); url=st.text_input('Or image URL'); cap=st.text_input('Caption')
             if st.button('Add gallery image'):
@@ -3142,7 +3203,7 @@ def seller_dashboard():
                 if image: run('INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),image,cap,now())); st.success('Gallery image added.')
     with tabs[6]:
         listing_status_help()
-        prods=df('SELECT * FROM products WHERE seller_id=? ORDER BY created_at DESC',(sid,)); st.dataframe(prods,use_container_width=True)
+        prods=df('SELECT * FROM products WHERE seller_id=? ORDER BY created_at DESC',(sid,)); st.dataframe(prods,width='stretch')
         if not prods.empty:
             pid=st.selectbox('Listing ID',prods['id'].tolist())
             row=prods[prods['id']==pid].iloc[0]
@@ -3156,24 +3217,24 @@ def seller_dashboard():
     with tabs[8]:
         seller_purchase_request_view(sid)
     with tabs[9]:
-        orders=df('SELECT o.*,b.name buyer_name,b.email buyer_email,b.rating buyer_rating FROM orders o LEFT JOIN buyers b ON o.buyer_id=b.id WHERE o.seller_id=? ORDER BY o.created_at DESC',(sid,)); st.dataframe(orders,use_container_width=True)
+        orders=df('SELECT o.*,b.name buyer_name,b.email buyer_email,b.rating buyer_rating FROM orders o LEFT JOIN buyers b ON o.buyer_id=b.id WHERE o.seller_id=? ORDER BY o.created_at DESC',(sid,)); st.dataframe(orders,width='stretch')
         if not orders.empty:
             bids=orders['buyer_id'].dropna().astype(int).unique().tolist(); bp=st.selectbox('View buyer public trust profile',bids); buyer_profile_public(int(bp)); oid=st.selectbox('Order ID',orders['id'].tolist()); status=st.selectbox('Order status',['New','Contacted','Invoice Sent','Paid','Shipped','Completed','Cancelled','Disputed'])
             if st.button('Update order'):
                 run('UPDATE orders SET status=?,updated_at=? WHERE id=? AND seller_id=?',(status,now(),int(oid),sid))
                 if status=='Completed': row=orders[orders['id']==oid].iloc[0]; run('UPDATE sellers SET completed_sales=completed_sales+1 WHERE id=?',(sid,)); run('UPDATE buyers SET completed_purchases=completed_purchases+1 WHERE id=?',(int(row['buyer_id']),))
                 st.success('Order updated.')
-    with tabs[10]: st.dataframe(df('SELECT * FROM messages WHERE seller_id=? ORDER BY created_at DESC',(sid,)),use_container_width=True)
+    with tabs[10]: st.dataframe(df('SELECT * FROM messages WHERE seller_id=? ORDER BY created_at DESC',(sid,)),width='stretch')
     with tabs[11]:
         with st.form('ann'): title=st.text_input('Announcement title'); body=st.text_area('Announcement body'); sub=st.form_submit_button('Post announcement')
         if sub: run("INSERT INTO store_announcements(seller_id,title,body,status,created_at) VALUES(?,?,?,'Active',?)",(sid,title,body,now())); st.success('Posted.')
-        st.dataframe(df('SELECT * FROM store_announcements WHERE seller_id=?',(sid,)),use_container_width=True)
+        st.dataframe(df('SELECT * FROM store_announcements WHERE seller_id=?',(sid,)),width='stretch')
     with tabs[12]:
         with st.form('ev'): title=st.text_input('Drop/event title'); typ=st.selectbox('Type',['Record Drop','Auction Drop','Sale','Live Event','Other']); date=st.text_input('Date/time'); desc=st.text_area('Description'); sub=st.form_submit_button('Save event')
         if sub: run("INSERT INTO seller_events(seller_id,event_title,event_type,event_date,description,status,created_at) VALUES(?,?,?,?,?,'Active',?)",(sid,title,typ,date,desc,now())); st.success('Saved.')
-    with tabs[13]: st.write(badges(sid) or 'No badges yet.'); st.dataframe(df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),use_container_width=True)
+    with tabs[13]: st.write(badges(sid) or 'No badges yet.'); st.dataframe(df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),width='stretch')
     with tabs[14]:
-        orders=df("SELECT * FROM orders WHERE seller_id=? AND status='Completed'",(sid,)); st.dataframe(orders,use_container_width=True)
+        orders=df("SELECT * FROM orders WHERE seller_id=? AND status='Completed'",(sid,)); st.dataframe(orders,width='stretch')
         if not orders.empty:
             oid=st.selectbox('Completed order',orders['id'].tolist(),key='sellerfb'); o=orders[orders['id']==oid].iloc[0]; rating=st.slider('Buyer rating',1,5,5); comment=st.text_area('Public buyer feedback')
             if st.button('Submit public buyer feedback'): run("INSERT INTO feedback(order_id,reviewer_type,reviewer_id,reviewee_type,reviewee_id,rating,comment,public,created_at) VALUES(?,'Seller',?,'Buyer',?,?,?,'Yes',?)",(int(oid),sid,int(o['buyer_id']),int(rating),comment,now())); update_rating('Buyer',int(o['buyer_id'])); st.success('Feedback posted.')
@@ -3183,13 +3244,13 @@ def auctions():
     if not prods.empty:
         with st.form('auction'): pid=st.selectbox('Product',prods['id'].tolist()); title=st.text_input('Auction title'); start=st.number_input('Starting bid',min_value=0.0,step=1.0); end=st.text_input('End time'); sub=st.form_submit_button('Create live auction')
         if sub: run("INSERT INTO auctions(product_id,seller_id,auction_title,starting_bid,reserve_price,buy_now_price,bid_increment,start_time,end_time,status,notes,created_at) VALUES(?,?,?,?,?,?,1,?,?,'Live','',?)",(int(pid),sid,title,float(start),0,0,now(),end,now())); st.success('Auction created.')
-    st.dataframe(table('auctions'),use_container_width=True)
+    st.dataframe(table('auctions'),width='stretch')
 def culture():
     header(); st.header('Knowledge Hub'); posts=df("SELECT * FROM culture_posts WHERE status='Published' ORDER BY created_at DESC")
     if posts.empty: st.info('No culture posts yet.')
     for _,p in posts.iterrows():
         with st.container(border=True):
-            if safe(p['image_url']): st.image(safe(p['image_url']),use_container_width=True)
+            if safe(p['image_url']): st.image(safe(p['image_url']),width='stretch')
             st.subheader(safe(p['title'])); st.caption(f"{safe(p['category'])} • {safe(p['author'])}"); st.write(safe(p['body']))
 def listing_review_queue():
     st.subheader('Listing Review Queue')
@@ -3199,7 +3260,7 @@ def listing_review_queue():
         st.info('No listings are waiting for review.')
         return
     cols=[c for c in ['id','store_name','artist','title','category','price','listing_status','reviewer_notes','created_at','updated_at'] if c in listings.columns]
-    st.dataframe(listings[cols],use_container_width=True)
+    st.dataframe(listings[cols],width='stretch')
     labels=[f"{int(r.id)} | {safe(r.store_name)} | {safe(r.artist)} - {safe(r.title)} | {safe(r.listing_status)}" for _,r in listings.iterrows()]
     pick=st.selectbox('Review listing',labels,key='listing_review_pick')
     pid=int(pick.split('|')[0].strip())
@@ -3231,8 +3292,9 @@ def redact_export_table(table_name):
     return data.drop(columns=private_cols,errors='ignore')
 
 def admin_database_status():
-    st.subheader('Database Status')
+    st.subheader('Database Status / Data Health')
     st.info('Current database is prototype/local storage. Production launch should use hosted database storage such as Supabase/Postgres.')
+    st.caption('Use this admin-only area to confirm storage health, table counts, photo records, and safe exports before deployment.')
     mode=database_mode()
     c1,c2,c3=st.columns(3)
     c1.metric('Active database',mode['engine'])
@@ -3243,7 +3305,7 @@ def admin_database_status():
     tables=df("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
     st.write(f"**Tables detected:** {len(tables)}")
     if not tables.empty:
-        st.dataframe(tables,use_container_width=True)
+        st.dataframe(tables,width='stretch')
     counts=[]
     labels={'products':'Listings','sellers':'Seller profiles','listing_inquiries':'Buyer inquiries','purchase_requests':'Purchase requests','product_gallery':'Photo records'}
     for t,label in labels.items():
@@ -3254,11 +3316,11 @@ def admin_database_status():
     metric_cols=st.columns(len(counts))
     for i,item in enumerate(counts):
         metric_cols[i].metric(item['Area'],item['Records'])
-    st.dataframe(pd.DataFrame(counts),use_container_width=True)
+    st.dataframe(pd.DataFrame(counts),width='stretch')
     st.warning('Admin-only export area. Buyer/seller contact data can be sensitive. The quick exports below remove obvious email, phone, contact, and access-code columns.')
     export_choice=st.selectbox('Export safe data table',KEY_DATA_TABLES,format_func=lambda x: labels.get(x,x),key='database_status_export_table')
     export_data=redact_export_table(export_choice)
-    st.dataframe(export_data,use_container_width=True)
+    st.dataframe(export_data,width='stretch')
     csv_data=export_data.to_csv(index=False)
     json_data=export_data.to_json(orient='records',indent=2)
     c4,c5=st.columns(2)
@@ -3286,18 +3348,18 @@ def admin():
     with tabs[2]: admin_inquiry_view()
     with tabs[3]: admin_purchase_request_view()
     with tabs[4]: admin_database_status()
-    with tabs[5]: st.dataframe(table('sellers'),use_container_width=True)
-    with tabs[6]: st.dataframe(table('buyers'),use_container_width=True)
+    with tabs[5]: st.dataframe(table('sellers'),width='stretch')
+    with tabs[6]: st.dataframe(table('buyers'),width='stretch')
     with tabs[7]:
         sid=seller_pick('adminseller'); badge=st.text_input('Badge',placeholder='Soul Specialist, Jazz Dealer, Verified Seller'); typ=st.selectbox('Badge type',['Community','Specialty','Performance','Verified'])
         if st.button('Add badge'): run("INSERT INTO seller_badges(seller_id,badge_name,badge_type,active,created_at) VALUES(?,?,?,'Yes',?)",(sid,badge,typ,now())); st.success('Badge added.')
         if st.button('Create seller spotlight culture post'):
             s=get_seller(sid); run("INSERT INTO culture_posts(title,category,author,body,image_url,status,created_at) VALUES(?,'Seller Spotlight','House Of Wax',?,?,'Published',?)",(f"Seller Spotlight: {safe(s['store_name'])}",safe(s['seller_story'],safe(s['store_bio'])),safe(s['banner_url']) or safe(s['logo_url']),now())); st.success('Spotlight created.')
-        st.subheader('Messages'); st.dataframe(table('messages'),use_container_width=True); st.subheader('Feedback'); st.dataframe(table('feedback'),use_container_width=True)
+        st.subheader('Messages'); st.dataframe(table('messages'),width='stretch'); st.subheader('Feedback'); st.dataframe(table('feedback'),width='stretch')
     with tabs[8]:
-        rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(rep); st.dataframe(data,use_container_width=True); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
+        rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(rep); st.dataframe(data,width='stretch'); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
     with tabs[9]:
-        t=st.selectbox('Table',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(t); st.dataframe(data,use_container_width=True)
+        t=st.selectbox('Table',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(t); st.dataframe(data,width='stretch')
         if not data.empty:
             rid=st.selectbox('Row ID',data['id'].tolist()); confirm=st.checkbox('Confirm delete')
             if st.button('Delete row') and confirm: run(f'DELETE FROM {t} WHERE id=?',(int(rid),)); st.success('Deleted.')

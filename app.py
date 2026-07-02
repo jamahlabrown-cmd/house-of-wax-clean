@@ -2,6 +2,7 @@
 # ROOT APP DEPLOY FIX — upload THIS app.py to the repository root, replacing the old root app.py.
 import sqlite3
 import re
+import os
 from uuid import uuid4
 from urllib.parse import quote_plus
 from pathlib import Path
@@ -12,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.21 IMAGE UPLOAD + PHOTO STORAGE CLEANUP'
+APP_VERSION='V25.22 HOSTED DATABASE PREP + DATA SAFETY'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -31,6 +32,10 @@ def safe(v,d=''):
 def money(v):
     try: return f'${float(v):,.2f}'
     except Exception: return '$0.00'
+def database_mode():
+    # Future hosted database swap point. Local SQLite remains the working fallback for this prototype.
+    hosted_hint=bool(os.environ.get('DATABASE_URL') or os.environ.get('SUPABASE_URL'))
+    return {'engine':'SQLite local prototype','path':str(DB.resolve()),'hosted_config_detected':hosted_hint,'active_hosted_database':False}
 def conn(): return sqlite3.connect(DB)
 def run(sql,p=()):
     c=conn(); c.execute(sql,p); c.commit(); c.close()
@@ -75,6 +80,7 @@ INQUIRY_STATUSES=['New','Seller Responded','Closed']
 PURCHASE_REQUEST_STATUSES=['New','Seller Accepted','Seller Declined','Pending Pickup/Payment','Sold','Closed']
 UNAVAILABLE_LISTING_STATUSES=['Pending Pickup/Payment','Pending','Sold']
 ACCOUNT_ROLES=['Buyer','Seller','Admin']
+KEY_DATA_TABLES=['products','sellers','listing_inquiries','purchase_requests','product_gallery']
 
 def listing_status_help():
     st.info('Draft means not public. Submitted for Review means waiting for House Of Wax. Approved/Public/Active means it can appear publicly. Needs Changes means the seller must fix something. Rejected means it should not go live.')
@@ -3216,6 +3222,49 @@ def listing_review_queue():
         run("UPDATE products SET listing_status='Needs Changes',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.warning('Listing marked Needs Changes.')
     if c3.button('Reject listing',key='reject_listing_review'):
         run("UPDATE products SET listing_status='Rejected',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.error('Listing rejected.')
+
+def redact_export_table(table_name):
+    data=table(table_name)
+    if data.empty:
+        return data
+    private_cols=[c for c in data.columns if any(token in c.lower() for token in ['email','phone','contact','access_code'])]
+    return data.drop(columns=private_cols,errors='ignore')
+
+def admin_database_status():
+    st.subheader('Database Status')
+    st.info('Current database is prototype/local storage. Production launch should use hosted database storage such as Supabase/Postgres.')
+    mode=database_mode()
+    c1,c2,c3=st.columns(3)
+    c1.metric('Active database',mode['engine'])
+    c2.metric('Hosted config detected','Yes' if mode['hosted_config_detected'] else 'No')
+    c3.metric('Local database file','Found' if DB.exists() else 'Will be created')
+    st.caption('Local SQLite path: '+safe(mode.get('path')))
+    st.caption('Hosted database is not active yet. This keeps Streamlit deployment working without new secrets.')
+    tables=df("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    st.write(f"**Tables detected:** {len(tables)}")
+    if not tables.empty:
+        st.dataframe(tables,use_container_width=True)
+    counts=[]
+    labels={'products':'Listings','sellers':'Seller profiles','listing_inquiries':'Buyer inquiries','purchase_requests':'Purchase requests','product_gallery':'Photo records'}
+    for t,label in labels.items():
+        try:
+            counts.append({'Area':label,'Table':t,'Records':len(table(t))})
+        except Exception:
+            counts.append({'Area':label,'Table':t,'Records':'Unavailable'})
+    metric_cols=st.columns(len(counts))
+    for i,item in enumerate(counts):
+        metric_cols[i].metric(item['Area'],item['Records'])
+    st.dataframe(pd.DataFrame(counts),use_container_width=True)
+    st.warning('Admin-only export area. Buyer/seller contact data can be sensitive. The quick exports below remove obvious email, phone, contact, and access-code columns.')
+    export_choice=st.selectbox('Export safe data table',KEY_DATA_TABLES,format_func=lambda x: labels.get(x,x),key='database_status_export_table')
+    export_data=redact_export_table(export_choice)
+    st.dataframe(export_data,use_container_width=True)
+    csv_data=export_data.to_csv(index=False)
+    json_data=export_data.to_json(orient='records',indent=2)
+    c4,c5=st.columns(2)
+    c4.download_button('Download safe CSV export',csv_data,file_name=f'house_of_wax_{export_choice}_safe_export.csv',mime='text/csv',key=f'database_status_csv_{export_choice}')
+    c5.download_button('Download safe JSON export',json_data,file_name=f'house_of_wax_{export_choice}_safe_export.json',mime='application/json',key=f'database_status_json_{export_choice}')
+
 def admin():
     header(); st.header('Admin')
     if not is_admin_unlocked():
@@ -3228,7 +3277,7 @@ def admin():
         if not st.button('Enter admin'): return
         if pwd!=ADMIN_PASSWORD: st.error('Wrong password.'); return
     else: st.info('No admin password set. Testing build allows admin access.')
-    tabs=st.tabs(['Overview','Listing Review','Inquiries','Purchase Requests','Sellers','Buyers','Community tools','Reports','Cleanup'])
+    tabs=st.tabs(['Overview','Listing Review','Inquiries','Purchase Requests','Database Status','Sellers','Buyers','Community tools','Reports','Cleanup'])
     with tabs[0]:
         if st.button('Create/repair House Of Wax Official seller'):
             sid=ensure_house_of_wax_official(); st.success(f'House Of Wax Official seller ready. Seller ID {sid}')
@@ -3236,17 +3285,18 @@ def admin():
     with tabs[1]: listing_review_queue()
     with tabs[2]: admin_inquiry_view()
     with tabs[3]: admin_purchase_request_view()
-    with tabs[4]: st.dataframe(table('sellers'),use_container_width=True)
-    with tabs[5]: st.dataframe(table('buyers'),use_container_width=True)
-    with tabs[6]:
+    with tabs[4]: admin_database_status()
+    with tabs[5]: st.dataframe(table('sellers'),use_container_width=True)
+    with tabs[6]: st.dataframe(table('buyers'),use_container_width=True)
+    with tabs[7]:
         sid=seller_pick('adminseller'); badge=st.text_input('Badge',placeholder='Soul Specialist, Jazz Dealer, Verified Seller'); typ=st.selectbox('Badge type',['Community','Specialty','Performance','Verified'])
         if st.button('Add badge'): run("INSERT INTO seller_badges(seller_id,badge_name,badge_type,active,created_at) VALUES(?,?,?,'Yes',?)",(sid,badge,typ,now())); st.success('Badge added.')
         if st.button('Create seller spotlight culture post'):
             s=get_seller(sid); run("INSERT INTO culture_posts(title,category,author,body,image_url,status,created_at) VALUES(?,'Seller Spotlight','House Of Wax',?,?,'Published',?)",(f"Seller Spotlight: {safe(s['store_name'])}",safe(s['seller_story'],safe(s['store_bio'])),safe(s['banner_url']) or safe(s['logo_url']),now())); st.success('Spotlight created.')
         st.subheader('Messages'); st.dataframe(table('messages'),use_container_width=True); st.subheader('Feedback'); st.dataframe(table('feedback'),use_container_width=True)
-    with tabs[7]:
-        rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(rep); st.dataframe(data,use_container_width=True); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
     with tabs[8]:
+        rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(rep); st.dataframe(data,use_container_width=True); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
+    with tabs[9]:
         t=st.selectbox('Table',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(t); st.dataframe(data,use_container_width=True)
         if not data.empty:
             rid=st.selectbox('Row ID',data['id'].tolist()); confirm=st.checkbox('Confirm delete')

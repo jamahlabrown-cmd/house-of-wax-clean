@@ -13,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.24 FULL LAUNCH AUDIT + BUG FIX SPRINT'
+APP_VERSION='V25.25 DEPLOYMENT CLEANUP + DEMO READINESS'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -205,13 +205,14 @@ def setup():
     mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.24 launch audit tools active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.25 demo readiness tools active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
     old_v25_23_announcement='V25.23'+' testing tools active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement]:
-        set_setting('announcement','V25.24 launch audit tools active')
+    old_v25_24_announcement='V25.24'+' launch audit tools active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement]:
+        set_setting('announcement','V25.25 demo readiness tools active')
 setup()
 
 
@@ -679,7 +680,7 @@ def header():
     st.caption(setting('site_tagline'))
     brand_badges(['Marketplace', 'Knowledge Hub', 'Culture Education', 'Collect Smarter'])
     st.caption(f'Running {APP_VERSION}')
-    st.warning('TESTING BUILD: seller stores, product upload, barcode inventory, buyer/seller profiles, public feedback, messaging, auctions, and admin are active.')
+    st.info('Working prototype demo: marketplace, seller tools, review queue, inquiries, purchase requests, profiles, badges, and database status are available for walkthroughs.')
     st.info(setting('announcement'))
 def buyer_pick(key,label='Buyer account'):
     if table('buyers').empty: ensure_buyer()
@@ -3479,6 +3480,47 @@ def launch_checklist():
     st.info('This checklist is saved only in the current Streamlit session. Production launch tracking should later be stored in the database.')
 
 
+def demo_guide():
+    header()
+    st.header('Demo Guide')
+    st.info('House Of Wax is a working Streamlit prototype for demo and founder review. It is not a production marketplace yet.')
+    st.write('Use this guide to walk through the core experience without needing to explain the whole app first.')
+    c1,c2,c3=st.columns(3)
+    with c1:
+        st.subheader('Buyer flow')
+        st.write('1. Open Marketplace.')
+        st.write('2. Open an Approved, Active, or Public listing.')
+        st.write('3. Use Contact Seller / Ask About This Item for questions.')
+        st.write('4. Use Request to Buy when the buyer is ready.')
+        st.caption('Pending and Sold listings can appear as unavailable, but buyer action buttons stay hidden.')
+    with c2:
+        st.subheader('Seller flow')
+        st.write('1. Open My House of Wax as Seller.')
+        st.write('2. Open Seller Tools, then Upload Product.')
+        st.write('3. Search or enter item details.')
+        st.write('4. Add seller details, photos, and condition notes.')
+        st.write('5. Review the listing preview and quality score.')
+        st.write('6. Save as Draft or Submit for Review.')
+    with c3:
+        st.subheader('Admin flow')
+        st.write('1. Switch to Admin role or enable Testing mode.')
+        st.write('2. Open My House of Wax, then Admin.')
+        st.write('3. Review submitted listings and reviewer notes.')
+        st.write('4. Approve, mark Needs Changes, or Reject.')
+        st.write('5. Review inquiries, purchase requests, and Database Status.')
+    st.markdown('### Where to go')
+    st.write('- Marketplace: public buyer browsing and listing details.')
+    st.write('- My House of Wax: buyer, seller, admin, and demo workspaces.')
+    st.write('- Seller Tools: upload products, manage listings, profile, inquiries, and purchase requests.')
+    st.write('- Admin Tools: review queue, reports, inquiries, purchase requests, and database health.')
+    st.markdown('### Demo data')
+    st.write('Use Test Setup inside My House of Wax only while Testing/Admin mode is enabled. Demo records are labeled for testing and should be replaced or removed before a real launch.')
+    st.markdown('### Production needs before launch')
+    for item in ['Real login/authentication and permission checks','Hosted database storage such as Supabase/Postgres','Permanent hosted image storage','Payments, checkout, refunds, and order operations','Legal/privacy policy, seller terms, buyer terms, and marketplace rules']:
+        st.write(f'- {item}')
+    st.warning('Prototype storage is local. Uploaded photos and the SQLite database are not production hosting. The repo .gitignore protects local database and upload folders.')
+
+
 
 def barcode_diagnostics_page():
     header()
@@ -3543,18 +3585,20 @@ def my_house_of_wax():
         admin_access_warning()
     if role=='Buyer':
         st.info('Buyer area: Marketplace, listing details, seller questions, purchase requests, and buyer account activity.')
-        workspace_options=['Buyer Account']
+        workspace_options=['Demo Guide','Buyer Account']
     elif role=='Seller':
         st.info('Seller area: Seller Tools, upload product, seller profile, inquiries, purchase requests, listing status, and reviewer notes.')
-        workspace_options=['Seller Tools']
+        workspace_options=['Demo Guide','Seller Tools']
     else:
         st.info('Admin area: review queue, inquiry review, purchase request review, listing approvals, reports, and demo tools.')
-        workspace_options=['Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
+        workspace_options=['Demo Guide','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     if testing_mode and role!='Admin':
         workspace_options += ['Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     section=st.radio('Choose your workspace',workspace_options,key='my_house_workspace')
 
-    if section=='Buyer Account':
+    if section=='Demo Guide':
+        demo_guide()
+    elif section=='Buyer Account':
         buyer_dashboard()
     elif section=='Seller Tools':
         seller_dashboard()
@@ -3588,7 +3632,7 @@ def app_mode():
 
 
 testing_mode=app_mode()
-st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub, Sell on House Of Wax. Accounts/tools: My House of Wax.')
+st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub, Sell on House Of Wax. Demo Guide and account tools: My House of Wax.')
 menu=st.sidebar.radio('House Of Wax',['Home','Marketplace','Knowledge Hub','Sell on House Of Wax','About','Trust & Safety','Contact / Newsletter','My House of Wax'])
 if menu=='Marketplace' and ('seller_id' in st.session_state or 'product_id' in st.session_state):
     if st.sidebar.button('Main Marketplace',key='main_marketplace_reset'):

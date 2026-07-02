@@ -13,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.23 MOBILE + DESIGN POLISH'
+APP_VERSION='V25.24 FULL LAUNCH AUDIT + BUG FIX SPRINT'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -205,12 +205,13 @@ def setup():
     mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.23 testing tools active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.24 launch audit tools active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement]:
-        set_setting('announcement','V25.23 testing tools active')
+    old_v25_23_announcement='V25.23'+' testing tools active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement]:
+        set_setting('announcement','V25.24 launch audit tools active')
 setup()
 
 
@@ -1437,7 +1438,7 @@ def marketplace():
             st.info('No inventory yet. Use Seller Tools to create a listing, then submit it for review and approve it before it appears publicly.')
         else:
             statuses=', '.join([f"{safe(k)}: {int(v)}" for k,v in all_products['listing_status'].fillna('Blank').value_counts().items()])
-            st.info('Buyer actions appear only on Approved, Active, Public, Pending, or Sold marketplace listings. Current non-public listing statuses: '+safe(statuses,'none'))
+            st.info('Public marketplace cards appear for Approved, Active, Public, Pending, or Sold listings. Buyer contact and purchase buttons appear only when a listing is Approved, Active, or Public. Current non-public listing statuses: '+safe(statuses,'none'))
             st.write('To make the button appear: open My House of Wax, turn on Testing mode, open Admin, approve a submitted listing in Listing Review, then return to Marketplace.')
         return
     q=st.text_input('Search marketplace',placeholder='Title, artist, barcode, catalog, or category')
@@ -3278,11 +3279,11 @@ def listing_review_queue():
     st.caption('Reviewer guidance: approve if the listing is clear and trustworthy. Check exact item photos, condition photos, sleeve/case/media details, and seller profile completeness. Mark Needs Changes if important info or photos are missing. Reject if it looks unsafe, fake, misleading, or inappropriate.')
     c1,c2,c3=st.columns(3)
     if c1.button('Approve listing',key='approve_listing_review'):
-        run("UPDATE products SET listing_status='Approved',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.success('Listing approved.')
+        run("UPDATE products SET listing_status='Approved',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.success('Listing approved.'); st.rerun()
     if c2.button('Mark Needs Changes',key='needs_changes_listing_review'):
-        run("UPDATE products SET listing_status='Needs Changes',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.warning('Listing marked Needs Changes.')
+        run("UPDATE products SET listing_status='Needs Changes',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.warning('Listing marked Needs Changes.'); st.rerun()
     if c3.button('Reject listing',key='reject_listing_review'):
-        run("UPDATE products SET listing_status='Rejected',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.error('Listing rejected.')
+        run("UPDATE products SET listing_status='Rejected',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.error('Listing rejected.'); st.rerun()
 
 def redact_export_table(table_name):
     data=table(table_name)

@@ -10,11 +10,11 @@ House Of Wax is not just a record store. It is a marketplace, knowledge hub, tru
 
 Current target version:
 
-V25.20 ACCOUNT ROLES + ADMIN LOCKDOWN
+V25.21 IMAGE UPLOAD + PHOTO STORAGE CLEANUP
 
 The live Streamlit app must show this marker near the top of the app:
 
-Running V25.20 ACCOUNT ROLES + ADMIN LOCKDOWN
+Running V25.21 IMAGE UPLOAD + PHOTO STORAGE CLEANUP
 
 ## Critical deployment rule
 

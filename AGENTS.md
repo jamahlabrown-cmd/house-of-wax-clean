@@ -10,11 +10,11 @@ House Of Wax is not just a record store. It is a marketplace, knowledge hub, tru
 
 Current target version:
 
-V25.25 DEPLOYMENT CLEANUP + DEMO READINESS
+V25.26 PITCH + DEMO PACKAGE
 
 The live Streamlit app must show this marker near the top of the app:
 
-Running V25.25 DEPLOYMENT CLEANUP + DEMO READINESS
+Running V25.26 PITCH + DEMO PACKAGE
 
 ## Critical deployment rule
 

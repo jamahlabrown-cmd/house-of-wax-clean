@@ -2,6 +2,7 @@
 # ROOT APP DEPLOY FIX — upload THIS app.py to the repository root, replacing the old root app.py.
 import sqlite3
 import re
+from uuid import uuid4
 from urllib.parse import quote_plus
 from pathlib import Path
 from datetime import datetime
@@ -11,7 +12,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.20 ACCOUNT ROLES + ADMIN LOCKDOWN'
+APP_VERSION='V25.21 IMAGE UPLOAD + PHOTO STORAGE CLEANUP'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -33,6 +34,8 @@ def money(v):
 def conn(): return sqlite3.connect(DB)
 def run(sql,p=()):
     c=conn(); c.execute(sql,p); c.commit(); c.close()
+def insert(sql,p=()):
+    c=conn(); cur=c.execute(sql,p); c.commit(); last_id=cur.lastrowid; c.close(); return last_id
 def df(sql,p=()):
     c=conn(); out=pd.read_sql_query(sql,c,params=p); c.close(); return out
 def table(t):
@@ -46,8 +49,13 @@ def addcol(t,c,typ):
 def save_file(up,folder):
     if up is None: return ''
     f=UPLOAD/folder; f.mkdir(parents=True,exist_ok=True)
-    p=f/(datetime.now().strftime('%Y%m%d%H%M%S')+'_'+up.name.replace(' ','_').replace('/','_'))
+    clean=re.sub(r'[^A-Za-z0-9._-]+','_',Path(up.name).name).strip('._') or 'upload'
+    p=f/(datetime.now().strftime('%Y%m%d%H%M%S%f')+'_'+uuid4().hex[:8]+'_'+clean)
     p.write_bytes(up.getbuffer()); return str(p)
+def save_files(uploads,folder):
+    if not uploads: return []
+    if not isinstance(uploads,list): uploads=[uploads]
+    return [p for p in [save_file(up,folder) for up in uploads] if p]
 def setting(k,d=''):
     try:
         run('CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY,value TEXT)')
@@ -559,7 +567,8 @@ def seller_quality_listing_stats(sid):
         return 0,0,0
     scores=[]
     for _,p in prods.iterrows():
-        score,_,_=listing_quality_assessment(p.get('category'),p.get('artist'),p.get('title'),p.get('price'),p.get('description'),p.get('media_grade'),p.get('sleeve_grade'),p.get('image_url'),bool(safe(p.get('image_url'))),'')
+        has_seller_photo=is_local_uploaded_image(p.get('image_url'))
+        score,_,_=listing_quality_assessment(p.get('category'),p.get('artist'),p.get('title'),p.get('price'),p.get('description'),p.get('media_grade'),p.get('sleeve_grade'),p.get('image_url'),has_seller_photo,'')
         scores.append(score)
     strong=sum(1 for score in scores if score>=80)
     avg=int(round(sum(scores)/len(scores))) if scores else 0
@@ -658,6 +667,47 @@ def listing_availability_label(p):
         return 'Pending'
     return 'Available'
 
+def is_local_uploaded_image(path):
+    s=safe(path)
+    return bool(s) and ('house_of_wax_uploads' in s or s.startswith('uploads/') or s.startswith('listing_photos/'))
+
+def listing_gallery_images(pid):
+    try:
+        return df('SELECT * FROM product_gallery WHERE product_id=? ORDER BY id ASC',(int(pid),))
+    except Exception:
+        return pd.DataFrame()
+
+def listing_primary_image(p):
+    pid=int(p.get('id') or 0)
+    gallery=listing_gallery_images(pid) if pid else pd.DataFrame()
+    if not gallery.empty:
+        main=gallery[gallery['caption'].fillna('').str.lower().str.contains('main listing photo',na=False)]
+        local=gallery[gallery['image_url'].fillna('').apply(is_local_uploaded_image)]
+        if not main.empty:
+            return safe(main.iloc[0]['image_url'])
+        if safe(p.get('image_url')) and is_local_uploaded_image(p.get('image_url')):
+            return safe(p.get('image_url'))
+        if not local.empty:
+            return safe(local.iloc[0]['image_url'])
+    if safe(p.get('image_url')):
+        return safe(p.get('image_url'))
+    if not gallery.empty:
+        return safe(gallery.iloc[0]['image_url'])
+    return ''
+
+def render_listing_photo_gallery(pid, primary_image='', context='public'):
+    gallery=listing_gallery_images(pid)
+    if gallery.empty:
+        if primary_image and not is_local_uploaded_image(primary_image):
+            st.caption('Image source: search/database or supporting product image.')
+        return
+    st.subheader('Listing photos' if context!='admin' else 'Seller-uploaded photos / gallery')
+    cols=st.columns(3)
+    for i,(_,g) in enumerate(gallery.iterrows()):
+        with cols[i%3]:
+            if safe(g.get('image_url')):
+                st.image(safe(g.get('image_url')),caption=safe(g.get('caption'),'Supporting photo'),use_container_width=True)
+
 def render_buyer_inquiry_form(p, seller, key_prefix):
     status=safe(p.get('listing_status'))
     if status not in PUBLIC_LISTING_STATUSES:
@@ -743,7 +793,8 @@ def buyer_request_history(bid):
 def product_card(p):
     with st.container(border=True):
         seller=get_seller(int(p['seller_id'])) if safe(p.get('seller_id')) else None
-        if safe(p['image_url']): st.image(safe(p['image_url']),use_container_width=True)
+        image=listing_primary_image(p)
+        if image: st.image(image,use_container_width=True)
         else: st.markdown('### 🎵')
         st.subheader(f"{safe(p['artist'])} — {safe(p['title'])}"); st.caption(f"{safe(p['category'])} • {safe(p['format'])} • Barcode: {safe(p['barcode'],'none')}"); st.write(f"**Price:** {money(p['price'])}")
         status_label=listing_availability_label(p)
@@ -826,13 +877,10 @@ def product_detail(pid):
     if st.button('← Back to marketplace'): st.session_state.pop('product_id',None); st.rerun()
     l,rcol=st.columns([1.2,1])
     with l:
-        if safe(p['image_url']): st.image(safe(p['image_url']),use_container_width=True)
+        primary_image=listing_primary_image(p)
+        if primary_image: st.image(primary_image,use_container_width=True)
         else: st.markdown('## 🎵')
-        gal=df('SELECT * FROM product_gallery WHERE product_id=? ORDER BY created_at DESC',(pid,))
-        if not gal.empty:
-            st.subheader('Gallery')
-            for _,g in gal.iterrows():
-                if safe(g['image_url']): st.image(safe(g['image_url']),caption=safe(g['caption']),use_container_width=True)
+        render_listing_photo_gallery(pid,primary_image,'public')
     with rcol:
         st.title(f"{safe(p['artist'])} — {safe(p['title'])}"); st.write('**Price:** '+money(p['price'])); st.write('**Shipping:** '+money(p['shipping_price']))
         status_label=listing_availability_label(p)
@@ -2684,7 +2732,8 @@ def listing_quality_assessment(category='', artist='', title='', price=0, descri
     media_ok=bool(safe(mg)) and safe(mg)!='N/A'
     sleeve_ok=bool(safe(sg)) and safe(sg)!='N/A'
     condition_ok=media_ok or sleeve_ok
-    photo_ok=bool(safe(image)) or bool(has_uploaded_photo)
+    search_or_seller_photo=bool(safe(image)) or bool(has_uploaded_photo)
+    seller_photo_ok=bool(has_uploaded_photo)
     checks=[
         ('Title present',bool(safe(title)),12),
         ('Artist / brand present',bool(safe(artist)),10),
@@ -2692,18 +2741,20 @@ def listing_quality_assessment(category='', artist='', title='', price=0, descri
         ('Price present',priced,10),
         ('Description present',bool(safe(description)),12),
         ('Condition present',condition_ok,12),
-        ('Photos present',photo_ok,12),
+        ('Photos present',search_or_seller_photo,8),
+        ('Seller-uploaded photos present',seller_photo_ok,8),
     ]
     if music:
         checks.extend([
             ('Media condition present',media_ok,8),
             ('Sleeve / case condition present',sleeve_ok,6),
-            ('Release cover art may come from search; real condition photos are preferred',photo_ok,4),
+            ('Release cover art may come from search/database',bool(safe(image)),4),
+            ('Real condition photos are preferred',seller_photo_ok,6),
         ])
     else:
         checks.extend([
-            ('Exact item photos are preferred',photo_ok,10),
-            ('Official product images should only support exact item photos',photo_ok,4),
+            ('Exact item photos are preferred',seller_photo_ok,12),
+            ('Official/product images should only support exact item photos',search_or_seller_photo,4),
         ])
     if safe(smart_confidence):
         checks.append((f'Smart Search confidence: {safe(smart_confidence)}',safe(smart_confidence) in ['Strong','Medium'],4))
@@ -2730,15 +2781,26 @@ def render_listing_quality(score, label, checks, context='seller'):
         for text,ok,_ in checks:
             st.write(('✓ ' if ok else '• Missing: ')+text)
 
-def listing_preview_card(category, artist, title, fmt, label, year, genre, mg, sg, price, qty, ship, image, description, has_uploaded_photo=False, smart_confidence='', quality_context='seller'):
+def listing_preview_card(category, artist, title, fmt, label, year, genre, mg, sg, price, qty, ship, image, description, has_uploaded_photo=False, smart_confidence='', quality_context='seller', photo_previews=None):
     st.markdown('#### Listing preview')
+    photo_previews=photo_previews or []
     with st.container(border=True):
         c1,c2=st.columns([1,2])
         with c1:
-            if safe(image):
+            if photo_previews:
+                st.caption(photo_previews[0][0])
+                st.image(photo_previews[0][1],use_container_width=True)
+            elif safe(image):
+                st.caption('Search/database image or supporting product image')
                 st.image(safe(image),use_container_width=True)
             else:
                 st.info('No image selected yet.')
+            if len(photo_previews)>1:
+                st.caption('Supporting / condition photo previews')
+                cols=st.columns(2)
+                for i,(caption,img) in enumerate(photo_previews[1:5]):
+                    with cols[i%2]:
+                        st.image(img,caption=caption,use_container_width=True)
         with c2:
             heading=' - '.join([p for p in [safe(artist),safe(title)] if p]) or 'Untitled listing'
             st.subheader(heading)
@@ -2803,19 +2865,33 @@ def upload_product(sid,key):
         ship=c12.number_input('Shipping price',min_value=0.0,step=.01)
 
         st.markdown('#### Step 4: Add photos')
+        st.caption('Prototype storage: uploaded images are saved locally under house_of_wax_uploads/product_images. Production launch should use hosted storage.')
         if is_music_category(category):
-            st.info('Music item: release cover art can come from search. Add real condition photos when possible.')
+            st.info('Music item: cover art from search/database can be used as reference. Add real condition photos when possible, including media, sleeve/case, labels, and any damage.')
         else:
-            st.warning('Non-music item: use exact item photos. Official product images are okay only as supporting images.')
-        img=st.file_uploader('Seller photo / exact item image - seller provides',type=['png','jpg','jpeg','webp'])
-        imgurl=st.text_input('Image URL - search cover art or supporting official image',value=defaults.get('image_url',''))
+            st.warning('Non-music item: exact item photos are required/preferred. Official/product images are only supporting images.')
+        main_img=st.file_uploader('Main listing photo - seller uploaded exact item photo',type=['png','jpg','jpeg','webp'],key=f'main_photo_{key}')
+        supporting_imgs=st.file_uploader('Supporting photos - extra angles or official/product images',type=['png','jpg','jpeg','webp'],accept_multiple_files=True,key=f'supporting_photos_{key}')
+        condition_imgs=st.file_uploader('Condition photos - media, sleeve/case, labels, damage',type=['png','jpg','jpeg','webp'],accept_multiple_files=True,key=f'condition_photos_{key}')
+        imgurl=st.text_input('Search/database image URL - cover art or supporting official image',value=defaults.get('image_url',''))
+        uploaded_previews=[]
+        if main_img is not None:
+            uploaded_previews.append(('Main listing photo',main_img))
+        for i,up in enumerate(supporting_imgs or [],1):
+            uploaded_previews.append((f'Supporting photo {i}',up))
+        for i,up in enumerate(condition_imgs or [],1):
+            uploaded_previews.append((f'Condition photo {i}',up))
+        has_uploaded_photos=bool(uploaded_previews)
+        if not has_uploaded_photos:
+            st.warning('No seller-uploaded photos are present. You can save the listing, but real item/condition photos improve trust.')
 
         st.markdown('#### Step 5: Preview listing')
         preview_description=desc or f'{artist} - {title}. {notes}'
         search_key='upload_product' if key=='normal_upload' else key
         smart_match=st.session_state.get(f'v25_best_match_{search_key}',{})
         smart_confidence=match_confidence_label(smart_match,artist,title) if smart_match else ''
-        listing_preview_card(category,artist,title,fmt,label,year,genre,mg,sg,price,qty,ship,imgurl,preview_description,img is not None,smart_confidence,'seller')
+        preview_image=main_img if main_img is not None else imgurl
+        listing_preview_card(category,artist,title,fmt,label,year,genre,mg,sg,price,qty,ship,preview_image,preview_description,has_uploaded_photos,smart_confidence,'seller',uploaded_previews)
 
         st.markdown('#### Step 6: Submit listing')
         st.caption('Save as Draft if the listing is not ready. Submit for Review when it is ready for House Of Wax to check before it goes public.')
@@ -2834,18 +2910,29 @@ def upload_product(sid,key):
                 submit_release_correction(int(release_id),sid,field_name,old_val,suggested,note)
                 st.success('Correction submitted for review.')
     if save_draft or submit_review:
-        saved_image=save_file(img,'product_images')
-        image=saved_image or imgurl
+        saved_main=save_file(main_img,'product_images')
+        saved_supporting=save_files(supporting_imgs,'product_images')
+        saved_condition=save_files(condition_imgs,'product_images')
+        image=saved_main or imgurl
         description=desc or f'{artist} — {title}. {notes}'
         listing_status='Submitted for Review' if submit_review else 'Draft'
-        score,quality_label,_=listing_quality_assessment(category,artist,title,price,description,mg,sg,image,bool(saved_image),smart_confidence)
-        run("""INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(sid,sku,barcode,catalog,matrix,category,artist,title,fmt,label,year,genre,mg,sg,notes,description,float(price),int(qty),float(ship),image,'','',external_release_url,listing_status,'Fixed Price',now(),now()))
+        has_saved_seller_photos=bool(saved_main or saved_supporting or saved_condition)
+        score,quality_label,_=listing_quality_assessment(category,artist,title,price,description,mg,sg,image,has_saved_seller_photos,smart_confidence)
+        pid=insert("""INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(sid,sku,barcode,catalog,matrix,category,artist,title,fmt,label,year,genre,mg,sg,notes,description,float(price),int(qty),float(ship),image,'','',external_release_url,listing_status,'Fixed Price',now(),now()))
+        if saved_main:
+            run('INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),saved_main,'Main listing photo - seller uploaded exact item photo',now()))
+        for i,path in enumerate(saved_supporting,1):
+            run('INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),path,f'Supporting photo {i}',now()))
+        for i,path in enumerate(saved_condition,1):
+            run('INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),path,f'Condition photo {i}',now()))
         if submit_review and quality_label=='Weak listing':
             st.warning(f'Submitted for review with a weak quality score ({score}/100). House Of Wax may request changes.')
-        if is_music_category(category) and imgurl and not saved_image:
+        if is_music_category(category) and imgurl and not has_saved_seller_photos:
             st.success(f'Listing saved as {listing_status} using barcode/release image.')
         elif not is_music_category(category) and not image:
             st.warning(f'Listing saved as {listing_status}, but this non-music item should have an exact item or official product image before review.')
+        elif not has_saved_seller_photos:
+            st.warning(f'Listing saved as {listing_status}, but no seller-uploaded photos were added.')
         else:
             st.success(f'Listing saved as {listing_status}.')
 
@@ -3115,9 +3202,13 @@ def listing_review_queue():
     if seller_id:
         st.markdown('#### Seller trust context')
         render_seller_trust_badges(seller_id,'admin')
-    listing_preview_card(row.get('category'),row.get('artist'),row.get('title'),row.get('format'),row.get('label'),row.get('release_year'),row.get('genre'),row.get('media_grade'),row.get('sleeve_grade'),float(row.get('price') or 0),int(row.get('quantity') or 1),float(row.get('shipping_price') or 0),row.get('image_url'),row.get('description'),bool(safe(row.get('image_url'))),'','admin')
+    primary_image=listing_primary_image(row)
+    gallery=listing_gallery_images(pid)
+    has_seller_photos=bool(is_local_uploaded_image(primary_image) or (not gallery.empty and gallery['image_url'].fillna('').apply(is_local_uploaded_image).any()))
+    listing_preview_card(row.get('category'),row.get('artist'),row.get('title'),row.get('format'),row.get('label'),row.get('release_year'),row.get('genre'),row.get('media_grade'),row.get('sleeve_grade'),float(row.get('price') or 0),int(row.get('quantity') or 1),float(row.get('shipping_price') or 0),primary_image,row.get('description'),has_seller_photos,'','admin')
+    render_listing_photo_gallery(pid,primary_image,'admin')
     notes=st.text_area('Reviewer notes',value=safe(row.get('reviewer_notes')),key='listing_review_notes')
-    st.caption('Reviewer guidance: approve if the listing is clear and trustworthy. Profile completeness is one review factor. Mark Needs Changes if important info is missing. Reject if it looks unsafe, fake, misleading, or inappropriate.')
+    st.caption('Reviewer guidance: approve if the listing is clear and trustworthy. Check exact item photos, condition photos, sleeve/case/media details, and seller profile completeness. Mark Needs Changes if important info or photos are missing. Reject if it looks unsafe, fake, misleading, or inappropriate.')
     c1,c2,c3=st.columns(3)
     if c1.button('Approve listing',key='approve_listing_review'):
         run("UPDATE products SET listing_status='Approved',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.success('Listing approved.')

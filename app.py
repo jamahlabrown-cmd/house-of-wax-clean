@@ -13,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.28 SUPABASE / HOSTED DATABASE PREP'
+APP_VERSION='V25.29 AUTH / LOGIN PREP'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -49,6 +49,14 @@ def hosted_database_config_status():
     has_supabase=detected.get('SUPABASE_URL') and detected.get('SUPABASE_ANON_KEY')
     has_database_url=detected.get('DATABASE_URL')
     return {'rows':rows,'has_supabase':has_supabase,'has_database_url':has_database_url,'hosted_config_detected':bool(has_supabase or has_database_url)}
+def auth_config_status():
+    keys=['AUTH_PROVIDER','SUPABASE_URL','SUPABASE_ANON_KEY','ADMIN_EMAILS']
+    rows=[]
+    for key in keys:
+        value=os.environ.get(key,'')
+        rows.append({'Setting':key,'Status':'Configured' if value else 'Missing','Value':mask_secret(value)})
+    configured=any(row['Status']=='Configured' for row in rows)
+    return {'rows':rows,'auth_configured':configured}
 def database_mode():
     # Future hosted database swap point. Local SQLite remains the working fallback for this prototype.
     hosted=hosted_database_config_status()
@@ -223,7 +231,7 @@ def setup():
     mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.28 Supabase and hosted database prep active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.29 auth and login prep active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -232,8 +240,9 @@ def setup():
     old_v25_25_announcement='V25.25'+' demo readiness tools active'
     old_v25_26_announcement='V25.26'+' pitch and demo package active'
     old_v25_27_announcement='V25.27'+' production readiness roadmap and auth plan active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement]:
-        set_setting('announcement','V25.28 Supabase and hosted database prep active')
+    old_v25_28_announcement='V25.28'+' Supabase and hosted database prep active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement]:
+        set_setting('announcement','V25.29 auth and login prep active')
 setup()
 
 
@@ -3724,6 +3733,9 @@ def production_readiness_roadmap():
     st.markdown('### Hosted database prep now')
     st.write('Admin Database Status now checks for future hosted database settings without requiring them: SUPABASE_URL, SUPABASE_ANON_KEY, and DATABASE_URL.')
     st.write('If settings are missing, the app stays on local SQLite. If settings are detected, the app shows that configuration exists but does not run a risky migration.')
+    st.markdown('### Auth / Login prep now')
+    st.write('Open Auth / Login Prep in My House of Wax to review the future sign-up, login, password reset, dashboard, role-permission, and admin-lockdown plan.')
+    st.write('The current role selector remains prototype-only until real authentication, sessions, and permission checks are implemented.')
     st.warning('Do not present the prototype role selector as production security. Public launch requires real login, permissions, hosted storage, privacy rules, and operational policies.')
 
 
@@ -3765,6 +3777,77 @@ def auth_roles_plan():
 
     st.markdown('### Recommended next step')
     st.success('Choose the production auth/database direction before adding real user accounts. The cleanest next phase is real login first, then hosted database, then cloud photo storage.')
+
+
+def auth_login_prep():
+    header()
+    st.header('Auth / Login Prep')
+    st.info('The current role selector is prototype-only and is not secure login. This page prepares the real authentication plan without adding fake production security.')
+    st.warning('Production launch requires real authentication. Admin tools, buyer/seller private data, purchase requests, and contact information must be protected by real login and permission checks.')
+
+    st.markdown('### Future login flow')
+    flow=[
+        'Sign up',
+        'Log in',
+        'Forgot password',
+        'Buyer dashboard',
+        'Seller dashboard',
+        'Admin-only area'
+    ]
+    for i,item in enumerate(flow,1):
+        st.write(f'{i}. {item}')
+
+    st.markdown('### Future account fields')
+    fields=[
+        ('user_id','Unique account identifier from the auth provider or backend.'),
+        ('email','Login email and account contact. Must be private by default.'),
+        ('display_name','Public or semi-public account name shown where appropriate.'),
+        ('role','Buyer, Seller, Admin, or House Of Wax Official.'),
+        ('created_at','Account creation timestamp.'),
+        ('last_login','Recent login timestamp for account health and admin review.'),
+        ('status','Active, Pending, Suspended, Closed, or similar account state.')
+    ]
+    st.caption('Future account fields: user_id, email, display_name, role, created_at, last_login, status.')
+    st.dataframe(pd.DataFrame(fields,columns=['Field','Purpose']),width='stretch')
+
+    st.markdown('### Recommended future role permissions')
+    role_permissions=[
+        ('Buyer','Can access Marketplace, listing details, Contact Seller, Request to Buy, their own inquiries, their own purchase requests, and future saved/favorite items.','Cannot access seller dashboards, other buyers private data, seller private tools, or admin tools.'),
+        ('Seller','Can access Seller dashboard, upload/listing tools, their own listings, listing statuses, reviewer notes, seller profile, their buyer inquiries, and their purchase requests.','Cannot access other sellers private data, admin moderation tools, or buyer-only private account areas.'),
+        ('Admin','Can access review queue, seller/listing moderation, inquiry monitoring, purchase request monitoring, data health/export, and future user/seller controls.','Should not be available without real admin login and audit-friendly permission checks.'),
+        ('House Of Wax Official','Can manage official listings, branded merch/listings, official inventory tools, and seller-like workflows with platform oversight.','Should still follow safe seller protections and admin approval rules if needed.')
+    ]
+    for role,can,cannot in role_permissions:
+        with st.expander(role,expanded=True):
+            st.write(f'**Can access:** {can}')
+            st.write(f'**Cannot access:** {cannot}')
+
+    st.markdown('### Environment / secret readiness')
+    config=auth_config_status()
+    if config['auth_configured']:
+        st.success('Future auth settings detected. Values are masked and no production login is enabled by this prototype check.')
+    else:
+        st.info('Auth not connected yet. Prototype role selector is active.')
+    st.caption('Configuration checked: AUTH_PROVIDER, SUPABASE_URL, SUPABASE_ANON_KEY, ADMIN_EMAILS.')
+    st.dataframe(pd.DataFrame(config['rows']),width='stretch')
+
+    st.markdown('### Security warnings')
+    warnings=[
+        'Prototype role selector is for demo/testing only.',
+        'Production launch requires real authentication.',
+        'Admin tools must be protected by real login.',
+        'Buyer and seller private data must be permission-protected.',
+        'Sellers should only see their own private listing, inquiry, and purchase request data.',
+        'Buyers should only see their own private inquiries, purchase requests, and account activity.'
+    ]
+    for item in warnings:
+        st.write(f'- {item}')
+
+    st.markdown('### Future implementation options')
+    st.write('- **Supabase Auth** — recommended if House Of Wax moves the hosted database to Supabase/Postgres.')
+    st.write('- **Streamlit auth package** — useful for a faster beta login layer, but still needs careful permissions.')
+    st.write('- **Custom backend auth later** — gives more control, but requires more security, maintenance, and testing.')
+    st.caption('No new auth dependencies, credentials, or secrets are required for V25.29.')
 
 
 
@@ -3831,13 +3914,13 @@ def my_house_of_wax():
         admin_access_warning()
     if role=='Buyer':
         st.info('Buyer area: Marketplace, listing details, seller questions, purchase requests, and buyer account activity.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Buyer Account']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Buyer Account']
     elif role=='Seller':
         st.info('Seller area: Seller Tools, upload product, seller profile, inquiries, purchase requests, listing status, and reviewer notes.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Seller Tools']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Seller Tools']
     else:
         st.info('Admin area: review queue, inquiry review, purchase request review, listing approvals, reports, and demo tools.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     if testing_mode and role!='Admin':
         workspace_options += ['Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     section=st.radio('Choose your workspace',workspace_options,key='my_house_workspace')
@@ -3850,6 +3933,8 @@ def my_house_of_wax():
         production_readiness_roadmap()
     elif section=='Auth + Roles Plan':
         auth_roles_plan()
+    elif section=='Auth / Login Prep':
+        auth_login_prep()
     elif section=='Buyer Account':
         buyer_dashboard()
     elif section=='Seller Tools':
@@ -3884,7 +3969,7 @@ def app_mode():
 
 
 testing_mode=app_mode()
-st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub, Sell on House Of Wax. Demo Guide, Pitch / Demo Package, Production Roadmap, Auth Plan, and account tools: My House of Wax.')
+st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub, Sell on House Of Wax. Demo Guide, Pitch / Demo Package, Production Roadmap, Auth Plan, Auth / Login Prep, and account tools: My House of Wax.')
 menu=st.sidebar.radio('House Of Wax',['Home','Marketplace','Knowledge Hub','Sell on House Of Wax','About','Trust & Safety','Contact / Newsletter','My House of Wax'])
 if menu=='Marketplace' and ('seller_id' in st.session_state or 'product_id' in st.session_state):
     if st.sidebar.button('Main Marketplace',key='main_marketplace_reset'):

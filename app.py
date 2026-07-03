@@ -13,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.31 PAYMENT / CHECKOUT DECISION PREP'
+APP_VERSION='V25.32 SELLER ONBOARDING + MARKETPLACE LAUNCH CHECKLIST'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -231,7 +231,7 @@ def setup():
     mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.31 payment and checkout decision prep active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.32 seller onboarding and marketplace launch checklist active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -243,8 +243,9 @@ def setup():
     old_v25_28_announcement='V25.28'+' Supabase and hosted database prep active'
     old_v25_29_announcement='V25.29'+' auth and login prep active'
     old_v25_30_announcement='V25.30'+' legal and policy pages prep active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement]:
-        set_setting('announcement','V25.31 payment and checkout decision prep active')
+    old_v25_31_announcement='V25.31'+' payment and checkout decision prep active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement]:
+        set_setting('announcement','V25.32 seller onboarding and marketplace launch checklist active')
 setup()
 
 
@@ -3655,29 +3656,102 @@ def contact_newsletter():
     st.markdown('### Contact')
     st.write('For now, use this page as the contact placeholder. Before launch, connect this to a real House Of Wax email or contact form.')
 
+def seller_onboarding():
+    header()
+    st.header('Seller Onboarding')
+    st.info('Use this guide to onboard early House Of Wax sellers, partners, and testers without adding risky production features.')
+
+    st.markdown('### Who House Of Wax is for')
+    for item in ['Record sellers','Collectors','Music merch sellers','Memorabilia sellers','Culture goods sellers']:
+        st.write(f'- {item}')
+
+    st.markdown('### Seller onboarding walkthrough')
+    steps=[
+        'Create seller profile',
+        'Add store/policy notes',
+        'Search or enter item',
+        'Confirm match',
+        'Add condition and seller details',
+        'Add real item photos',
+        'Preview listing',
+        'Check quality score',
+        'Save as Draft or Submit for Review',
+        'Wait for approval',
+        'Respond to inquiries',
+        'Manage purchase requests',
+        'Mark Pending or Sold'
+    ]
+    for i,item in enumerate(steps,1):
+        st.write(f'{i}. {item}')
+
+    st.markdown('### Seller listing quality tips')
+    for item in ['Clear title','Accurate price','Honest condition','Real photos','Media/sleeve condition for music','Clear pickup/shipping notes','No counterfeit or unsafe items']:
+        st.write(f'- {item}')
+
+    st.markdown('### Seller trust tips')
+    for item in ['Complete profile','Respond professionally','Use exact item photos','Keep listings accurate','Update sold/pending status quickly']:
+        st.write(f'- {item}')
+
+    st.warning('Early seller onboarding is still prototype guidance. Public launch still needs real authentication, hosted data, final legal terms, seller agreements, and payment/checkout decisions.')
+
 def launch_checklist():
     header()
-    st.header('Launch Checklist')
-    st.write('Use this checklist before sharing House Of Wax more widely.')
-    checklist=[
-        'Confirm public navigation works',
-        'Confirm Marketplace has clean sample or real listings',
-        'Confirm Knowledge Hub has strong starter content',
-        'Confirm Sell on House Of Wax explains seller onboarding',
-        'Confirm My House of Wax works for buyer/seller/admin tools',
-        'Hide or restrict Test Setup before public launch',
-        'Review seller standards',
-        'Review buyer expectations',
-        'Review trust and safety language',
-        'Set Streamlit subdomain',
-        'Prepare official House Of Wax email/contact',
-        'Prepare logo and brand images',
-        'Prepare first 10 Knowledge Hub posts',
-        'Prepare first newsletter signup campaign',
-        'Review business plan and budget'
+    st.header('Marketplace Launch Checklist')
+    st.write('Use this checklist to prepare House Of Wax for early sellers, partners, testers, and future public launch planning.')
+
+    st.markdown('### Prototype Ready')
+    prototype_ready=[
+        'Marketplace works',
+        'Seller upload works',
+        'Review queue works',
+        'Buyer inquiries work',
+        'Request to Buy works',
+        'Seller profiles/trust badges work',
+        'Photo upload prototype works',
+        'Database status/export works',
+        'Demo guide/pitch/legal/payment prep pages exist'
     ]
-    for item in checklist:
-        st.checkbox(item,key=f"launch_check_{item}")
+    for i,item in enumerate(prototype_ready,1):
+        st.checkbox(item,key=f'launch_ready_{i}')
+
+    st.markdown('### Before Public Launch')
+    before_public=[
+        'Real login/authentication',
+        'Hosted database',
+        'Permanent cloud image storage',
+        'Attorney-reviewed legal pages',
+        'Seller agreement',
+        'Payment/checkout decision',
+        'Privacy/security review',
+        'Admin permissions',
+        'Beta testing with real sellers'
+    ]
+    for i,item in enumerate(before_public,1):
+        st.checkbox(item,key=f'launch_before_public_{i}')
+
+    st.markdown('### Early Seller Test Plan')
+    seller_plan=[
+        'Onboard 3 to 5 trusted sellers',
+        'Create 10 to 25 sample listings',
+        'Test inquiries',
+        'Test request to buy',
+        'Test approval workflow',
+        'Collect feedback'
+    ]
+    for i,item in enumerate(seller_plan,1):
+        st.checkbox(item,key=f'launch_seller_test_{i}')
+
+    st.markdown('### Buyer Test Plan')
+    buyer_plan=[
+        'Browse listings',
+        'Ask about item',
+        'Request to buy',
+        'Confirm listing photos/condition are clear',
+        'Report confusing steps'
+    ]
+    for i,item in enumerate(buyer_plan,1):
+        st.checkbox(item,key=f'launch_buyer_test_{i}')
+
     st.info('This checklist is saved only in the current Streamlit session. Production launch tracking should later be stored in the database.')
 
 
@@ -3714,13 +3788,15 @@ def demo_guide():
     st.write('- My House of Wax: buyer, seller, admin, and demo workspaces.')
     st.write('- Seller Tools: upload products, manage listings, profile, inquiries, and purchase requests.')
     st.write('- Admin Tools: review queue, reports, inquiries, purchase requests, and database health.')
+    st.write('- Seller Onboarding: early seller walkthrough, listing quality tips, and trust tips.')
+    st.write('- Marketplace Launch Checklist: prototype readiness, public-launch needs, and early seller/buyer test plans.')
     st.markdown('### Demo data')
     st.write('Use Test Setup inside My House of Wax only while Testing/Admin mode is enabled. Demo records are labeled for testing and should be replaced or removed before a real launch.')
     st.markdown('### Production needs before launch')
     for item in ['Real login/authentication and permission checks','Hosted database storage such as Supabase/Postgres','Permanent hosted image storage','Payments, checkout, refunds, and order operations','Legal/privacy policy, seller terms, buyer terms, and marketplace rules']:
         st.write(f'- {item}')
     st.warning('Prototype storage is local. Uploaded photos and the SQLite database are not production hosting. The repo .gitignore protects local database and upload folders.')
-    st.caption('For partner, lender, grant, or investor conversations, open Pitch / Demo Package from this same My House of Wax workspace. For the next build phase, open Production Readiness / Launch Roadmap, Auth + Roles Plan, Legal / Policies, Payment / Checkout Prep, and Admin Database Status for Hosted Database / Supabase Prep.')
+    st.caption('For partner, lender, grant, or investor conversations, open Pitch / Demo Package from this same My House of Wax workspace. For the next build phase, open Seller Onboarding, Marketplace Launch Checklist, Production Readiness / Launch Roadmap, Auth + Roles Plan, Legal / Policies, Payment / Checkout Prep, and Admin Database Status.')
 
 
 def pitch_demo_package():
@@ -3768,6 +3844,7 @@ def pitch_demo_package():
 
     st.markdown('### Why trust tools matter')
     st.write('Trust badges, listing quality scores, and review queues help make the marketplace feel curated instead of random. They also give House Of Wax a practical way to coach sellers, improve listing quality, and protect buyers before scaling.')
+    st.caption('For early seller walkthroughs, open Seller Onboarding. For demo readiness and beta testing, open Marketplace Launch Checklist.')
 
     st.markdown('### Demo walkthrough')
     walkthrough=[
@@ -3793,7 +3870,7 @@ def pitch_demo_package():
     st.markdown('### What Comes Next for Production')
     for item in ['Real authentication/login','Hosted database','Permanent cloud image storage','Payments or checkout','Shipping/pickup rules','Legal pages','Seller agreement','Privacy policy','Better admin security','More real-user testing']:
         st.write(f'- {item}')
-    st.caption('For the build sequence behind these items, open Production Readiness / Launch Roadmap. For login and permissions, open Auth + Roles Plan. For marketplace rules and launch policy drafts, open Legal / Policies. For payment direction, open Payment / Checkout Prep.')
+    st.caption('For the build sequence behind these items, open Production Readiness / Launch Roadmap. For seller readiness, open Seller Onboarding and Marketplace Launch Checklist. For login, policies, and payment direction, open Auth + Roles Plan, Legal / Policies, and Payment / Checkout Prep.')
 
     st.markdown('### Prototype completion estimate')
     st.success('Strong demo prototype: nearly complete for guided walkthroughs, founder review, partner conversations, and early feedback.')
@@ -3869,6 +3946,9 @@ def production_readiness_roadmap():
     st.markdown('### Payment / Checkout prep now')
     st.write('Open Payment / Checkout Prep to compare request-to-buy, seller-managed payment, House Of Wax-managed checkout, local pickup, shipping, and hybrid purchase models.')
     st.write('Recommended path: keep Request to Buy first, add admin-tracked pending/sold status next, then consider Stripe checkout only after real auth, hosted database, permanent image storage, legal terms, seller agreement, and refund/dispute policy are ready.')
+    st.markdown('### Seller onboarding and launch checklist now')
+    st.write('Open Seller Onboarding to walk early sellers through profile setup, listing creation, photos, quality score, review, inquiries, purchase requests, and pending/sold status management.')
+    st.write('Open Marketplace Launch Checklist to track prototype-ready items, public launch blockers, early seller testing, and buyer testing.')
     st.warning('Do not present the prototype role selector as production security. Public launch requires real login, permissions, hosted storage, privacy rules, and operational policies.')
 
 
@@ -4047,13 +4127,13 @@ def my_house_of_wax():
         admin_access_warning()
     if role=='Buyer':
         st.info('Buyer area: Marketplace, listing details, seller questions, purchase requests, and buyer account activity.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Buyer Account']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Buyer Account']
     elif role=='Seller':
         st.info('Seller area: Seller Tools, upload product, seller profile, inquiries, purchase requests, listing status, and reviewer notes.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Seller Tools']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Seller Tools']
     else:
         st.info('Admin area: review queue, inquiry review, purchase request review, listing approvals, reports, and demo tools.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     if testing_mode and role!='Admin':
         workspace_options += ['Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     section=st.radio('Choose your workspace',workspace_options,key='my_house_workspace')
@@ -4062,6 +4142,10 @@ def my_house_of_wax():
         demo_guide()
     elif section=='Pitch / Demo Package':
         pitch_demo_package()
+    elif section=='Seller Onboarding':
+        seller_onboarding()
+    elif section=='Marketplace Launch Checklist':
+        launch_checklist()
     elif section=='Production Readiness / Launch Roadmap':
         production_readiness_roadmap()
     elif section=='Auth + Roles Plan':
@@ -4106,8 +4190,8 @@ def app_mode():
 
 
 testing_mode=app_mode()
-st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub, Sell on House Of Wax. Demo Guide, Pitch / Demo Package, Production Roadmap, Auth Plan, Auth / Login Prep, Legal / Policies, Payment / Checkout Prep, and account tools: My House of Wax.')
-menu=st.sidebar.radio('House Of Wax',['Home','Marketplace','Knowledge Hub','Sell on House Of Wax','About','Trust & Safety','Legal / Policies','Payment / Checkout Prep','Contact / Newsletter','My House of Wax'])
+st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub, Sell on House Of Wax, Seller Onboarding, Marketplace Launch Checklist, Demo Guide, Pitch / Demo Package, Production Roadmap, Auth Plan, Auth / Login Prep, Legal / Policies, Payment / Checkout Prep, and account tools: My House of Wax.')
+menu=st.sidebar.radio('House Of Wax',['Home','Marketplace','Knowledge Hub','Sell on House Of Wax','Seller Onboarding','Marketplace Launch Checklist','About','Trust & Safety','Legal / Policies','Payment / Checkout Prep','Contact / Newsletter','My House of Wax'])
 if menu=='Marketplace' and ('seller_id' in st.session_state or 'product_id' in st.session_state):
     if st.sidebar.button('Main Marketplace',key='main_marketplace_reset'):
         st.session_state.pop('seller_id',None)
@@ -4117,6 +4201,8 @@ if menu=='Home': home()
 elif menu=='Marketplace': marketplace()
 elif menu=='Knowledge Hub': knowledge_hub()
 elif menu=='Sell on House Of Wax': register()
+elif menu=='Seller Onboarding': seller_onboarding()
+elif menu=='Marketplace Launch Checklist': launch_checklist()
 elif menu=='About': about_house_of_wax()
 elif menu=='Trust & Safety': trust_safety()
 elif menu=='Legal / Policies': legal_policies()

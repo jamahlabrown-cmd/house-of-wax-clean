@@ -10,11 +10,11 @@ House Of Wax is not just a record store. It is a marketplace, knowledge hub, tru
 
 Current target version:
 
-V25.31 PAYMENT / CHECKOUT DECISION PREP
+V25.32 SELLER ONBOARDING + MARKETPLACE LAUNCH CHECKLIST
 
 The live Streamlit app must show this marker near the top of the app:
 
-Running V25.31 PAYMENT / CHECKOUT DECISION PREP
+Running V25.32 SELLER ONBOARDING + MARKETPLACE LAUNCH CHECKLIST
 
 ## Critical deployment rule
 

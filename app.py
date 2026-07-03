@@ -13,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.29 AUTH / LOGIN PREP'
+APP_VERSION='V25.30 LEGAL + POLICY PAGES PREP'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -231,7 +231,7 @@ def setup():
     mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.29 auth and login prep active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.30 legal and policy pages prep active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -241,8 +241,9 @@ def setup():
     old_v25_26_announcement='V25.26'+' pitch and demo package active'
     old_v25_27_announcement='V25.27'+' production readiness roadmap and auth plan active'
     old_v25_28_announcement='V25.28'+' Supabase and hosted database prep active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement]:
-        set_setting('announcement','V25.29 auth and login prep active')
+    old_v25_29_announcement='V25.29'+' auth and login prep active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement]:
+        set_setting('announcement','V25.30 legal and policy pages prep active')
 setup()
 
 
@@ -3508,6 +3509,66 @@ def buyer_expectations():
     st.markdown('### Buying smarter')
     st.write('Use the Knowledge Hub to learn grading, formats, barcodes, matrix/runouts, bootlegs, reissues, and marketplace trust before buying.')
 
+def policy_draft_notice():
+    st.warning('Draft placeholder for prototype planning. Must be reviewed by a qualified attorney before public launch.')
+
+def legal_policies():
+    header()
+    st.header('Legal / Policies')
+    st.info('These draft sections help organize House Of Wax marketplace rules, privacy expectations, seller expectations, and buyer expectations before launch.')
+    st.warning('These are not final attorney-approved legal documents and should not be treated as production terms.')
+
+    st.markdown('### Privacy Policy Draft')
+    policy_draft_notice()
+    st.write('House Of Wax may collect buyer contact info, seller contact info, listing information, uploaded photos, inquiries, purchase requests, admin/reviewer notes, and basic account or role information as the platform develops.')
+    st.write('Production launch needs real privacy handling, secure storage, permission controls, data retention rules, and clear user-facing privacy language. This prototype does not claim production-grade security.')
+
+    st.markdown('### Terms of Use Draft')
+    policy_draft_notice()
+    for item in ['Use accurate information.','Do not misuse the platform.','Do not submit fake, stolen, unsafe, counterfeit, or misleading listings.','House Of Wax may review, moderate, hide, reject, or remove listings.','This prototype is not the final production marketplace.']:
+        st.write(f'- {item}')
+
+    st.markdown('### Seller Agreement Draft')
+    policy_draft_notice()
+    for item in ['Provide accurate item details.','Use real item photos when required or preferred.','Describe condition honestly, including damage or missing parts.','Respond to buyer inquiries professionally.','Do not list prohibited, counterfeit, stolen, unsafe, or misleading items.','Understand listings may require House Of Wax review or approval before appearing publicly.','Understand fees, commissions, payment rules, and seller payouts are not finalized unless separately agreed.']:
+        st.write(f'- {item}')
+
+    st.markdown('### Buyer Guidelines Draft')
+    policy_draft_notice()
+    for item in ['Ask clear questions before requesting to buy.','Use Request to Buy only when seriously interested.','Communicate respectfully with sellers and House Of Wax.','Inspect item details, photos, condition notes, seller information, and status labels.','Understand payment, shipping, pickup, returns, and dispute rules are not finalized yet.']:
+        st.write(f'- {item}')
+
+    st.markdown('### Marketplace Rules Draft')
+    policy_draft_notice()
+    for item in ['Approved/public listings can appear in Marketplace.','Draft, Submitted for Review, Needs Changes, Rejected, inactive, or non-public listings should not be treated as public listings.','Pending and sold status should be clear to buyers.','House Of Wax may use quality review, trust indicators, seller profile context, and moderation tools.','Seller trust indicators are platform signals, not outside verification.','House Of Wax may remove or hide listings that are unsafe, misleading, inappropriate, prohibited, or incomplete.']:
+        st.write(f'- {item}')
+
+    st.markdown('### Prohibited Items / Unsafe Listings Draft')
+    policy_draft_notice()
+    st.write('This list is general and non-exhaustive.')
+    for item in ['Counterfeit goods','Stolen goods','Illegal items','Unsafe or hazardous items','Misleading listings','Inappropriate content','Listings that hide important condition, authenticity, ownership, or safety information']:
+        st.write(f'- {item}')
+
+    st.markdown('### Returns, Pickup, Shipping, and Disputes Draft')
+    policy_draft_notice()
+    for item in ['Return rules must be finalized before launch.','Pickup rules must clearly explain buyer/seller responsibilities and safe handoff expectations.','Shipping rules must cover cost, timing, packaging, tracking, damaged items, and lost packages.','Dispute rules must explain how buyers, sellers, and House Of Wax communicate when an item is not as described.','Payment and refund rules are not finalized in this prototype.']:
+        st.write(f'- {item}')
+
+    st.markdown('### Production Legal Checklist')
+    policy_draft_notice()
+    checklist=[
+        'Attorney-reviewed Privacy Policy',
+        'Attorney-reviewed Terms of Use',
+        'Seller agreement',
+        'Buyer dispute policy',
+        'Payment/refund rules',
+        'Shipping/pickup rules',
+        'Data retention policy',
+        'Moderation/removal policy'
+    ]
+    for item in checklist:
+        st.write(f'- {item}')
+
 def contact_newsletter():
     header()
     st.header('Contact / Newsletter')
@@ -3594,7 +3655,7 @@ def demo_guide():
     for item in ['Real login/authentication and permission checks','Hosted database storage such as Supabase/Postgres','Permanent hosted image storage','Payments, checkout, refunds, and order operations','Legal/privacy policy, seller terms, buyer terms, and marketplace rules']:
         st.write(f'- {item}')
     st.warning('Prototype storage is local. Uploaded photos and the SQLite database are not production hosting. The repo .gitignore protects local database and upload folders.')
-    st.caption('For partner, lender, grant, or investor conversations, open Pitch / Demo Package from this same My House of Wax workspace. For the next build phase, open Production Readiness / Launch Roadmap, Auth + Roles Plan, and Admin Database Status for Hosted Database / Supabase Prep.')
+    st.caption('For partner, lender, grant, or investor conversations, open Pitch / Demo Package from this same My House of Wax workspace. For the next build phase, open Production Readiness / Launch Roadmap, Auth + Roles Plan, Legal / Policies, and Admin Database Status for Hosted Database / Supabase Prep.')
 
 
 def pitch_demo_package():
@@ -3666,7 +3727,7 @@ def pitch_demo_package():
     st.markdown('### What Comes Next for Production')
     for item in ['Real authentication/login','Hosted database','Permanent cloud image storage','Payments or checkout','Shipping/pickup rules','Legal pages','Seller agreement','Privacy policy','Better admin security','More real-user testing']:
         st.write(f'- {item}')
-    st.caption('For the build sequence behind these items, open Production Readiness / Launch Roadmap. For login and permissions, open Auth + Roles Plan.')
+    st.caption('For the build sequence behind these items, open Production Readiness / Launch Roadmap. For login and permissions, open Auth + Roles Plan. For marketplace rules and launch policy drafts, open Legal / Policies.')
 
     st.markdown('### Prototype completion estimate')
     st.success('Strong demo prototype: nearly complete for guided walkthroughs, founder review, partner conversations, and early feedback.')
@@ -3736,6 +3797,9 @@ def production_readiness_roadmap():
     st.markdown('### Auth / Login prep now')
     st.write('Open Auth / Login Prep in My House of Wax to review the future sign-up, login, password reset, dashboard, role-permission, and admin-lockdown plan.')
     st.write('The current role selector remains prototype-only until real authentication, sessions, and permission checks are implemented.')
+    st.markdown('### Legal and policy prep now')
+    st.write('Open Legal / Policies to review draft privacy, terms, seller agreement, buyer guidelines, marketplace rules, prohibited items, returns/pickup/shipping/disputes, and the production legal checklist.')
+    st.write('These policy pages are prototype planning placeholders and must be reviewed by a qualified attorney before public launch.')
     st.warning('Do not present the prototype role selector as production security. Public launch requires real login, permissions, hosted storage, privacy rules, and operational policies.')
 
 
@@ -3914,13 +3978,13 @@ def my_house_of_wax():
         admin_access_warning()
     if role=='Buyer':
         st.info('Buyer area: Marketplace, listing details, seller questions, purchase requests, and buyer account activity.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Buyer Account']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Buyer Account']
     elif role=='Seller':
         st.info('Seller area: Seller Tools, upload product, seller profile, inquiries, purchase requests, listing status, and reviewer notes.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Seller Tools']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Seller Tools']
     else:
         st.info('Admin area: review queue, inquiry review, purchase request review, listing approvals, reports, and demo tools.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     if testing_mode and role!='Admin':
         workspace_options += ['Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     section=st.radio('Choose your workspace',workspace_options,key='my_house_workspace')
@@ -3935,6 +3999,8 @@ def my_house_of_wax():
         auth_roles_plan()
     elif section=='Auth / Login Prep':
         auth_login_prep()
+    elif section=='Legal / Policies':
+        legal_policies()
     elif section=='Buyer Account':
         buyer_dashboard()
     elif section=='Seller Tools':
@@ -3969,8 +4035,8 @@ def app_mode():
 
 
 testing_mode=app_mode()
-st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub, Sell on House Of Wax. Demo Guide, Pitch / Demo Package, Production Roadmap, Auth Plan, Auth / Login Prep, and account tools: My House of Wax.')
-menu=st.sidebar.radio('House Of Wax',['Home','Marketplace','Knowledge Hub','Sell on House Of Wax','About','Trust & Safety','Contact / Newsletter','My House of Wax'])
+st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub, Sell on House Of Wax. Demo Guide, Pitch / Demo Package, Production Roadmap, Auth Plan, Auth / Login Prep, Legal / Policies, and account tools: My House of Wax.')
+menu=st.sidebar.radio('House Of Wax',['Home','Marketplace','Knowledge Hub','Sell on House Of Wax','About','Trust & Safety','Legal / Policies','Contact / Newsletter','My House of Wax'])
 if menu=='Marketplace' and ('seller_id' in st.session_state or 'product_id' in st.session_state):
     if st.sidebar.button('Main Marketplace',key='main_marketplace_reset'):
         st.session_state.pop('seller_id',None)
@@ -3982,5 +4048,6 @@ elif menu=='Knowledge Hub': knowledge_hub()
 elif menu=='Sell on House Of Wax': register()
 elif menu=='About': about_house_of_wax()
 elif menu=='Trust & Safety': trust_safety()
+elif menu=='Legal / Policies': legal_policies()
 elif menu=='Contact / Newsletter': contact_newsletter()
 elif menu=='My House of Wax': my_house_of_wax()

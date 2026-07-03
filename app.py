@@ -13,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.26 PITCH + DEMO PACKAGE'
+APP_VERSION='V25.27 PRODUCTION READINESS ROADMAP + AUTH PLAN'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -205,15 +205,16 @@ def setup():
     mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.26 pitch and demo package active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.27 production readiness roadmap and auth plan active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
     old_v25_23_announcement='V25.23'+' testing tools active'
     old_v25_24_announcement='V25.24'+' launch audit tools active'
     old_v25_25_announcement='V25.25'+' demo readiness tools active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement]:
-        set_setting('announcement','V25.26 pitch and demo package active')
+    old_v25_26_announcement='V25.26'+' pitch and demo package active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement]:
+        set_setting('announcement','V25.27 production readiness roadmap and auth plan active')
 setup()
 
 
@@ -3520,7 +3521,7 @@ def demo_guide():
     for item in ['Real login/authentication and permission checks','Hosted database storage such as Supabase/Postgres','Permanent hosted image storage','Payments, checkout, refunds, and order operations','Legal/privacy policy, seller terms, buyer terms, and marketplace rules']:
         st.write(f'- {item}')
     st.warning('Prototype storage is local. Uploaded photos and the SQLite database are not production hosting. The repo .gitignore protects local database and upload folders.')
-    st.caption('For partner, lender, grant, or investor conversations, open Pitch / Demo Package from this same My House of Wax workspace.')
+    st.caption('For partner, lender, grant, or investor conversations, open Pitch / Demo Package from this same My House of Wax workspace. For the next build phase, open Production Readiness / Launch Roadmap and Auth + Roles Plan.')
 
 
 def pitch_demo_package():
@@ -3592,10 +3593,111 @@ def pitch_demo_package():
     st.markdown('### What Comes Next for Production')
     for item in ['Real authentication/login','Hosted database','Permanent cloud image storage','Payments or checkout','Shipping/pickup rules','Legal pages','Seller agreement','Privacy policy','Better admin security','More real-user testing']:
         st.write(f'- {item}')
+    st.caption('For the build sequence behind these items, open Production Readiness / Launch Roadmap. For login and permissions, open Auth + Roles Plan.')
 
     st.markdown('### Prototype completion estimate')
     st.success('Strong demo prototype: nearly complete for guided walkthroughs, founder review, partner conversations, and early feedback.')
     st.warning('Public production marketplace: still requires infrastructure, legal, payment, storage, authentication, security, and real-user testing before launch.')
+
+
+def production_readiness_roadmap():
+    header()
+    st.header('Production Readiness / Launch Roadmap')
+    st.info('Use this roadmap to organize the next development phase before House Of Wax becomes a public marketplace.')
+    st.write('This section does not add production authentication or new infrastructure. It explains what is ready for demos, what is prototype-only, and what should be upgraded before public launch.')
+
+    st.markdown('### What is working now')
+    working_now=[
+        ('Marketplace browsing','Approved/public listings can appear with images, status, seller information, inquiry, and request-to-buy actions.','Medium'),
+        ('Seller upload flow','Sellers can create guided listings with search data, details, photos, preview, quality score, draft, and review submission.','Medium'),
+        ('Review queue','Admin can review submitted listings, add notes, approve, mark Needs Changes, or reject.','Medium'),
+        ('Buyer inquiries and purchase requests','Buyers can ask about items and request to buy through controlled House Of Wax forms.','Medium'),
+        ('Seller profiles and trust badges','Seller profile details, platform indicators, and listing quality signals are visible.','Low'),
+        ('Database health/export','Admin can view local database status and safe export options for key tables.','Low')
+    ]
+    for name,desc,risk in working_now:
+        st.write(f'- **{name}** — {desc} Risk level: {risk}.')
+
+    st.markdown('### What is prototype-only')
+    prototype_only=[
+        ('Role selector','Current Buyer/Seller/Admin switching is prototype control only, not secure authentication.','High'),
+        ('Local SQLite storage','Data is stored in a local app database unless hosted storage is added later.','High'),
+        ('Local photo storage','Uploaded files use prototype storage and need cloud storage before launch.','High'),
+        ('Testing/Admin mode','Admin tools are intentionally visible for demo/testing and must be locked behind real permissions.','High'),
+        ('Manual review operations','Review and status tools work, but need stronger audit trails and permissions before scale.','Medium'),
+        ('No real checkout','Request to Buy is an intent workflow, not a payment/order fulfillment system.','Medium')
+    ]
+    for name,desc,risk in prototype_only:
+        st.write(f'- **{name}** — {desc} Risk level: {risk}.')
+
+    st.markdown('### What must be upgraded before public launch')
+    launch_upgrades=[
+        ('Real authentication/login','Replace prototype role selection with real user accounts and session checks.','High'),
+        ('Hosted database','Move from local SQLite to hosted storage such as Supabase/Postgres.','High'),
+        ('Cloud image storage','Store listing photos in permanent hosted storage with safe access rules.','High'),
+        ('Admin security hardening','Protect admin tools with real admin login, role checks, and private data controls.','High'),
+        ('Payment or checkout decision','Decide whether House Of Wax handles payments directly or routes seller-managed transactions.','Medium'),
+        ('Shipping/pickup rules','Define shipping, pickup, local handoff, cancellation, and inventory status rules.','Medium'),
+        ('Legal pages and seller agreement','Add privacy policy, buyer terms, seller terms, marketplace rules, and content policies.','High'),
+        ('Beta testing with real sellers','Test listing quality, review queue, buyer messages, and status workflows with trusted sellers.','Medium')
+    ]
+    for name,desc,risk in launch_upgrades:
+        st.write(f'- **{name}** — {desc} Risk level: {risk}.')
+
+    st.markdown('### Recommended build order')
+    build_order=[
+        'Real authentication/login',
+        'Hosted database',
+        'Cloud image storage',
+        'Payment or checkout decision',
+        'Shipping/pickup rules',
+        'Legal pages and seller agreement',
+        'Admin security hardening',
+        'Beta testing with real sellers'
+    ]
+    for i,item in enumerate(build_order,1):
+        st.write(f'{i}. {item}')
+    st.warning('Do not present the prototype role selector as production security. Public launch requires real login, permissions, hosted storage, privacy rules, and operational policies.')
+
+
+def auth_roles_plan():
+    header()
+    st.header('Auth + Roles Plan')
+    st.info('Current role selection is prototype control only. Production launch will require real login, sessions, permission checks, and protected data access.')
+    st.write('No new dependencies, secrets, or environment variables are required for this plan. It is a roadmap for the future auth build.')
+
+    st.markdown('### Future roles')
+    roles=[
+        ('Buyer',['Marketplace','Listing details','Contact seller','Request to buy','Their own inquiries','Their own purchase requests','Saved/favorite items if added later']),
+        ('Seller',['Seller dashboard','Upload/listing tools','Their own listings','Listing statuses and reviewer notes','Their seller profile','Their own buyer inquiries','Their own purchase requests']),
+        ('Admin',['Review queue','Seller/listing moderation','Inquiry monitoring','Purchase request monitoring','Data health/export','User/seller controls when added later']),
+        ('House Of Wax Official',['Official listings','Branded merch/listings','Official inventory tools','Same safe protections as seller tools, plus admin approval if needed'])
+    ]
+    for role,items in roles:
+        with st.expander(role,expanded=True):
+            for item in items:
+                st.write(f'- {item}')
+
+    st.markdown('### Security and data notes')
+    notes=[
+        'Private buyer/seller contact data must be protected.',
+        'Admin tools must require real admin login before public launch.',
+        'Sellers should not see other sellers private data.',
+        'Buyers should not see admin or seller private tools.',
+        'Every private action should check the logged-in user role on the server side, not only in the visible interface.',
+        'House Of Wax Official can be an official seller account, but it still needs clear permissions and approval rules.'
+    ]
+    for note in notes:
+        st.write(f'- {note}')
+
+    st.markdown('### Future auth options')
+    st.write('- **Supabase Auth** — strong fit if the hosted database also moves to Supabase/Postgres.')
+    st.write('- **Streamlit authentication package** — useful for a quicker prototype-to-beta login layer.')
+    st.write('- **Custom auth with a backend later** — more control, but higher engineering and security responsibility.')
+    st.caption('Do not add these dependencies until the production path is chosen. The app should keep running without new secrets for now.')
+
+    st.markdown('### Recommended next step')
+    st.success('Choose the production auth/database direction before adding real user accounts. The cleanest next phase is real login first, then hosted database, then cloud photo storage.')
 
 
 
@@ -3662,13 +3764,13 @@ def my_house_of_wax():
         admin_access_warning()
     if role=='Buyer':
         st.info('Buyer area: Marketplace, listing details, seller questions, purchase requests, and buyer account activity.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Buyer Account']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Buyer Account']
     elif role=='Seller':
         st.info('Seller area: Seller Tools, upload product, seller profile, inquiries, purchase requests, listing status, and reviewer notes.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Seller Tools']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Seller Tools']
     else:
         st.info('Admin area: review queue, inquiry review, purchase request review, listing approvals, reports, and demo tools.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     if testing_mode and role!='Admin':
         workspace_options += ['Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     section=st.radio('Choose your workspace',workspace_options,key='my_house_workspace')
@@ -3677,6 +3779,10 @@ def my_house_of_wax():
         demo_guide()
     elif section=='Pitch / Demo Package':
         pitch_demo_package()
+    elif section=='Production Readiness / Launch Roadmap':
+        production_readiness_roadmap()
+    elif section=='Auth + Roles Plan':
+        auth_roles_plan()
     elif section=='Buyer Account':
         buyer_dashboard()
     elif section=='Seller Tools':
@@ -3711,7 +3817,7 @@ def app_mode():
 
 
 testing_mode=app_mode()
-st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub, Sell on House Of Wax. Demo Guide, Pitch / Demo Package, and account tools: My House of Wax.')
+st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub, Sell on House Of Wax. Demo Guide, Pitch / Demo Package, Production Roadmap, Auth Plan, and account tools: My House of Wax.')
 menu=st.sidebar.radio('House Of Wax',['Home','Marketplace','Knowledge Hub','Sell on House Of Wax','About','Trust & Safety','Contact / Newsletter','My House of Wax'])
 if menu=='Marketplace' and ('seller_id' in st.session_state or 'product_id' in st.session_state):
     if st.sidebar.button('Main Marketplace',key='main_marketplace_reset'):

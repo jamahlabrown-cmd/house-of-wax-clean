@@ -13,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.30 LEGAL + POLICY PAGES PREP'
+APP_VERSION='V25.31 PAYMENT / CHECKOUT DECISION PREP'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -231,7 +231,7 @@ def setup():
     mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.30 legal and policy pages prep active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.31 payment and checkout decision prep active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -242,8 +242,9 @@ def setup():
     old_v25_27_announcement='V25.27'+' production readiness roadmap and auth plan active'
     old_v25_28_announcement='V25.28'+' Supabase and hosted database prep active'
     old_v25_29_announcement='V25.29'+' auth and login prep active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement]:
-        set_setting('announcement','V25.30 legal and policy pages prep active')
+    old_v25_30_announcement='V25.30'+' legal and policy pages prep active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement]:
+        set_setting('announcement','V25.31 payment and checkout decision prep active')
 setup()
 
 
@@ -828,6 +829,7 @@ def render_purchase_request_form(p, key_prefix):
     if not is_available_listing(p):
         st.info('Purchase requests are available only while a listing is available.')
         return
+    st.info('Checkout is not live yet. This sends a purchase request so the seller can confirm availability, pickup/shipping, and next steps.')
     known_buyers=table('buyers')
     buyer_id=0
     buyer_name=''
@@ -997,6 +999,7 @@ def product_detail(pid):
                 if st.button('Request to Buy',key=f'detail_purchase_top_{pid}',width='stretch'):
                     st.session_state[f'open_purchase_{pid}']=True
                     st.rerun()
+                st.caption('Checkout is not live yet. Request to Buy sends a purchase request, not a payment.')
             if st.button('View seller public profile'): st.session_state['seller_id']=int(s['id']); st.session_state.pop('product_id',None); st.rerun()
     st.subheader('Description'); st.write(safe(p['description'],'No description.'))
     st.divider(); st.subheader('Buyer actions')
@@ -3569,6 +3572,68 @@ def legal_policies():
     for item in checklist:
         st.write(f'- {item}')
 
+def payment_checkout_prep():
+    header()
+    st.header('Payment / Checkout Prep')
+    st.info('House Of Wax currently supports Request to Buy. Real checkout and payment processing are not live yet.')
+    st.warning('Do not collect payment without clear terms, seller agreements, refund/dispute rules, real authentication, hosted storage, and a trusted payment processor.')
+
+    st.markdown('### Current buying action')
+    st.write('Request to Buy is the active prototype flow. It lets a buyer signal interest, share contact details, choose pickup/shipping preference, and let the seller respond before any payment happens.')
+    st.write('No Stripe, PayPal, credit card, or bank payment processing is implemented in this prototype.')
+
+    st.markdown('### Purchase model options')
+    models=[
+        ('Request-to-buy only','Simple, safe for demo, and keeps payment out of the prototype.','Less automated; sellers and buyers still need follow-up outside checkout.'),
+        ('Seller-managed payment','Fastest to prototype because sellers can handle payment directly.','Less controlled by House Of Wax; harder to standardize refunds, disputes, fees, and buyer trust.'),
+        ('House Of Wax-managed checkout','Best long-term control over buyer experience, fees, status, refunds, and trust.','Adds legal, tax, payment, dispute, security, and operational responsibility.'),
+        ('Local pickup / pay on pickup','Useful for local sellers and physical inspection before payment.','Requires clear meetup safety, cancellation, no-show, and inventory-hold rules.'),
+        ('Shipping with payment collection','Supports national sales and clearer order tracking.','Needs shipping rates, addresses, tracking, payment settlement, damaged/lost package rules, and refund policy.'),
+        ('Hybrid model','Lets House Of Wax start simple while adding checkout for selected sellers or categories later.','Needs clear rules so buyers understand which listings are seller-managed versus platform-managed.')
+    ]
+    for name,pro,risk in models:
+        with st.expander(name,expanded=True):
+            st.write(f'**Good for:** {pro}')
+            st.write(f'**Risk / decision needed:** {risk}')
+
+    st.markdown('### Recommended phased approach')
+    phases=[
+        ('Phase 1','Request to Buy + seller communication. Keep current buyer request flow as the live buying action.'),
+        ('Phase 2','Admin-tracked Pending/Sold status. Use seller/admin tools to track accepted requests, pending pickup/payment, sold, cancelled, or closed status.'),
+        ('Phase 3','Optional Stripe checkout after authentication, hosted database, permanent image storage, legal terms, seller agreement, refund/dispute policy, and admin controls are ready.')
+    ]
+    for phase,desc in phases:
+        st.write(f'- **{phase}:** {desc}')
+
+    st.markdown('### Before real payments')
+    for item in ['Real login/authentication','Hosted database','Permanent image storage','Attorney-reviewed legal terms','Seller agreement','Refund and dispute policy']:
+        st.write(f'- {item}')
+
+    st.markdown('### Future checkout/order data model')
+    st.caption('Future checkout/order fields: order_id, listing_id, buyer_id, seller_id, amount, status, payment_provider, pickup_or_shipping, shipping_address, created_at, updated_at.')
+    fields=[
+        ('order_id','Unique order identifier.'),
+        ('listing_id','Listing being purchased.'),
+        ('buyer_id','Buyer account.'),
+        ('seller_id','Seller account.'),
+        ('amount','Item total, before final fee/shipping/tax decisions if needed.'),
+        ('status','Current order status.'),
+        ('payment_provider','Future provider such as Stripe; blank/none for request-only flow.'),
+        ('pickup_or_shipping','Buyer fulfillment path.'),
+        ('shipping_address','Only if shipping is added later; must be protected as private data.'),
+        ('created_at','Order/request creation timestamp.'),
+        ('updated_at','Last status update timestamp.')
+    ]
+    st.dataframe(pd.DataFrame(fields,columns=['Field','Purpose']),width='stretch')
+
+    st.markdown('### Possible future order statuses')
+    for item in ['requested','accepted','pending_payment','paid','ready_for_pickup','shipped','completed','cancelled','refunded','disputed']:
+        st.write(f'- {item}')
+
+    st.markdown('### Safety and legal notes')
+    for item in ['Payment handling creates legal, tax, refund, and dispute responsibilities.','Do not collect payment without clear terms.','Do not collect sensitive payment data directly in the app.','Use a trusted payment processor when ready.','Stripe is a likely future option, but it is not implemented in this prototype.','Seller-managed payment is easier to prototype but gives House Of Wax less control over buyer trust, disputes, fees, and status tracking.']:
+        st.write(f'- {item}')
+
 def contact_newsletter():
     header()
     st.header('Contact / Newsletter')
@@ -3627,7 +3692,7 @@ def demo_guide():
         st.write('1. Open Marketplace.')
         st.write('2. Open an Approved, Active, or Public listing.')
         st.write('3. Use Contact Seller / Ask About This Item for questions.')
-        st.write('4. Use Request to Buy when the buyer is ready.')
+        st.write('4. Use Request to Buy when the buyer is ready. Checkout is not live yet; this sends a purchase request.')
         st.caption('Pending and Sold listings can appear as unavailable, but buyer action buttons stay hidden.')
     with c2:
         st.subheader('Seller flow')
@@ -3655,7 +3720,7 @@ def demo_guide():
     for item in ['Real login/authentication and permission checks','Hosted database storage such as Supabase/Postgres','Permanent hosted image storage','Payments, checkout, refunds, and order operations','Legal/privacy policy, seller terms, buyer terms, and marketplace rules']:
         st.write(f'- {item}')
     st.warning('Prototype storage is local. Uploaded photos and the SQLite database are not production hosting. The repo .gitignore protects local database and upload folders.')
-    st.caption('For partner, lender, grant, or investor conversations, open Pitch / Demo Package from this same My House of Wax workspace. For the next build phase, open Production Readiness / Launch Roadmap, Auth + Roles Plan, Legal / Policies, and Admin Database Status for Hosted Database / Supabase Prep.')
+    st.caption('For partner, lender, grant, or investor conversations, open Pitch / Demo Package from this same My House of Wax workspace. For the next build phase, open Production Readiness / Launch Roadmap, Auth + Roles Plan, Legal / Policies, Payment / Checkout Prep, and Admin Database Status for Hosted Database / Supabase Prep.')
 
 
 def pitch_demo_package():
@@ -3676,6 +3741,7 @@ def pitch_demo_package():
 
     st.markdown('### Marketplace concept')
     st.write('Buyers browse approved/public listings, view item details, ask sellers questions, and request to buy. Sellers build richer listings with search data, photos, condition notes, quality scores, profile context, and trust badges. Admin/review tools help House Of Wax approve listings, track inquiries, track purchase requests, and watch database health.')
+    st.caption('Checkout is not live yet. Request to Buy is the current purchase-intent workflow while payment decisions are prepared.')
 
     c3,c4,c5=st.columns(3)
     with c3:
@@ -3727,7 +3793,7 @@ def pitch_demo_package():
     st.markdown('### What Comes Next for Production')
     for item in ['Real authentication/login','Hosted database','Permanent cloud image storage','Payments or checkout','Shipping/pickup rules','Legal pages','Seller agreement','Privacy policy','Better admin security','More real-user testing']:
         st.write(f'- {item}')
-    st.caption('For the build sequence behind these items, open Production Readiness / Launch Roadmap. For login and permissions, open Auth + Roles Plan. For marketplace rules and launch policy drafts, open Legal / Policies.')
+    st.caption('For the build sequence behind these items, open Production Readiness / Launch Roadmap. For login and permissions, open Auth + Roles Plan. For marketplace rules and launch policy drafts, open Legal / Policies. For payment direction, open Payment / Checkout Prep.')
 
     st.markdown('### Prototype completion estimate')
     st.success('Strong demo prototype: nearly complete for guided walkthroughs, founder review, partner conversations, and early feedback.')
@@ -3800,6 +3866,9 @@ def production_readiness_roadmap():
     st.markdown('### Legal and policy prep now')
     st.write('Open Legal / Policies to review draft privacy, terms, seller agreement, buyer guidelines, marketplace rules, prohibited items, returns/pickup/shipping/disputes, and the production legal checklist.')
     st.write('These policy pages are prototype planning placeholders and must be reviewed by a qualified attorney before public launch.')
+    st.markdown('### Payment / Checkout prep now')
+    st.write('Open Payment / Checkout Prep to compare request-to-buy, seller-managed payment, House Of Wax-managed checkout, local pickup, shipping, and hybrid purchase models.')
+    st.write('Recommended path: keep Request to Buy first, add admin-tracked pending/sold status next, then consider Stripe checkout only after real auth, hosted database, permanent image storage, legal terms, seller agreement, and refund/dispute policy are ready.')
     st.warning('Do not present the prototype role selector as production security. Public launch requires real login, permissions, hosted storage, privacy rules, and operational policies.')
 
 
@@ -3978,13 +4047,13 @@ def my_house_of_wax():
         admin_access_warning()
     if role=='Buyer':
         st.info('Buyer area: Marketplace, listing details, seller questions, purchase requests, and buyer account activity.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Buyer Account']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Buyer Account']
     elif role=='Seller':
         st.info('Seller area: Seller Tools, upload product, seller profile, inquiries, purchase requests, listing status, and reviewer notes.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Seller Tools']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Seller Tools']
     else:
         st.info('Admin area: review queue, inquiry review, purchase request review, listing approvals, reports, and demo tools.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
+        workspace_options=['Demo Guide','Pitch / Demo Package','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     if testing_mode and role!='Admin':
         workspace_options += ['Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     section=st.radio('Choose your workspace',workspace_options,key='my_house_workspace')
@@ -4001,6 +4070,8 @@ def my_house_of_wax():
         auth_login_prep()
     elif section=='Legal / Policies':
         legal_policies()
+    elif section=='Payment / Checkout Prep':
+        payment_checkout_prep()
     elif section=='Buyer Account':
         buyer_dashboard()
     elif section=='Seller Tools':
@@ -4035,8 +4106,8 @@ def app_mode():
 
 
 testing_mode=app_mode()
-st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub, Sell on House Of Wax. Demo Guide, Pitch / Demo Package, Production Roadmap, Auth Plan, Auth / Login Prep, Legal / Policies, and account tools: My House of Wax.')
-menu=st.sidebar.radio('House Of Wax',['Home','Marketplace','Knowledge Hub','Sell on House Of Wax','About','Trust & Safety','Legal / Policies','Contact / Newsletter','My House of Wax'])
+st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub, Sell on House Of Wax. Demo Guide, Pitch / Demo Package, Production Roadmap, Auth Plan, Auth / Login Prep, Legal / Policies, Payment / Checkout Prep, and account tools: My House of Wax.')
+menu=st.sidebar.radio('House Of Wax',['Home','Marketplace','Knowledge Hub','Sell on House Of Wax','About','Trust & Safety','Legal / Policies','Payment / Checkout Prep','Contact / Newsletter','My House of Wax'])
 if menu=='Marketplace' and ('seller_id' in st.session_state or 'product_id' in st.session_state):
     if st.sidebar.button('Main Marketplace',key='main_marketplace_reset'):
         st.session_state.pop('seller_id',None)
@@ -4049,5 +4120,6 @@ elif menu=='Sell on House Of Wax': register()
 elif menu=='About': about_house_of_wax()
 elif menu=='Trust & Safety': trust_safety()
 elif menu=='Legal / Policies': legal_policies()
+elif menu=='Payment / Checkout Prep': payment_checkout_prep()
 elif menu=='Contact / Newsletter': contact_newsletter()
 elif menu=='My House of Wax': my_house_of_wax()

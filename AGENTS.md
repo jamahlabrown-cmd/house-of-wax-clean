@@ -10,11 +10,11 @@ House Of Wax is not just a record store. It is a marketplace, knowledge hub, tru
 
 Current target version:
 
-V25.27 PRODUCTION READINESS ROADMAP + AUTH PLAN
+V25.28 SUPABASE / HOSTED DATABASE PREP
 
 The live Streamlit app must show this marker near the top of the app:
 
-Running V25.27 PRODUCTION READINESS ROADMAP + AUTH PLAN
+Running V25.28 SUPABASE / HOSTED DATABASE PREP
 
 ## Critical deployment rule
 

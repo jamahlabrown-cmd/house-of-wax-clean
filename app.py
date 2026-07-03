@@ -13,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.27 PRODUCTION READINESS ROADMAP + AUTH PLAN'
+APP_VERSION='V25.28 SUPABASE / HOSTED DATABASE PREP'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -32,10 +32,28 @@ def safe(v,d=''):
 def money(v):
     try: return f'${float(v):,.2f}'
     except Exception: return '$0.00'
+def mask_secret(v):
+    s=safe(v)
+    if not s:
+        return 'Missing'
+    if len(s)<=8:
+        return 'Detected, hidden'
+    return f'Detected ({s[:4]}...{s[-4:]})'
+def hosted_database_config_status():
+    keys=['SUPABASE_URL','SUPABASE_ANON_KEY','DATABASE_URL']
+    rows=[]
+    for key in keys:
+        value=os.environ.get(key,'')
+        rows.append({'Setting':key,'Status':'Detected' if value else 'Missing','Value':mask_secret(value)})
+    detected={row['Setting']: row['Status']=='Detected' for row in rows}
+    has_supabase=detected.get('SUPABASE_URL') and detected.get('SUPABASE_ANON_KEY')
+    has_database_url=detected.get('DATABASE_URL')
+    return {'rows':rows,'has_supabase':has_supabase,'has_database_url':has_database_url,'hosted_config_detected':bool(has_supabase or has_database_url)}
 def database_mode():
     # Future hosted database swap point. Local SQLite remains the working fallback for this prototype.
-    hosted_hint=bool(os.environ.get('DATABASE_URL') or os.environ.get('SUPABASE_URL'))
-    return {'engine':'SQLite local prototype','path':str(DB.resolve()),'hosted_config_detected':hosted_hint,'active_hosted_database':False}
+    hosted=hosted_database_config_status()
+    storage_mode='Hosted Config Detected' if hosted['hosted_config_detected'] else 'Local Prototype'
+    return {'engine':'SQLite local prototype','storage_mode':storage_mode,'path':str(DB.resolve()),'hosted_config_detected':hosted['hosted_config_detected'],'active_hosted_database':False,'hosted_config':hosted}
 def conn(): return sqlite3.connect(DB)
 def run(sql,p=()):
     c=conn(); c.execute(sql,p); c.commit(); c.close()
@@ -205,7 +223,7 @@ def setup():
     mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.27 production readiness roadmap and auth plan active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.28 Supabase and hosted database prep active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -213,8 +231,9 @@ def setup():
     old_v25_24_announcement='V25.24'+' launch audit tools active'
     old_v25_25_announcement='V25.25'+' demo readiness tools active'
     old_v25_26_announcement='V25.26'+' pitch and demo package active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement]:
-        set_setting('announcement','V25.27 production readiness roadmap and auth plan active')
+    old_v25_27_announcement='V25.27'+' production readiness roadmap and auth plan active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement]:
+        set_setting('announcement','V25.28 Supabase and hosted database prep active')
 setup()
 
 
@@ -3295,15 +3314,58 @@ def redact_export_table(table_name):
     private_cols=[c for c in data.columns if any(token in c.lower() for token in ['email','phone','contact','access_code'])]
     return data.drop(columns=private_cols,errors='ignore')
 
+def hosted_database_prep_section():
+    st.markdown('### Hosted Database / Supabase Prep')
+    mode=database_mode()
+    config=mode['hosted_config']
+    if config['hosted_config_detected']:
+        st.success('Hosted database settings detected.')
+        st.caption('Do not attempt risky migration unless the app has safe migration code and backups are ready. SQLite remains the active fallback in this prototype.')
+    else:
+        st.info('Hosted database not connected yet. Local prototype database is being used.')
+    st.caption('Configuration checked: SUPABASE_URL, SUPABASE_ANON_KEY, DATABASE_URL.')
+    st.dataframe(pd.DataFrame(config['rows']),width='stretch')
+    st.caption('Secret values are masked. This app checks for configuration safely and does not require hosted database credentials to run.')
+
+    st.markdown('### Current data model summary')
+    data_groups=[
+        ('Listings','products','Move to hosted database before launch. Protect status, price, quantity, review notes, and seller ownership.'),
+        ('Seller profiles','sellers','Move to hosted database. Protect seller email, phone, access code, and private profile controls.'),
+        ('Inquiries','listing_inquiries','Move to hosted database. Protect buyer contact info and message history.'),
+        ('Purchase requests','purchase_requests','Move to hosted database. Protect buyer contact info, offer details, fulfillment preference, and status.'),
+        ('Photos/photo references','product_gallery plus product image fields','Move references to hosted database and files to cloud storage.'),
+        ('Review notes/statuses','products reviewer_notes and listing_status','Move to hosted database. Protect admin notes and moderation history.'),
+        ('Roles/prototype user state','Streamlit session role selector','Replace with real auth roles and permission checks before public launch.')
+    ]
+    st.dataframe(pd.DataFrame(data_groups,columns=['Data group','Current area','Hosted database note']),width='stretch')
+    st.warning('Privacy protection needed: buyer contact info, seller contact info, purchase requests, and admin notes should never be exposed publicly.')
+
+    st.markdown('### Supabase migration checklist')
+    checklist=[
+        'Create Supabase project',
+        'Create tables',
+        'Add environment variables to Streamlit secrets',
+        'Test read/write',
+        'Migrate sample listings',
+        'Test buyer inquiry',
+        'Test purchase request',
+        'Test seller/admin access',
+        'Back up local data before migration'
+    ]
+    for item in checklist:
+        st.write(f'- {item}')
+    st.caption('This is a prep/checklist step, not a full migration. No Supabase package, Postgres driver, secret, or new dependency is required for V25.28.')
+
 def admin_database_status():
     st.subheader('Database Status / Data Health')
     st.info('Current database is prototype/local storage. Production launch should use hosted database storage such as Supabase/Postgres.')
     st.caption('Use this admin-only area to confirm storage health, table counts, photo records, and safe exports before deployment.')
     mode=database_mode()
     c1,c2,c3=st.columns(3)
-    c1.metric('Active database',mode['engine'])
+    c1.metric('Current storage mode',mode['storage_mode'])
     c2.metric('Hosted config detected','Yes' if mode['hosted_config_detected'] else 'No')
     c3.metric('Local database file','Found' if DB.exists() else 'Will be created')
+    st.caption('Active database engine: '+safe(mode.get('engine')))
     st.caption('Local SQLite path: '+safe(mode.get('path')))
     st.caption('Hosted database is not active yet. This keeps Streamlit deployment working without new secrets.')
     tables=df("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -3330,6 +3392,8 @@ def admin_database_status():
     c4,c5=st.columns(2)
     c4.download_button('Download safe CSV export',csv_data,file_name=f'house_of_wax_{export_choice}_safe_export.csv',mime='text/csv',key=f'database_status_csv_{export_choice}')
     c5.download_button('Download safe JSON export',json_data,file_name=f'house_of_wax_{export_choice}_safe_export.json',mime='application/json',key=f'database_status_json_{export_choice}')
+    st.warning('Backup reminder: export important local data before any future migration. Production launch should use hosted database storage, real auth, cloud image storage, and tested permissions.')
+    hosted_database_prep_section()
 
 def admin():
     header(); st.header('Admin')
@@ -3521,7 +3585,7 @@ def demo_guide():
     for item in ['Real login/authentication and permission checks','Hosted database storage such as Supabase/Postgres','Permanent hosted image storage','Payments, checkout, refunds, and order operations','Legal/privacy policy, seller terms, buyer terms, and marketplace rules']:
         st.write(f'- {item}')
     st.warning('Prototype storage is local. Uploaded photos and the SQLite database are not production hosting. The repo .gitignore protects local database and upload folders.')
-    st.caption('For partner, lender, grant, or investor conversations, open Pitch / Demo Package from this same My House of Wax workspace. For the next build phase, open Production Readiness / Launch Roadmap and Auth + Roles Plan.')
+    st.caption('For partner, lender, grant, or investor conversations, open Pitch / Demo Package from this same My House of Wax workspace. For the next build phase, open Production Readiness / Launch Roadmap, Auth + Roles Plan, and Admin Database Status for Hosted Database / Supabase Prep.')
 
 
 def pitch_demo_package():
@@ -3633,7 +3697,7 @@ def production_readiness_roadmap():
     st.markdown('### What must be upgraded before public launch')
     launch_upgrades=[
         ('Real authentication/login','Replace prototype role selection with real user accounts and session checks.','High'),
-        ('Hosted database','Move from local SQLite to hosted storage such as Supabase/Postgres.','High'),
+        ('Hosted database','Move from local SQLite to hosted storage such as Supabase/Postgres. Start with the Hosted Database / Supabase Prep checklist in Admin Database Status.','High'),
         ('Cloud image storage','Store listing photos in permanent hosted storage with safe access rules.','High'),
         ('Admin security hardening','Protect admin tools with real admin login, role checks, and private data controls.','High'),
         ('Payment or checkout decision','Decide whether House Of Wax handles payments directly or routes seller-managed transactions.','Medium'),
@@ -3657,6 +3721,9 @@ def production_readiness_roadmap():
     ]
     for i,item in enumerate(build_order,1):
         st.write(f'{i}. {item}')
+    st.markdown('### Hosted database prep now')
+    st.write('Admin Database Status now checks for future hosted database settings without requiring them: SUPABASE_URL, SUPABASE_ANON_KEY, and DATABASE_URL.')
+    st.write('If settings are missing, the app stays on local SQLite. If settings are detected, the app shows that configuration exists but does not run a risky migration.')
     st.warning('Do not present the prototype role selector as production security. Public launch requires real login, permissions, hosted storage, privacy rules, and operational policies.')
 
 

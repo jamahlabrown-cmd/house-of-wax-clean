@@ -13,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.34 BUSINESS PLAN + FUNDING PACKAGE'
+APP_VERSION='V25.34 WEDGE STRATEGY + TESTING SCRIPT + BUSINESS PLAN FUNDING PACKAGE'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -231,7 +231,7 @@ def setup():
     mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.34 business plan and funding package active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.34 wedge strategy, testing script, and funding package active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -246,8 +246,9 @@ def setup():
     old_v25_31_announcement='V25.31'+' payment and checkout decision prep active'
     old_v25_32_announcement='V25.32'+' seller onboarding and marketplace launch checklist active'
     old_v25_33_announcement='V25.33'+' final demo testing and business plan foundation active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement]:
-        set_setting('announcement','V25.34 business plan and funding package active')
+    old_v25_34_announcement='V25.34'+' business plan and funding package active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement]:
+        set_setting('announcement','V25.34 wedge strategy, testing script, and funding package active')
 setup()
 
 
@@ -3762,18 +3763,38 @@ def business_plan_funding_roadmap():
     st.header('Business Plan / Funding Roadmap')
     st.info('Use this section for lenders, grant reviewers, investors, partners, early sellers, and demo conversations. It is planning support, not a new production marketplace feature.')
 
+    st.markdown('### Launch Wedge Strategy')
+    st.write('House Of Wax should start with one focused beachhead before expanding. The recommended wedge is vinyl records and music collectibles first, starting with trusted sellers and collectors.')
+    wedge_reasons=[
+        ('Passionate buyers','Record collectors and music fans already care about details, rarity, condition, pressing history, and seller reputation.'),
+        ('Condition and trust matter','Photos, grading, sleeve/media condition, barcode/catalog data, and seller trust can directly improve buying confidence.'),
+        ('Strong culture fit','Records and music collectibles match the House Of Wax brand, Knowledge Hub, and culture-first marketplace story.'),
+        ('Easier to test','Vinyl and music collectibles give the prototype a clear first use case instead of trying to validate every culture goods category at once.'),
+        ('Expansion later','Once trust, listing quality, and buyer behavior are tested, House Of Wax can expand into merch, memorabilia, clothing, broader culture goods, and events/pop-ups.')
+    ]
+    st.dataframe(pd.DataFrame(wedge_reasons,columns=['Why this wedge works','Explanation']),width='stretch')
+    st.markdown('### Expansion Path')
+    expansion_rows=[
+        ('Phase 1','Vinyl records and music collectibles','Trusted sellers, collectors, record shops, CDs, cassettes, pressings, condition, and buyer trust.'),
+        ('Phase 2','Merch and memorabilia','Music shirts, posters, tour items, signed items, label merch, artist-related goods, and official House Of Wax items.'),
+        ('Phase 3','Broader culture goods and events/pop-ups','Carefully expand into culture goods, local drops, pop-ups, community events, and partnerships after the first marketplace behavior is validated.')
+    ]
+    st.dataframe(pd.DataFrame(expansion_rows,columns=['Phase','Focus','What to test']),width='stretch')
+
     st.markdown('### Business Plan')
     plan_sections=[
         ('Executive Summary','House Of Wax is a marketplace and culture platform for records, music collectibles, merch, memorabilia, clothing, and other culture goods. The prototype shows a safer way for buyers to browse, ask questions, and request to buy while sellers get guided listing tools, review support, trust signals, and education around condition and authenticity.'),
         ('Company Concept','House Of Wax is built as both a marketplace and a knowledge hub. It can support independent sellers, local collectors, record shops, culture brands, and a House Of Wax Official seller account for curated drops, branded items, and platform-owned goods.'),
         ('Problem','Used music and culture goods are hard to evaluate online. Buyers often face weak photos, unclear condition notes, missing release details, and uncertain seller trust. Sellers often need help creating complete listings and explaining condition in a way buyers can understand.'),
         ('Solution','House Of Wax combines approved marketplace listings, Smart Search, listing previews, seller-uploaded photos, listing quality scores, buyer inquiries, purchase requests, seller profiles, trust badges, review queues, and Knowledge Hub education.'),
+        ('Launch Wedge','Start with vinyl records and music collectibles because buyers are passionate, condition/trust matters, and the category matches the House Of Wax culture story. Expand later only after seller and buyer behavior is proven.'),
         ('Target Market','The first market is collectors, music fans, local sellers, record stores, merch sellers, memorabilia sellers, and culture goods buyers who care about trust, story, condition, and authenticity.'),
         ('Buyer Segments','Collectors, casual music fans, gift buyers, local pickup buyers, genre fans, merch buyers, memorabilia buyers, and people learning how to buy physical music or culture goods with confidence.'),
         ('Seller Segments','Independent record sellers, collectors thinning collections, local shops, merch sellers, culture brands, vintage clothing sellers, memorabilia sellers, event sellers, and House Of Wax Official.'),
         ('Revenue Model','Planning assumptions include seller/listing fees, marketplace commission, featured listings, promoted seller profiles, House Of Wax official merch/items, events/pop-ups later, and subscriptions for power sellers later. These are not guaranteed results and need real testing.'),
         ('Product / Platform Features','Marketplace browsing, listing detail pages, Contact Seller / Ask About This Item, Request to Buy, guided seller upload, drafts, review queue, listing quality score, seller profiles, trust badges, photo handling, database status/export, and education content.'),
-        ('Competitive Advantage','House Of Wax is not just a listing board. It adds music culture education, seller guidance, review tools, trust signals, and platform-owned content that can help buyers understand what they are buying.'),
+        ('Competitive Positioning','Discogs is strong for release data, eBay is broad resale, Reverb is gear-focused, Whatnot is live commerce, and StockX is relevant where authenticated culture goods matter. House Of Wax should compete by being guided, culture-first, review-oriented, and easier for trusted sellers to list well.'),
+        ('Competitive Advantage','House Of Wax is not just a listing board. It adds guided seller listings, trust/quality review, seller onboarding, admin quality controls, music culture education, and platform-owned content that can help buyers understand what they are buying.'),
         ('Go-To-Market Strategy','Start with trusted sellers and clearly reviewed listings. Use founder-led demos, local seller outreach, collector communities, social content, Knowledge Hub education, early buyer testing, and seller onboarding to build credibility.'),
         ('Operations Plan','Keep early operations simple: approve listings before public display, monitor inquiries and purchase requests, coach sellers on photos and condition, track buyer confusion, and keep marketplace rules clear.'),
         ('Technology Plan','Current prototype uses Streamlit and SQLite. Production should move to real login/authentication, hosted database storage, permanent image storage, locked admin permissions, and a clear payment/checkout decision.'),
@@ -3786,6 +3807,61 @@ def business_plan_funding_roadmap():
     for title,body in plan_sections:
         with st.expander(title,expanded=title in ['Executive Summary','Company Concept','Funding Need']):
             st.write(body)
+
+    st.markdown('### Competitive Positioning Snapshot')
+    st.caption('Reference markets to compare against during demos: Discogs, eBay, Reverb, Whatnot, and StockX.')
+    competitor_rows=[
+        ('Discogs','Strong music release database and collector marketplace.','House Of Wax can be more guided for sellers and more founder-curated around trust, photos, education, and review.'),
+        ('eBay','Massive resale marketplace across categories.','House Of Wax can feel more focused, culture-first, and easier to trust for music items.'),
+        ('Reverb','Strong marketplace for instruments and music gear.','House Of Wax can focus more on records, music collectibles, merch, memorabilia, and seller education.'),
+        ('Whatnot','Live shopping and auction energy.','House Of Wax can use slower, clearer listing quality, condition notes, and review before adding event/pop-up style selling later.'),
+        ('StockX','Relevant where authenticated culture goods and streetwear matter.','House Of Wax can learn from trust/authentication expectations without pretending all categories are verified yet.')
+    ]
+    st.dataframe(pd.DataFrame(competitor_rows,columns=['Reference point','What they do well','House Of Wax difference']),width='stretch')
+
+    st.markdown('### User Testing Script')
+    testing_scripts=[
+        ('Buyer Test',['Browse Marketplace.','Open item detail.','Evaluate photos and condition notes.','Contact Seller / Ask About This Item.','Request to Buy.','Explain what felt confusing, risky, missing, or trustworthy.']),
+        ('Seller Test',['Create or update seller profile.','Upload a listing.','Add condition details.','Add photos.','Preview listing.','Check quality score.','Save as Draft.','Submit for Review.','Explain what almost stopped you from finishing.']),
+        ('Admin Test',['Review submitted listing.','Add reviewer notes.','Approve, Needs Changes, or Reject.','Check inquiries.','Check purchase requests.','Check database/export.'])
+    ]
+    for title,steps in testing_scripts:
+        with st.expander(title,expanded=True):
+            for i,step in enumerate(steps,1):
+                st.write(f'{i}. {step}')
+
+    st.markdown('### Tester Questions')
+    tester_questions=[
+        'Walk me through how you would list an item for sale. Where did you hesitate?',
+        'What almost stopped you from finishing your listing?',
+        'If this item was also on eBay/Discogs/Reverb, what would make you buy it here?',
+        'What makes you trust or not trust that the seller will ship what is pictured?',
+        'Did the quality score or trust badges change your mind? Did you notice them?',
+        'When you searched, did you find what you expected?',
+        'What did you expect Request to Buy to do?',
+        'What information do you wish the listing had?',
+        'If payment was live, what would make you trust entering card info?',
+        'What is missing that would make you use this instead of your current buying/selling habit?'
+    ]
+    for i,question in enumerate(tester_questions,1):
+        st.write(f'{i}. {question}')
+
+    st.markdown('### Validation Metrics')
+    validation_metrics=[
+        ('Number of sellers tested','Target: 3 to 5 trusted sellers.'),
+        ('Number of listings created','Target: 10 to 25 listings.'),
+        ('Time to create listing','Track how long a seller needs from start to draft or review submission.'),
+        ('Listings submitted for review','Shows whether sellers reach the review step.'),
+        ('Listings approved','Shows quality and review readiness.'),
+        ('Buyer inquiries submitted','Target: 5 to 10 buyer inquiries.'),
+        ('Purchase requests submitted','Target: 3 to 5 request-to-buy attempts.'),
+        ('Seller response rate','Shows whether sellers will keep up with buyer interest.'),
+        ('Buyer confusion points','Track unclear photos, condition, price, trust, inquiry, and request-to-buy moments.'),
+        ('Seller confusion points','Track upload, search, condition, photos, quality score, and review friction.'),
+        ('Categories with strongest interest','Compare vinyl records, CDs, cassettes, merch, memorabilia, clothing, and culture goods.')
+    ]
+    st.dataframe(pd.DataFrame(validation_metrics,columns=['Metric','Early target / use']),width='stretch')
+    st.info('Early test target: 3 to 5 trusted sellers, 10 to 25 listings, 10 to 25 buyer testers, 5 to 10 buyer inquiries, and 3 to 5 request-to-buy attempts.')
 
     st.markdown('### Startup Cost Estimate')
     st.caption('Planning estimates only. Refine with real quotes before applying for grants, loans, or investment.')
@@ -3837,9 +3913,11 @@ def business_plan_funding_roadmap():
         'Founder bio',
         'Market problem summary',
         'Prototype/demo link',
+        'Testing results',
+        'Seller feedback',
         'Customer/seller testing plan',
         'Financial projections',
-        'Legal entity status',
+        'Legal entity',
         'Business bank account',
         'Credit/financial documents if applying for loans'
     ]
@@ -3886,6 +3964,20 @@ def business_plan_funding_roadmap():
     ]
     st.dataframe(pd.DataFrame(metric_rows,columns=['Metric','Why it matters']),width='stretch')
 
+    st.markdown('### Risks and Mitigation')
+    risk_rows=[
+        ('Two-sided marketplace cold start','Start narrow with trusted sellers and a focused vinyl/music collectibles wedge before broad categories.'),
+        ('Seller acquisition','Use founder-led onboarding, quality coaching, and early seller feedback instead of relying on self-serve growth too early.'),
+        ('Buyer trust','Show exact photos, seller profiles, trust badges, quality scores, review status, and clear inquiry/request-to-buy flows.'),
+        ('Counterfeit or stolen goods','Use review queue, seller standards, admin notes, flags, and clear prohibited-item rules before scale.'),
+        ('Condition disputes','Require better condition notes, photos, sleeve/media condition for music, and seller education.'),
+        ('Payment/refund disputes','Keep Request to Buy until legal, checkout, refund, and dispute rules are ready.'),
+        ('Photo/storage reliability','Move from prototype local storage to cloud image storage before launch.'),
+        ('Legal/privacy requirements','Finalize privacy policy, terms, seller agreement, marketplace rules, and data protections before public use.'),
+        ('Admin capacity','Track review time and keep early seller volume small until admin processes are proven.')
+    ]
+    st.dataframe(pd.DataFrame(risk_rows,columns=['Risk','Mitigation']),width='stretch')
+
     st.markdown('### Copy / Export Support')
     outline_text="""House Of Wax Business Plan / Funding Package
 
@@ -3893,10 +3985,12 @@ Executive Summary: House Of Wax is a marketplace and culture platform for record
 Company Concept: Marketplace plus Knowledge Hub, trust layer, seller tools, and House Of Wax-owned culture content.
 Problem: Buyers need better trust, photos, condition notes, seller context, and education. Sellers need guided listing tools.
 Solution: Approved listings, Smart Search, seller profiles, trust badges, quality scores, inquiries, purchase requests, review queue, and Knowledge Hub education.
+Launch Wedge: Start with vinyl records and music collectibles first, then expand into merch, memorabilia, broader culture goods, and events/pop-ups after validation.
+Testing Script: Buyer tests Marketplace, item detail, photos/condition, Contact Seller, and Request to Buy. Seller tests profile, upload, condition, photos, preview, quality score, draft, and review submission. Admin tests review queue, notes, approvals, inquiries, purchase requests, and export.
 Revenue Model: Planning assumptions include listing/seller fees, marketplace commission, featured listings, promoted seller profiles, official merch/items, events/pop-ups, and future power-seller subscriptions.
 Startup Cost Phases: Phase 1 $5,000-$15,000 demo/beta readiness; Phase 2 $25,000-$75,000 production beta; Phase 3 $100,000-$250,000+ public launch/growth.
 Funding Roadmap: founder/self-funded, friends/family, small business loans, SBA Microloan, SBA 7(a), CDFI/community lenders, Charlotte/NC programs, grants, pitch competitions, angels, strategic partners.
-Testing Plan: onboard 3 to 5 sellers, create 10 to 25 listings, test 10 to 25 buyers, collect feedback, track categories and pain points.
+Validation Metrics: onboard 3 to 5 sellers, create 10 to 25 listings, test 10 to 25 buyers, target 5 to 10 inquiries and 3 to 5 request-to-buy attempts, collect feedback, track categories and pain points.
 Next Milestones: seller beta, buyer tests, refined budget, production auth/database/image storage plan, legal review, payment decision, pitch/funding package."""
     st.text_area('Copy-ready business plan outline',value=outline_text,height=300,key='business_plan_copy_outline')
     st.download_button('Download business plan outline',outline_text,file_name='house_of_wax_business_plan_outline.txt',key='business_plan_outline_download')

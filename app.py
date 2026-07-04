@@ -13,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.34 WEDGE STRATEGY + TESTING SCRIPT + BUSINESS PLAN FUNDING PACKAGE'
+APP_VERSION='V25.35 KNOWLEDGE CENTER CONTENT + EDUCATION HUB'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -231,7 +231,7 @@ def setup():
     mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.34 wedge strategy, testing script, and funding package active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.35 knowledge center and education hub active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -247,8 +247,9 @@ def setup():
     old_v25_32_announcement='V25.32'+' seller onboarding and marketplace launch checklist active'
     old_v25_33_announcement='V25.33'+' final demo testing and business plan foundation active'
     old_v25_34_announcement='V25.34'+' business plan and funding package active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement]:
-        set_setting('announcement','V25.34 wedge strategy, testing script, and funding package active')
+    old_v25_34_wedge_announcement='V25.34'+' wedge strategy, testing script, and funding package active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement]:
+        set_setting('announcement','V25.35 knowledge center and education hub active')
 setup()
 
 
@@ -1093,11 +1094,148 @@ def knowledge_card(row, key_prefix='knowledge'):
         if st.button('Read article',key=unique_key):
             st.session_state['selected_knowledge_id']=int(row['id']); st.rerun()
 
+def knowledge_center_education_hub():
+    st.markdown('## Knowledge Center / Education Hub')
+    st.write('A practical public guide to buying, selling, collecting, photos, condition, trust, and House Of Wax marketplace standards.')
+    st.info('House Of Wax is a marketplace and culture platform. The launch wedge is vinyl records and music collectibles first, with room to grow into merch, memorabilia, clothing, and broader culture goods after the first trust and listing workflows are proven.')
+
+    overview, buying, selling, condition, photos, trust, buyer_faq, seller_faq, rules = st.tabs([
+        'What is House Of Wax?',
+        'How buying works',
+        'How selling works',
+        'Condition guide',
+        'Photo guide',
+        'Trust + safety',
+        'Buyer FAQ',
+        'Seller FAQ',
+        'Rules summary'
+    ])
+    with overview:
+        st.subheader('What Is House Of Wax?')
+        st.write('House Of Wax is a marketplace and culture platform for vinyl records, music collectibles, merch, memorabilia, and culture goods.')
+        st.write('The first wedge is vinyl records and music collectibles because buyers care deeply about pressing details, condition, photos, seller trust, and the story behind the item.')
+        st.write('The platform is built around better listings, buyer questions, seller profiles, review tools, and education that helps people collect smarter.')
+    with buying:
+        st.subheader('How Buying Works')
+        for item in [
+            'Browse Marketplace for approved, public, or active listings.',
+            'Review photos, condition notes, seller profile, trust badges, and listing quality information.',
+            'Ask the seller a question if condition, shipping, photos, or availability are unclear.',
+            'Use Request to Buy when you are ready to move forward.',
+            'In the prototype, checkout/payment may not be live yet. Request to Buy sends purchase intent, not payment.',
+            'Pending means the item is being held or worked out. Sold means it should no longer be available.'
+        ]:
+            st.write(f'- {item}')
+    with selling:
+        st.subheader('How Selling Works')
+        for item in [
+            'Create or update a seller profile so buyers understand who they are buying from.',
+            'Search for a music item or enter details manually.',
+            'Confirm the match before using search/database information.',
+            'Add seller details, price, quantity, shipping, and condition notes.',
+            'Add real photos of the exact item whenever possible.',
+            'Preview the listing and review the listing quality score.',
+            'Save as Draft if it is not ready, or Submit for Review when it is ready for House Of Wax.',
+            'Respond to buyer inquiries and purchase requests.',
+            'Mark items Pending or Sold when availability changes.'
+        ]:
+            st.write(f'- {item}')
+    with condition:
+        st.subheader('Condition Guide for Records and Music Collectibles')
+        condition_rows=[
+            ('Mint / Near Mint','Unused or almost flawless. Use carefully; most used items are not truly Mint.'),
+            ('Very Good Plus','Played but strong. May have light marks or sleeve scuffs, but should not have major playback problems.'),
+            ('Very Good','Noticeable wear. May have surface noise, marks, shelf wear, or visible use, but still collectible if described honestly.'),
+            ('Good','Heavy wear. Buyers should expect clear flaws, noise, or cosmetic issues. Detailed notes matter.'),
+            ('Fair / Poor','Major flaws, damage, missing parts, warps, skips, tears, stains, or heavy wear. Sell only with clear photos and direct notes.')
+        ]
+        st.dataframe(pd.DataFrame(condition_rows,columns=['Level','Plain-language meaning']),width='stretch')
+        st.write('Media condition covers the record, CD, cassette, or item itself. Sleeve, jacket, or case condition covers the packaging.')
+        st.write('Condition honesty protects buyers, sellers, and the House Of Wax marketplace. High-value items need detailed photos, clear notes, and no guesswork.')
+        st.caption('House Of Wax education helps sellers describe condition clearly, but it is not a professional grading guarantee.')
+    with photos:
+        st.subheader('Photo Guide')
+        st.write('Photos build buyer trust because they show the actual thing being sold.')
+        for item in [
+            'Front cover or main item view.',
+            'Back cover or reverse side.',
+            'Vinyl/media surface, disc, cassette shell, or item material.',
+            'Labels, tags, barcodes, catalog numbers, matrix/runout details, or authenticity details when relevant.',
+            'Sleeve, jacket, case, inserts, booklets, posters, hype stickers, and included extras.',
+            'Scratches, warps, stains, tears, writing, seam splits, cracked cases, missing parts, fading, or other damage.'
+        ]:
+            st.write(f'- {item}')
+        st.write('For music items, search/database cover art can be a reference, but seller condition photos are still important. For non-music items, exact item photos are preferred; official/product images should only support the real item photos.')
+    with trust:
+        st.subheader('Trust and Safety Guide')
+        for item in [
+            'Seller profiles help buyers understand the seller, location, specialties, and marketplace history.',
+            'Trust badges are House Of Wax platform indicators based on profile completeness, approved listings, and listing quality.',
+            'Listing quality score rewards clear details, photos, condition notes, price, and complete item information.',
+            'The admin review queue lets House Of Wax approve, request changes, or reject listings before public display.',
+            'House Of Wax may reject or request changes when photos, condition, item identity, safety, or seller details are not clear.',
+            'Counterfeit, stolen, unsafe, misleading, or deceptive listings do not belong on House Of Wax.'
+        ]:
+            st.write(f'- {item}')
+    with buyer_faq:
+        st.subheader('Buyer FAQ')
+        faq=[
+            ('What does Request to Buy mean?','It means you want to move forward. In the prototype it creates a purchase request so the seller can confirm availability, pickup/shipping, and next steps.'),
+            ('Is payment live?','Not yet. The current prototype does not process checkout or payment.'),
+            ('How do I contact a seller?','Use Contact Seller / Ask About This Item on approved/public/active listings.'),
+            ('How do I know if an item is available?','Approved, Active, or Public listings can show buyer action buttons. Pending and Sold items show unavailable status.'),
+            ('What does Pending mean?','The item may be held, in discussion, or waiting on next steps.'),
+            ('What does Sold mean?','The item should no longer be available to buy.'),
+            ('What should I check before buying?','Photos, condition, seller profile, trust badges, listing quality, price, shipping/pickup, and any flaws or missing details.')
+        ]
+        for q,a in faq:
+            with st.expander(q):
+                st.write(a)
+    with seller_faq:
+        st.subheader('Seller FAQ')
+        faq=[
+            ('Do I need exact item photos?','Yes when possible. Exact photos are especially important for condition-sensitive and non-music items.'),
+            ('Why does my listing need review?','Review helps protect trust, improve listing quality, and catch missing details before buyers rely on the listing.'),
+            ('What makes a strong listing?','Clear title, category, price, condition, seller notes, real photos, item identifiers, and honest flaws.'),
+            ('What happens if my listing needs changes?','Review notes explain what to fix. Update the listing, add missing details/photos, then submit again.'),
+            ('How do I improve my quality score?','Add condition notes, photos, accurate item details, price, format/category, and seller-specific information.'),
+            ('What should I do when an item sells?','Update the listing status to Pending or Sold so buyers do not keep requesting unavailable items.')
+        ]
+        for q,a in faq:
+            with st.expander(q):
+                st.write(a)
+    with rules:
+        st.subheader('Marketplace Rules Summary')
+        for item in [
+            'Keep listings accurate.',
+            'Use real photos when possible or required.',
+            'No counterfeit, stolen, unsafe, or misleading items.',
+            'Respect buyers and sellers.',
+            'House Of Wax can review, request changes, reject, or remove listings.'
+        ]:
+            st.write(f'- {item}')
+
+    if is_admin_unlocked():
+        st.divider()
+        st.markdown('### Admin / Founder Knowledge')
+        st.warning('This section appears only because Admin role or Testing mode is enabled.')
+        admin_rows=[
+            ('Launch wedge notes','Start with vinyl records and music collectibles, then expand after seller and buyer behavior is validated.'),
+            ('Testing script','Use the V25.34 buyer, seller, and admin testing script to watch confusion points and trust signals.'),
+            ('Validation metrics','Track sellers tested, listings created, listings submitted, listings approved, buyer inquiries, purchase requests, and seller response rate.'),
+            ('Business plan / funding roadmap','Use the funding roadmap for grants, lenders, partners, and investor conversations.'),
+            ('Production readiness notes','Before public launch: real auth, hosted database, permanent image storage, payment/legal terms, and admin permission checks.')
+        ]
+        st.dataframe(pd.DataFrame(admin_rows,columns=['Founder/admin topic','Why it matters']),width='stretch')
+
 def knowledge_hub():
     seed_knowledge()
     header()
-    st.header('House Of Wax Knowledge Hub')
-    st.write('House Of Wax-owned education, culture, history, discovery, content series, and marketplace learning. This is not seller promotion. This hub teaches buyers, collectors, and visitors how to understand records, music culture, formats, trust, grading, barcodes, catalog numbers, matrix/runouts, genres, eras, and safe buying.')
+    st.header('House Of Wax Knowledge Center / Education Hub')
+    st.write('House Of Wax-owned education, culture, history, discovery, content series, and marketplace learning. This is not seller promotion. This hub teaches buyers, collectors, sellers, and early testers how to understand records, music culture, formats, trust, grading, photos, listing quality, barcodes, catalog numbers, matrix/runouts, genres, eras, and safer buying.')
+    knowledge_center_education_hub()
+    st.divider()
+    st.markdown('## Article Library + Glossary')
     if 'selected_knowledge_id' in st.session_state:
         rows=df('SELECT * FROM knowledge_posts WHERE id=?',(int(st.session_state['selected_knowledge_id']),))
         if rows.empty:
@@ -1468,6 +1606,7 @@ def marketplace():
     header(); st.header('Marketplace')
     st.write('Browse approved and public House Of Wax listings from independent sellers and House Of Wax Official.')
     st.caption('Cards show item image, price, status, seller trust signals, listing quality, and buyer actions when the item is available.')
+    st.info('New to House Of Wax? Open Knowledge Hub for the Knowledge Center / Education Hub: buying basics, condition, photo standards, trust badges, Request to Buy, and marketplace rules.')
     if 'seller_id' in st.session_state: seller_profile(int(st.session_state['seller_id'])); return
     if 'product_id' in st.session_state: product_detail(int(st.session_state['product_id'])); return
     prods=df("SELECT * FROM products WHERE listing_status IN ('Active','Approved','Public','Pending Pickup/Payment','Pending','Sold') ORDER BY created_at DESC")
@@ -2927,6 +3066,7 @@ def upload_product(sid,key):
     defaults=v24_listing_defaults()
     st.markdown('### Guided product upload')
     st.write('Work through each step, confirm any House Of Wax search data, add seller-specific details, then review the preview before submitting.')
+    st.caption('Need help with condition, photos, or marketplace standards? Open Knowledge Center / Education Hub from My House of Wax or the public Knowledge Hub.')
     listing_status_help()
     if defaults:
         source_bits=[v for v in [defaults.get('artist'),defaults.get('title'),defaults.get('label'),defaults.get('release_year')] if safe(v)]
@@ -4033,6 +4173,7 @@ def demo_guide():
     st.write('- Marketplace: public buyer browsing and listing details.')
     st.write('- My House of Wax: buyer, seller, admin, and demo workspaces.')
     st.write('- Seller Tools: upload products, manage listings, profile, inquiries, and purchase requests.')
+    st.write('- Knowledge Center / Education Hub: buyer education, seller listing guidance, condition, photos, trust standards, FAQs, and marketplace rules.')
     st.write('- Admin Tools: review queue, reports, inquiries, purchase requests, and database health.')
     st.write('- Seller Onboarding: early seller walkthrough, listing quality tips, and trust tips.')
     st.write('- Marketplace Launch Checklist: prototype readiness, public-launch needs, and early seller/buyer test plans.')
@@ -4065,6 +4206,7 @@ def pitch_demo_package():
     st.markdown('### Marketplace concept')
     st.write('Buyers browse approved/public listings, view item details, ask sellers questions, and request to buy. Sellers build richer listings with search data, photos, condition notes, quality scores, profile context, and trust badges. Admin/review tools help House Of Wax approve listings, track inquiries, track purchase requests, and watch database health.')
     st.caption('Checkout is not live yet. Request to Buy is the current purchase-intent workflow while payment decisions are prepared.')
+    st.caption('The Knowledge Center / Education Hub supports the pitch by showing how House Of Wax teaches buyers, sellers, and early testers before the marketplace scales.')
 
     c3,c4,c5=st.columns(3)
     with c3:
@@ -4376,19 +4518,21 @@ def my_house_of_wax():
         admin_access_warning()
     if role=='Buyer':
         st.info('Buyer area: Marketplace, listing details, seller questions, purchase requests, and buyer account activity.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Buyer Account']
+        workspace_options=['Demo Guide','Knowledge Center / Education Hub','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Buyer Account']
     elif role=='Seller':
         st.info('Seller area: Seller Tools, upload product, seller profile, inquiries, purchase requests, listing status, and reviewer notes.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Seller Tools']
+        workspace_options=['Demo Guide','Knowledge Center / Education Hub','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Seller Tools']
     else:
         st.info('Admin area: review queue, inquiry review, purchase request review, listing approvals, reports, and demo tools.')
-        workspace_options=['Demo Guide','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
+        workspace_options=['Demo Guide','Knowledge Center / Education Hub','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     if testing_mode and role!='Admin':
         workspace_options += ['Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     section=st.radio('Choose your workspace',workspace_options,key='my_house_workspace')
 
     if section=='Demo Guide':
         demo_guide()
+    elif section=='Knowledge Center / Education Hub':
+        knowledge_hub()
     elif section=='Pitch / Demo Package':
         pitch_demo_package()
     elif section=='Business Plan / Funding Roadmap':
@@ -4441,7 +4585,7 @@ def app_mode():
 
 
 testing_mode=app_mode()
-st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub, Sell on House Of Wax, Seller Onboarding, Marketplace Launch Checklist, Business Plan / Funding Roadmap, Demo Guide, Pitch / Demo Package, Production Roadmap, Auth Plan, Auth / Login Prep, Legal / Policies, Payment / Checkout Prep, and account tools: My House of Wax.')
+st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub / Education Hub, Sell on House Of Wax, Seller Onboarding, Marketplace Launch Checklist, Business Plan / Funding Roadmap, Demo Guide, Pitch / Demo Package, Production Roadmap, Auth Plan, Auth / Login Prep, Legal / Policies, Payment / Checkout Prep, and account tools: My House of Wax.')
 menu=st.sidebar.radio('House Of Wax',['Home','Marketplace','Knowledge Hub','Sell on House Of Wax','Seller Onboarding','Marketplace Launch Checklist','Business Plan / Funding Roadmap','About','Trust & Safety','Legal / Policies','Payment / Checkout Prep','Contact / Newsletter','My House of Wax'])
 if menu=='Marketplace' and ('seller_id' in st.session_state or 'product_id' in st.session_state):
     if st.sidebar.button('Main Marketplace',key='main_marketplace_reset'):

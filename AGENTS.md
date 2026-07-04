@@ -10,11 +10,11 @@ House Of Wax is not just a record store. It is a marketplace, knowledge hub, tru
 
 Current target version:
 
-V25.36 LIVE TESTER FEEDBACK SYSTEM
+V25.37 SUPABASE CORE PERSISTENCE FIX
 
 The live Streamlit app must show this marker near the top of the app:
 
-Running V25.36 LIVE TESTER FEEDBACK SYSTEM
+Running V25.37 SUPABASE CORE PERSISTENCE FIX
 
 ## Critical deployment rule
 

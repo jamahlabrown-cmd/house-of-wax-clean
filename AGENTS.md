@@ -10,11 +10,11 @@ House Of Wax is not just a record store. It is a marketplace, knowledge hub, tru
 
 Current target version:
 
-V25.35 KNOWLEDGE CENTER CONTENT + EDUCATION HUB
+V25.36 LIVE TESTER FEEDBACK SYSTEM
 
 The live Streamlit app must show this marker near the top of the app:
 
-Running V25.35 KNOWLEDGE CENTER CONTENT + EDUCATION HUB
+Running V25.36 LIVE TESTER FEEDBACK SYSTEM
 
 ## Critical deployment rule
 

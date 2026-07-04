@@ -13,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.35 KNOWLEDGE CENTER CONTENT + EDUCATION HUB'
+APP_VERSION='V25.36 LIVE TESTER FEEDBACK SYSTEM'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -106,7 +106,7 @@ INQUIRY_STATUSES=['New','Seller Responded','Closed']
 PURCHASE_REQUEST_STATUSES=['New','Seller Accepted','Seller Declined','Pending Pickup/Payment','Sold','Closed']
 UNAVAILABLE_LISTING_STATUSES=['Pending Pickup/Payment','Pending','Sold']
 ACCOUNT_ROLES=['Buyer','Seller','Admin']
-KEY_DATA_TABLES=['products','sellers','listing_inquiries','purchase_requests','product_gallery']
+KEY_DATA_TABLES=['products','sellers','listing_inquiries','purchase_requests','product_gallery','tester_feedback']
 
 def listing_status_help():
     st.info('Draft means not public. Submitted for Review means waiting for House Of Wax. Approved/Public/Active means it can appear publicly. Needs Changes means the seller must fix something. Rejected means it should not go live.')
@@ -136,6 +136,7 @@ def setup():
     cur.execute('''CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,sender_type TEXT,subject TEXT,message TEXT,status TEXT DEFAULT 'New',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS listing_inquiries(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,message TEXT,status TEXT DEFAULT 'New',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS purchase_requests(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,fulfillment_preference TEXT,offer_price REAL DEFAULT 0,buyer_message TEXT,status TEXT DEFAULT 'New',created_at TEXT,updated_at TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS tester_feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,tester_name TEXT,tester_type TEXT,page_flow TEXT,worked_well TEXT,confusing TEXT,felt_broken TEXT,missing TEXT,ease_rating INTEGER,would_use_again TEXT,open_notes TEXT,status TEXT DEFAULT 'New',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_followers(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,buyer_id INTEGER,created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_badges(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,badge_name TEXT,badge_type TEXT,active TEXT DEFAULT 'Yes',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS store_announcements(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,title TEXT,body TEXT,status TEXT DEFAULT 'Active',created_at TEXT)''')
@@ -231,7 +232,7 @@ def setup():
     mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.35 knowledge center and education hub active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.36 live tester feedback system active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -248,8 +249,9 @@ def setup():
     old_v25_33_announcement='V25.33'+' final demo testing and business plan foundation active'
     old_v25_34_announcement='V25.34'+' business plan and funding package active'
     old_v25_34_wedge_announcement='V25.34'+' wedge strategy, testing script, and funding package active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement]:
-        set_setting('announcement','V25.35 knowledge center and education hub active')
+    old_v25_35_announcement='V25.35'+' knowledge center and education hub active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement]:
+        set_setting('announcement','V25.36 live tester feedback system active')
 setup()
 
 
@@ -1094,6 +1096,60 @@ def knowledge_card(row, key_prefix='knowledge'):
         if st.button('Read article',key=unique_key):
             st.session_state['selected_knowledge_id']=int(row['id']); st.rerun()
 
+def tester_feedback_form(key_prefix='public'):
+    st.markdown('## Tester Feedback')
+    st.info('Use sample information only. Do not enter sensitive private information, real payment details, passwords, private addresses, or anything you would not want reviewed by the House Of Wax team.')
+    st.write('Test buyer flow, seller flow, Knowledge Center, admin/review flow if available, and tell us where you got stuck. This helps House Of Wax improve before adding risky production features.')
+    st.caption('For structured walkthroughs, use the existing testing script in Business Plan / Funding Roadmap.')
+    with st.form(f'tester_feedback_form_{key_prefix}'):
+        tester_name=st.text_input('Tester name optional',key=f'tester_feedback_name_{key_prefix}')
+        tester_type=st.selectbox('Tester type',['Buyer','Seller','Admin/Reviewer','Investor/Advisor','Other'],key=f'tester_feedback_type_{key_prefix}')
+        page_flow=st.text_input('Page/flow tested',placeholder='Example: Marketplace buyer flow, Seller upload, Knowledge Center, Admin review queue',key=f'tester_feedback_flow_{key_prefix}')
+        worked_well=st.text_area('What worked well',key=f'tester_feedback_worked_{key_prefix}')
+        confusing=st.text_area('What was confusing',key=f'tester_feedback_confusing_{key_prefix}')
+        felt_broken=st.text_area('What felt broken',key=f'tester_feedback_broken_{key_prefix}')
+        missing=st.text_area('What is missing',key=f'tester_feedback_missing_{key_prefix}')
+        ease_rating=st.slider('Ease of use rating',1,5,3,key=f'tester_feedback_rating_{key_prefix}')
+        would_use_again=st.selectbox('Would you use this again',['Yes','Maybe','No'],key=f'tester_feedback_use_again_{key_prefix}')
+        open_notes=st.text_area('Open notes',key=f'tester_feedback_notes_{key_prefix}')
+        submitted=st.form_submit_button('Submit tester feedback')
+    if submitted:
+        if not safe(page_flow) and not safe(worked_well) and not safe(confusing) and not safe(felt_broken) and not safe(missing) and not safe(open_notes):
+            st.warning('Add at least one note or a page/flow tested before submitting.')
+        else:
+            run('''INSERT INTO tester_feedback(tester_name,tester_type,page_flow,worked_well,confusing,felt_broken,missing,ease_rating,would_use_again,open_notes,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',
+                (tester_name,tester_type,page_flow,worked_well,confusing,felt_broken,missing,int(ease_rating),would_use_again,open_notes,'New',now()))
+            st.success('Feedback saved. Thank you for helping test House Of Wax.')
+
+def admin_tester_feedback_view():
+    st.subheader('Tester Feedback Review')
+    st.warning('Tester feedback is private/admin-facing. Do not publish tester contact details or sensitive notes.')
+    feedback=table('tester_feedback')
+    if feedback.empty:
+        st.info('No tester feedback has been submitted yet.')
+        return
+    tester_types=['All']+sorted([safe(x) for x in feedback['tester_type'].dropna().unique().tolist() if safe(x)])
+    selected=st.selectbox('Filter by tester type',tester_types,key='admin_feedback_type_filter')
+    filtered=feedback.copy()
+    if selected!='All':
+        filtered=filtered[filtered['tester_type']==selected]
+    st.metric('Feedback entries shown',len(filtered))
+    cols=[c for c in ['id','tester_type','page_flow','ease_rating','would_use_again','status','created_at','worked_well','confusing','felt_broken','missing','open_notes'] if c in filtered.columns]
+    st.dataframe(filtered[cols].sort_values('id',ascending=False),width='stretch')
+    st.download_button('Download tester feedback CSV',filtered[cols].to_csv(index=False),file_name='house_of_wax_tester_feedback.csv',key='tester_feedback_csv_download')
+    if not filtered.empty:
+        pick=st.selectbox('Feedback entry',filtered.sort_values('id',ascending=False)['id'].tolist(),key='admin_feedback_pick')
+        row=filtered[filtered['id']==pick].iloc[0]
+        with st.container(border=True):
+            st.write(f"**Tester type:** {safe(row.get('tester_type'))}")
+            st.write(f"**Page/flow tested:** {safe(row.get('page_flow'))}")
+            st.write(f"**Ease rating:** {safe(row.get('ease_rating'))}/5")
+            st.write(f"**Would use again:** {safe(row.get('would_use_again'))}")
+            for label,col in [('Worked well','worked_well'),('Confusing','confusing'),('Felt broken','felt_broken'),('Missing','missing'),('Open notes','open_notes')]:
+                if safe(row.get(col)):
+                    st.markdown(f'**{label}**')
+                    st.write(safe(row.get(col)))
+
 def knowledge_center_education_hub():
     st.markdown('## Knowledge Center / Education Hub')
     st.write('A practical public guide to buying, selling, collecting, photos, condition, trust, and House Of Wax marketplace standards.')
@@ -1227,6 +1283,8 @@ def knowledge_center_education_hub():
             ('Production readiness notes','Before public launch: real auth, hosted database, permanent image storage, payment/legal terms, and admin permission checks.')
         ]
         st.dataframe(pd.DataFrame(admin_rows,columns=['Founder/admin topic','Why it matters']),width='stretch')
+    with st.expander('Tester Feedback',expanded=False):
+        tester_feedback_form('knowledge_center')
 
 def knowledge_hub():
     seed_knowledge()
@@ -1607,6 +1665,8 @@ def marketplace():
     st.write('Browse approved and public House Of Wax listings from independent sellers and House Of Wax Official.')
     st.caption('Cards show item image, price, status, seller trust signals, listing quality, and buyer actions when the item is available.')
     st.info('New to House Of Wax? Open Knowledge Hub for the Knowledge Center / Education Hub: buying basics, condition, photo standards, trust badges, Request to Buy, and marketplace rules.')
+    with st.expander('Tester Feedback for this page',expanded=False):
+        tester_feedback_form('marketplace')
     if 'seller_id' in st.session_state: seller_profile(int(st.session_state['seller_id'])); return
     if 'product_id' in st.session_state: product_detail(int(st.session_state['product_id'])); return
     prods=df("SELECT * FROM products WHERE listing_status IN ('Active','Approved','Public','Pending Pickup/Payment','Pending','Sold') ORDER BY created_at DESC")
@@ -3564,7 +3624,7 @@ def admin():
         if not st.button('Enter admin'): return
         if pwd!=ADMIN_PASSWORD: st.error('Wrong password.'); return
     else: st.info('No admin password set. Testing build allows admin access.')
-    tabs=st.tabs(['Overview','Listing Review','Inquiries','Purchase Requests','Database Status','Sellers','Buyers','Community tools','Reports','Cleanup'])
+    tabs=st.tabs(['Overview','Listing Review','Inquiries','Purchase Requests','Tester Feedback','Database Status','Sellers','Buyers','Community tools','Reports','Cleanup'])
     with tabs[0]:
         if st.button('Create/repair House Of Wax Official seller'):
             sid=ensure_house_of_wax_official(); st.success(f'House Of Wax Official seller ready. Seller ID {sid}')
@@ -3572,18 +3632,19 @@ def admin():
     with tabs[1]: listing_review_queue()
     with tabs[2]: admin_inquiry_view()
     with tabs[3]: admin_purchase_request_view()
-    with tabs[4]: admin_database_status()
-    with tabs[5]: st.dataframe(table('sellers'),width='stretch')
-    with tabs[6]: st.dataframe(table('buyers'),width='stretch')
-    with tabs[7]:
+    with tabs[4]: admin_tester_feedback_view()
+    with tabs[5]: admin_database_status()
+    with tabs[6]: st.dataframe(table('sellers'),width='stretch')
+    with tabs[7]: st.dataframe(table('buyers'),width='stretch')
+    with tabs[8]:
         sid=seller_pick('adminseller'); badge=st.text_input('Badge',placeholder='Soul Specialist, Jazz Dealer, Verified Seller'); typ=st.selectbox('Badge type',['Community','Specialty','Performance','Verified'])
         if st.button('Add badge'): run("INSERT INTO seller_badges(seller_id,badge_name,badge_type,active,created_at) VALUES(?,?,?,'Yes',?)",(sid,badge,typ,now())); st.success('Badge added.')
         if st.button('Create seller spotlight culture post'):
             s=get_seller(sid); run("INSERT INTO culture_posts(title,category,author,body,image_url,status,created_at) VALUES(?,'Seller Spotlight','House Of Wax',?,?,'Published',?)",(f"Seller Spotlight: {safe(s['store_name'])}",safe(s['seller_story'],safe(s['store_bio'])),safe(s['banner_url']) or safe(s['logo_url']),now())); st.success('Spotlight created.')
         st.subheader('Messages'); st.dataframe(table('messages'),width='stretch'); st.subheader('Feedback'); st.dataframe(table('feedback'),width='stretch')
-    with tabs[8]:
-        rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(rep); st.dataframe(data,width='stretch'); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
     with tabs[9]:
+        rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(rep); st.dataframe(data,width='stretch'); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
+    with tabs[10]:
         t=st.selectbox('Table',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(t); st.dataframe(data,width='stretch')
         if not data.empty:
             rid=st.selectbox('Row ID',data['id'].tolist()); confirm=st.checkbox('Confirm delete')
@@ -4172,6 +4233,7 @@ def demo_guide():
     st.markdown('### Where to go')
     st.write('- Marketplace: public buyer browsing and listing details.')
     st.write('- My House of Wax: buyer, seller, admin, and demo workspaces.')
+    st.write('- Tester Feedback: quick feedback form for buyers, sellers, reviewers, advisors, and early testers.')
     st.write('- Seller Tools: upload products, manage listings, profile, inquiries, and purchase requests.')
     st.write('- Knowledge Center / Education Hub: buyer education, seller listing guidance, condition, photos, trust standards, FAQs, and marketplace rules.')
     st.write('- Admin Tools: review queue, reports, inquiries, purchase requests, and database health.')
@@ -4180,6 +4242,8 @@ def demo_guide():
     st.write('- Business Plan / Funding Roadmap: final demo test plan, business foundation, funding stages, and use-of-funds priorities.')
     st.markdown('### Demo data')
     st.write('Use Test Setup inside My House of Wax only while Testing/Admin mode is enabled. Demo records are labeled for testing and should be replaced or removed before a real launch.')
+    with st.expander('Submit tester feedback after a demo',expanded=False):
+        tester_feedback_form('demo_guide')
     st.markdown('### Production needs before launch')
     for item in ['Real login/authentication and permission checks','Hosted database storage such as Supabase/Postgres','Permanent hosted image storage','Payments, checkout, refunds, and order operations','Legal/privacy policy, seller terms, buyer terms, and marketplace rules']:
         st.write(f'- {item}')
@@ -4518,19 +4582,21 @@ def my_house_of_wax():
         admin_access_warning()
     if role=='Buyer':
         st.info('Buyer area: Marketplace, listing details, seller questions, purchase requests, and buyer account activity.')
-        workspace_options=['Demo Guide','Knowledge Center / Education Hub','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Buyer Account']
+        workspace_options=['Demo Guide','Tester Feedback','Knowledge Center / Education Hub','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Buyer Account']
     elif role=='Seller':
         st.info('Seller area: Seller Tools, upload product, seller profile, inquiries, purchase requests, listing status, and reviewer notes.')
-        workspace_options=['Demo Guide','Knowledge Center / Education Hub','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Seller Tools']
+        workspace_options=['Demo Guide','Tester Feedback','Knowledge Center / Education Hub','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Seller Tools']
     else:
         st.info('Admin area: review queue, inquiry review, purchase request review, listing approvals, reports, and demo tools.')
-        workspace_options=['Demo Guide','Knowledge Center / Education Hub','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
+        workspace_options=['Demo Guide','Tester Feedback','Knowledge Center / Education Hub','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     if testing_mode and role!='Admin':
         workspace_options += ['Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
     section=st.radio('Choose your workspace',workspace_options,key='my_house_workspace')
 
     if section=='Demo Guide':
         demo_guide()
+    elif section=='Tester Feedback':
+        tester_feedback_form('my_house')
     elif section=='Knowledge Center / Education Hub':
         knowledge_hub()
     elif section=='Pitch / Demo Package':

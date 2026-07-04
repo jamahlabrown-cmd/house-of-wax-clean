@@ -10,11 +10,11 @@ House Of Wax is not just a record store. It is a marketplace, knowledge hub, tru
 
 Current target version:
 
-V25.33 FINAL DEMO TESTING + BUSINESS PLAN FOUNDATION
+V25.34 BUSINESS PLAN + FUNDING PACKAGE
 
 The live Streamlit app must show this marker near the top of the app:
 
-Running V25.33 FINAL DEMO TESTING + BUSINESS PLAN FOUNDATION
+Running V25.34 BUSINESS PLAN + FUNDING PACKAGE
 
 ## Critical deployment rule
 

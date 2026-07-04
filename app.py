@@ -13,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.33 FINAL DEMO TESTING + BUSINESS PLAN FOUNDATION'
+APP_VERSION='V25.34 BUSINESS PLAN + FUNDING PACKAGE'
 DB=Path('house_of_wax.db')
 UPLOAD=Path('house_of_wax_uploads'); UPLOAD.mkdir(exist_ok=True)
 try:
@@ -231,7 +231,7 @@ def setup():
     mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.33 final demo testing and business plan foundation active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.34 business plan and funding package active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -245,8 +245,9 @@ def setup():
     old_v25_30_announcement='V25.30'+' legal and policy pages prep active'
     old_v25_31_announcement='V25.31'+' payment and checkout decision prep active'
     old_v25_32_announcement='V25.32'+' seller onboarding and marketplace launch checklist active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement]:
-        set_setting('announcement','V25.33 final demo testing and business plan foundation active')
+    old_v25_33_announcement='V25.33'+' final demo testing and business plan foundation active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement]:
+        set_setting('announcement','V25.34 business plan and funding package active')
 setup()
 
 
@@ -3759,86 +3760,151 @@ def launch_checklist():
 def business_plan_funding_roadmap():
     header()
     st.header('Business Plan / Funding Roadmap')
-    st.info('Use this section for demos, early seller conversations, lender or grant review, and investor-facing planning. It is a business foundation, not a new marketplace feature.')
+    st.info('Use this section for lenders, grant reviewers, investors, partners, early sellers, and demo conversations. It is planning support, not a new production marketplace feature.')
 
-    st.markdown('### Final Prototype Test Plan')
-    st.write('Before a demo, walk through the app in this order so buyers, sellers, and reviewers see the full House Of Wax story.')
-    test_plan=[
-        ('Buyer demo','Open Marketplace, view an approved/public listing, check images/status, use Contact Seller / Ask About This Item, and use Request to Buy. Confirm Pending/Sold listings do not show purchase buttons.'),
-        ('Seller demo','Open My House of Wax as Seller, open Seller Tools, use Upload Product, search/confirm item data, add seller details and photos, preview listing, review quality score, Save as Draft, and Submit for Review.'),
-        ('Admin demo','Open My House of Wax as Admin, review submitted listings, add reviewer notes, Approve, Needs Changes, or Reject, then review inquiries, purchase requests, and Database Status/export.'),
-        ('Strategy demo','Open Demo Guide, Pitch / Demo Package, Production Readiness, Auth / Login Prep, Legal / Policies, Payment / Checkout Prep, Seller Onboarding, Marketplace Launch Checklist, and this Business Plan page.')
+    st.markdown('### Business Plan')
+    plan_sections=[
+        ('Executive Summary','House Of Wax is a marketplace and culture platform for records, music collectibles, merch, memorabilia, clothing, and other culture goods. The prototype shows a safer way for buyers to browse, ask questions, and request to buy while sellers get guided listing tools, review support, trust signals, and education around condition and authenticity.'),
+        ('Company Concept','House Of Wax is built as both a marketplace and a knowledge hub. It can support independent sellers, local collectors, record shops, culture brands, and a House Of Wax Official seller account for curated drops, branded items, and platform-owned goods.'),
+        ('Problem','Used music and culture goods are hard to evaluate online. Buyers often face weak photos, unclear condition notes, missing release details, and uncertain seller trust. Sellers often need help creating complete listings and explaining condition in a way buyers can understand.'),
+        ('Solution','House Of Wax combines approved marketplace listings, Smart Search, listing previews, seller-uploaded photos, listing quality scores, buyer inquiries, purchase requests, seller profiles, trust badges, review queues, and Knowledge Hub education.'),
+        ('Target Market','The first market is collectors, music fans, local sellers, record stores, merch sellers, memorabilia sellers, and culture goods buyers who care about trust, story, condition, and authenticity.'),
+        ('Buyer Segments','Collectors, casual music fans, gift buyers, local pickup buyers, genre fans, merch buyers, memorabilia buyers, and people learning how to buy physical music or culture goods with confidence.'),
+        ('Seller Segments','Independent record sellers, collectors thinning collections, local shops, merch sellers, culture brands, vintage clothing sellers, memorabilia sellers, event sellers, and House Of Wax Official.'),
+        ('Revenue Model','Planning assumptions include seller/listing fees, marketplace commission, featured listings, promoted seller profiles, House Of Wax official merch/items, events/pop-ups later, and subscriptions for power sellers later. These are not guaranteed results and need real testing.'),
+        ('Product / Platform Features','Marketplace browsing, listing detail pages, Contact Seller / Ask About This Item, Request to Buy, guided seller upload, drafts, review queue, listing quality score, seller profiles, trust badges, photo handling, database status/export, and education content.'),
+        ('Competitive Advantage','House Of Wax is not just a listing board. It adds music culture education, seller guidance, review tools, trust signals, and platform-owned content that can help buyers understand what they are buying.'),
+        ('Go-To-Market Strategy','Start with trusted sellers and clearly reviewed listings. Use founder-led demos, local seller outreach, collector communities, social content, Knowledge Hub education, early buyer testing, and seller onboarding to build credibility.'),
+        ('Operations Plan','Keep early operations simple: approve listings before public display, monitor inquiries and purchase requests, coach sellers on photos and condition, track buyer confusion, and keep marketplace rules clear.'),
+        ('Technology Plan','Current prototype uses Streamlit and SQLite. Production should move to real login/authentication, hosted database storage, permanent image storage, locked admin permissions, and a clear payment/checkout decision.'),
+        ('Launch Roadmap','Demo readiness first, then early seller beta, then production beta with hosted infrastructure and legal review, then public launch/growth after real traction and operations are proven.'),
+        ('Funding Need','Funding should support the move from working prototype to safer beta and then public launch. Need depends on build path, legal support, hosting, design, marketing, and seller acquisition.'),
+        ('Use of Funds','Funds should prioritize production buildout, authentication, hosted database/storage, legal review, marketing/seller acquisition, operations/admin, and testing/contingency.'),
+        ('Risks and Mitigation','Key risks include weak seller supply, buyer trust concerns, legal/payment complexity, photo/storage needs, admin workload, and platform security. Mitigate with staged beta testing, real auth, clear policies, seller coaching, and careful category rollout.'),
+        ('Next Milestones','Finish beta plan, onboard 3 to 5 sellers, create 10 to 25 listings, test 10 to 25 buyers, collect feedback, refine startup budget, choose auth/database/payment path, and prepare lender/grant/investor materials.')
     ]
-    for name,desc in test_plan:
-        with st.expander(name,expanded=True):
-            st.write(desc)
+    for title,body in plan_sections:
+        with st.expander(title,expanded=title in ['Executive Summary','Company Concept','Funding Need']):
+            st.write(body)
 
-    st.markdown('### Business Plan Foundation')
-    business_rows=[
-        ('Mission','Build a trusted marketplace and culture platform for records, music culture, collectibles, merch, clothing, memorabilia, and seller storefronts.'),
-        ('Problem','Collectors and buyers need clearer item details, stronger seller trust, better education, and safer ways to ask questions before buying. Sellers need guided listing tools and a credible marketplace context.'),
-        ('Solution','House Of Wax combines marketplace listings, seller profiles, trust badges, listing quality scores, Knowledge Hub education, buyer inquiries, purchase requests, and House Of Wax review tools.'),
-        ('Target users','Collectors, music fans, independent sellers, record shops, culture goods sellers, merch brands, local collectors, and future House Of Wax official buyers.'),
-        ('Early wedge','Start with records, CDs, cassettes, memorabilia, merch, clothing, and culture goods that benefit from trust, condition notes, photos, and education.'),
-        ('Differentiation','House Of Wax is not only a listing board. It adds education, review, seller coaching, trust signals, and platform-owned culture content.')
+    st.markdown('### Startup Cost Estimate')
+    st.caption('Planning estimates only. Refine with real quotes before applying for grants, loans, or investment.')
+    startup_costs=[
+        ('App development / production buildout','$15,000-$90,000','Real authentication, hosted database, image storage, admin permissions, marketplace hardening, testing, and polish.'),
+        ('Hosting / database / storage','$100-$1,500 per month','Supabase/Postgres, image storage, backups, monitoring, email, and deployment tools.'),
+        ('Domain / email / software','$200-$2,000 per year','Domain, business email, design tools, productivity tools, analytics, and support software.'),
+        ('Legal review','$2,500-$20,000','Privacy policy, terms, seller agreement, marketplace rules, payments, returns, disputes, and business setup.'),
+        ('Branding / design','$1,000-$15,000','Brand refinement, UI polish, seller materials, pitch/demo visuals, and launch assets.'),
+        ('Marketing','$2,500-$50,000','Content, social, local outreach, seller acquisition, buyer campaigns, and launch promotion.'),
+        ('Seller onboarding','$1,000-$15,000','Seller education, listing support, documentation, photography guidance, and early account help.'),
+        ('Testing / beta incentives','$500-$10,000','Gift cards, seller incentives, buyer testing, feedback sessions, and demo events.'),
+        ('Operations / admin','$2,500-$40,000','Review operations, customer support, moderation, reporting, bookkeeping, and founder support.')
     ]
-    st.dataframe(pd.DataFrame(business_rows,columns=['Area','Plan']),width='stretch')
+    st.dataframe(pd.DataFrame(startup_costs,columns=['Category','Estimated range','Notes']),width='stretch')
 
-    st.markdown('### Early Revenue Paths To Validate')
-    for item in ['Marketplace commission or seller fee after payment decisions are finalized.','Optional featured storefronts or promoted listings after trust and moderation rules are ready.','House Of Wax Official merchandise, curated drops, and branded goods.','Events, seller partnerships, educational content, and culture collaborations.','Future subscription or pro tools only if sellers clearly need them.']:
-        st.write(f'- {item}')
-    st.caption('Revenue paths are planning options. Final fee, tax, payment, and legal decisions must be made before production launch.')
-
-    st.markdown('### Early Seller And Buyer Launch Plan')
-    launch_steps=[
-        'Onboard 3 to 5 trusted sellers.',
-        'Create 10 to 25 real or clearly labeled demo listings.',
-        'Review every listing for photos, condition clarity, price, and status.',
-        'Have buyers test browsing, inquiries, and Request to Buy.',
-        'Collect feedback on confusing steps, missing fields, and buyer trust.',
-        'Use feedback to decide what must be fixed before public beta.'
+    st.markdown('### Suggested Funding Phases')
+    funding_phases=[
+        ('Phase 1: $5,000-$15,000 demo/beta readiness','Polish demo, prepare seller onboarding, gather feedback, refine budget, legal checklist, pitch materials, and early testing.'),
+        ('Phase 2: $25,000-$75,000 production beta','Build real auth, hosted database, cloud image storage, admin security, legal review, and beta seller/buyer operations.'),
+        ('Phase 3: $100,000-$250,000+ public launch/growth','Scale public launch, marketing, seller acquisition, support operations, checkout/payment work, and partnerships.')
     ]
-    for i,item in enumerate(launch_steps,1):
-        st.write(f'{i}. {item}')
+    for phase,desc in funding_phases:
+        st.write(f'- **{phase}:** {desc}')
+    st.warning('These ranges are estimates, not promises. They should be tested against real vendor quotes, legal quotes, developer estimates, and launch goals.')
 
     st.markdown('### Funding Roadmap')
-    funding_rows=[
-        ('Stage 1: Founder prototype','Use the current working prototype to show the marketplace, seller tools, trust layer, and launch plan.','Time, testing, seller feedback, basic design polish.'),
-        ('Stage 2: Early seller beta','Test with trusted sellers and buyers. Measure listing quality, inquiries, purchase requests, approvals, and seller response.','Hosted database, auth, cloud image storage, legal review, seller onboarding.'),
-        ('Stage 3: Lender / grant package','Use demo proof, business plan, local impact, seller support, and cultural education mission to support applications.','Budget, use-of-funds plan, milestones, founder story, community impact.'),
-        ('Stage 4: Partner / investor readiness','Show traction and operational readiness before asking for larger growth capital.','Real usage metrics, seller pipeline, revenue model evidence, risk controls.')
+    funding_sources=[
+        ('Founder / self-funded','Good for early prototype control and speed. Keep spending focused and track founder contributions.'),
+        ('Friends / family','May help with early beta costs. Use clear written terms and avoid overpromising outcomes.'),
+        ('Small business loans','Useful for defined buildout and operating needs. Requires repayment plan and financial documents.'),
+        ('SBA Microloan','Potential fit for smaller startup needs, often through nonprofit/community lenders. Verify current lender availability and requirements before applying.'),
+        ('SBA 7(a)','Potential fit for larger funding needs, but usually requires stronger documentation, credit review, and repayment ability.'),
+        ('CDFI / community lenders','Potential fit for local economic development, underserved founders, and community business support. Verify local eligibility.'),
+        ('Local Charlotte / NC small business programs','Check current city, county, state, university, chamber, and nonprofit programs before applying. Availability changes.'),
+        ('Startup grants','Useful when mission, community impact, culture, education, or small business development aligns. Grants are competitive and never guaranteed.'),
+        ('Pitch competitions','Good for visibility, feedback, small funding, and partner introductions. Prepare a short demo and clear ask.'),
+        ('Angel investors','Best after showing traction, seller interest, buyer demand, and a credible revenue path.'),
+        ('Strategic partners','Record shops, culture brands, local events, music organizations, and community groups may support pilots or sponsorships.')
     ]
-    st.dataframe(pd.DataFrame(funding_rows,columns=['Stage','Goal','Needed next']),width='stretch')
+    st.dataframe(pd.DataFrame(funding_sources,columns=['Funding category','How it may fit']),width='stretch')
+    st.caption('Current grant and loan sources should be verified before applying. Do not assume approval, eligibility, terms, or availability.')
 
-    st.markdown('### Use Of Funds Priorities')
-    priorities=[
-        'Real login/authentication and permission checks',
-        'Hosted database such as Supabase/Postgres',
-        'Permanent cloud image storage',
-        'Legal/privacy/seller terms review',
-        'Payment/checkout decision and implementation',
-        'Marketplace design and mobile polish',
-        'Seller acquisition, onboarding, and support',
-        'Knowledge Hub content and community education',
-        'Admin moderation, reporting, and operational tools'
+    st.markdown('### Grant / Loan Readiness Checklist')
+    grant_items=[
+        'Business plan',
+        'Budget / use of funds',
+        'Pitch deck',
+        'Founder bio',
+        'Market problem summary',
+        'Prototype/demo link',
+        'Customer/seller testing plan',
+        'Financial projections',
+        'Legal entity status',
+        'Business bank account',
+        'Credit/financial documents if applying for loans'
     ]
-    for item in priorities:
-        st.write(f'- {item}')
+    cols=st.columns(2)
+    for i,item in enumerate(grant_items):
+        with cols[i%2]:
+            st.checkbox(item,key=f'funding_readiness_{i}')
+    st.info('This checklist is session-only inside the prototype. Keep a real copy in your funding folder before applying.')
 
-    st.markdown('### Metrics To Track During Demos And Beta')
+    st.markdown('### Sample Use Of Funds')
+    use_rows=[
+        ('Product development','35%','Production app buildout, auth, database, image storage, admin controls, testing.'),
+        ('Marketing / seller acquisition','20%','Seller outreach, buyer testing, launch content, community campaigns.'),
+        ('Legal / compliance','15%','Privacy, terms, seller agreement, marketplace rules, payment/checkout review.'),
+        ('Hosting / software / tools','10%','Hosting, database, image storage, email, analytics, operations tools.'),
+        ('Operations / admin','10%','Review queue operations, support, admin work, bookkeeping, moderation.'),
+        ('Testing / contingency','10%','Beta incentives, usability tests, unexpected costs, polish.')
+    ]
+    st.dataframe(pd.DataFrame(use_rows,columns=['Use','Sample share','Purpose']),width='stretch')
+    st.caption('Sample only. Adjust percentages after quotes, launch plan, and funding source requirements are clear.')
+
+    st.markdown('### Business Validation / Testing Plan')
+    validation_steps=[
+        'Onboard 3 to 5 trusted sellers.',
+        'Create 10 to 25 listings.',
+        'Have 10 to 25 buyers test browsing, contact seller, and request-to-buy.',
+        'Collect seller and buyer feedback after each test.',
+        'Track seller pain points in listing creation, photos, condition, pricing, and review.',
+        'Track buyer confusion around item detail, condition, seller trust, inquiry, and request-to-buy.',
+        'Track which categories get the most interest: records, CDs, cassettes, clothing, merch, memorabilia, or culture goods.'
+    ]
+    for i,item in enumerate(validation_steps,1):
+        st.write(f'{i}. {item}')
+
+    st.markdown('### Success Metrics')
     metric_rows=[
-        ('Supply','Sellers onboarded, listings created, listings submitted for review, listings approved, listings needing changes.'),
-        ('Demand','Marketplace views, listing detail views, inquiries, requests to buy, repeat buyers.'),
-        ('Trust','Listings with photos, quality score, seller profile completeness, reviewer notes, dispute/flag patterns.'),
-        ('Operations','Average time to approve listings, seller response time, pending/sold updates, admin workload.'),
-        ('Business','Potential commission, seller willingness to pay, buyer interest, local partnerships, grant/lender milestones.')
+        ('Listings created','How much supply sellers can produce during beta.'),
+        ('Inquiries submitted','Buyer interest and question volume.'),
+        ('Purchase requests submitted','Purchase intent before checkout is live.'),
+        ('Seller completion rate','How many sellers finish a listing after starting.'),
+        ('Buyer feedback','Confusion, trust level, interest, and perceived value.'),
+        ('Admin review time','How long House Of Wax takes to approve or request changes.'),
+        ('Repeat seller interest','Whether sellers want to keep listing after the first test.')
     ]
-    st.dataframe(pd.DataFrame(metric_rows,columns=['Metric area','What to watch']),width='stretch')
+    st.dataframe(pd.DataFrame(metric_rows,columns=['Metric','Why it matters']),width='stretch')
+
+    st.markdown('### Copy / Export Support')
+    outline_text="""House Of Wax Business Plan / Funding Package
+
+Executive Summary: House Of Wax is a marketplace and culture platform for records, music collectibles, merch, memorabilia, clothing, and culture goods.
+Company Concept: Marketplace plus Knowledge Hub, trust layer, seller tools, and House Of Wax-owned culture content.
+Problem: Buyers need better trust, photos, condition notes, seller context, and education. Sellers need guided listing tools.
+Solution: Approved listings, Smart Search, seller profiles, trust badges, quality scores, inquiries, purchase requests, review queue, and Knowledge Hub education.
+Revenue Model: Planning assumptions include listing/seller fees, marketplace commission, featured listings, promoted seller profiles, official merch/items, events/pop-ups, and future power-seller subscriptions.
+Startup Cost Phases: Phase 1 $5,000-$15,000 demo/beta readiness; Phase 2 $25,000-$75,000 production beta; Phase 3 $100,000-$250,000+ public launch/growth.
+Funding Roadmap: founder/self-funded, friends/family, small business loans, SBA Microloan, SBA 7(a), CDFI/community lenders, Charlotte/NC programs, grants, pitch competitions, angels, strategic partners.
+Testing Plan: onboard 3 to 5 sellers, create 10 to 25 listings, test 10 to 25 buyers, collect feedback, track categories and pain points.
+Next Milestones: seller beta, buyer tests, refined budget, production auth/database/image storage plan, legal review, payment decision, pitch/funding package."""
+    st.text_area('Copy-ready business plan outline',value=outline_text,height=300,key='business_plan_copy_outline')
+    st.download_button('Download business plan outline',outline_text,file_name='house_of_wax_business_plan_outline.txt',key='business_plan_outline_download')
 
     st.markdown('### Known Prototype Limits')
     for item in ['Prototype role selector is not production security.','Local SQLite database is not hosted production storage.','Uploaded photos use prototype storage.','Checkout and payments are not live.','Legal, privacy, seller terms, returns, disputes, and payment rules need professional review.','Admin tools need real authentication and permission checks before launch.']:
         st.write(f'- {item}')
-    st.warning('This page is for planning and demo readiness. It should support conversations, not replace legal, financial, accounting, or investment advice.')
+    st.warning('This page supports planning and demo readiness. It should not replace legal, financial, accounting, tax, loan, grant, or investment advice.')
 
 
 def demo_guide():

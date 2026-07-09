@@ -15,7 +15,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.10 UNCONFIRMED EMAIL MESSAGE'
+APP_VERSION='V25.43.11 AUTH MODE DIAGNOSTIC'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -114,7 +114,9 @@ def hosted_enabled():
     return bool(url and anon)
 def hosted_headers(prefer='return=representation'):
     _,anon=supabase_config()
-    token=(auth_access_token() or anon) if 'auth_access_token' in globals() else anon
+    user_token=auth_access_token()
+    token=user_token or anon
+    SUPABASE_STATUS['last_auth_mode']='Signed-in user token' if user_token else 'Anon key (no user session token in memory)'
     headers={'apikey':anon,'Authorization':f'Bearer {token}','Content-Type':'application/json'}
     if prefer:
         headers['Prefer']=prefer
@@ -982,7 +984,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.10 unconfirmed email message active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.11 auth mode diagnostic active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1025,8 +1027,9 @@ def setup():
     old_v25_43_7_announcement='V25.43.7'+' email format validation active'
     old_v25_43_8_announcement='V25.43.8'+' signin email validation active'
     old_v25_43_9_announcement='V25.43.9'+' diagnostic recording fix active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement]:
-        set_setting('announcement','V25.43.10 unconfirmed email message active')
+    old_v25_43_10_announcement='V25.43.10'+' unconfirmed email message active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement]:
+        set_setting('announcement','V25.43.11 auth mode diagnostic active')
 setup()
 restore_session_from_query_params()
 
@@ -1880,6 +1883,7 @@ def auth_diagnostics_section():
         ('Pending action',safe(action.get('action_type'),'None')),
         ('Pending product ID',safe(action.get('product_id'),'0')),
         ('Current page/route',safe(st.session_state.get('marketplace_navigation') or st.session_state.get('admin_navigation'),'Unknown')),
+        ('Last hosted request auth mode',safe(SUPABASE_STATUS.get('last_auth_mode'),'None')),
         ('Last auth error',safe(AUTH_STATUS.get('last_error'),'None')[:240]),
         ('Last buyer profile save error',safe(AUTH_STATUS.get('last_buyer_save_error'),'None')[:240]),
         ('Last seller profile save error',safe(AUTH_STATUS.get('last_seller_save_error'),'None')[:240]),

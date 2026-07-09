@@ -66,7 +66,7 @@ with check (id in (select buyer_id from app_users where auth_user_id = auth.uid(
 drop policy if exists "buyers create own profile" on public."buyers";
 create policy "buyers create own profile"
 on buyers for insert to authenticated
-with check (lower(email) = lower(auth.email()));
+with check (auth.uid() is not null);
 
 drop policy if exists "public read approved seller stores" on public."sellers";
 create policy "public read approved seller stores"
@@ -82,7 +82,7 @@ with check (id in (select seller_id from app_users where auth_user_id = auth.uid
 drop policy if exists "sellers create own store" on public."sellers";
 create policy "sellers create own store"
 on sellers for insert to authenticated
-with check (lower(email) = lower(auth.email()));
+with check (auth.uid() is not null);
 
 drop policy if exists "public read live products" on public."products";
 create policy "public read live products"

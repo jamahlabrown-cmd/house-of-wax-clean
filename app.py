@@ -15,7 +15,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.5 SIGNUP UUID FIX'
+APP_VERSION='V25.43.6 AUTH ERROR VISIBILITY FIX'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -422,10 +422,14 @@ def supabase_auth_request(path, payload):
     try:
         r=requests.post(supabase_auth_url(path),headers=auth_headers(),json=payload,timeout=12)
         if r.status_code>=400:
-            return None, {'ok':False,'message':safe(r.text)}
+            # Some Supabase error responses (rate limiting, edge/WAF blocks) come
+            # back with an empty body, which used to show as a blank diagnostics
+            # row with no way to tell what happened. Always include the status
+            # code so there is something actionable even when the body is empty.
+            return None, {'ok':False,'message':f'HTTP {r.status_code}: '+(safe(r.text) or '(empty response body)')}
         return r.json() if r.text else {}, {'ok':True,'message':'OK'}
     except Exception as e:
-        return None, {'ok':False,'message':safe(e)}
+        return None, {'ok':False,'message':f'{type(e).__name__}: '+(safe(e) or '(no exception detail)')}
 def create_or_get_buyer_for_auth(email, name):
     clean=safe(email).strip().lower()
     existing=hosted_select('buyers',{'email':clean},limit=1) if hosted_enabled() else df('SELECT * FROM buyers WHERE lower(email)=lower(?) LIMIT 1',(clean,))
@@ -969,7 +973,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.5 signup uuid fix active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.6 auth error visibility fix active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1007,8 +1011,9 @@ def setup():
     old_v25_43_2_announcement='V25.43.2'+' mobile account flow and profile persistence repair active'
     old_v25_43_3_announcement='V25.43.3'+' one account, user directory, and mobile navigation repair active'
     old_v25_43_4_announcement='V25.43.4'+' session persistence and local-only data warnings active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement]:
-        set_setting('announcement','V25.43.5 signup uuid fix active')
+    old_v25_43_5_announcement='V25.43.5'+' signup uuid fix active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement]:
+        set_setting('announcement','V25.43.6 auth error visibility fix active')
 setup()
 restore_session_from_query_params()
 

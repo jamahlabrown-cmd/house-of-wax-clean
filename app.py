@@ -15,7 +15,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.4 SESSION PERSISTENCE + LOCAL-ONLY DATA WARNINGS'
+APP_VERSION='V25.43.5 SIGNUP UUID FIX'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -547,7 +547,15 @@ def auth_create_account(name,email,password,confirm,account_type='Buyer'):
             AUTH_STATUS['last_error']=detail.get('message')
             return False,'Supabase sign-up failed. Check Auth Diagnostics for the masked error.'
         user=(payload or {}).get('user') or {}
-        auth_uid=safe(user.get('id')) or auth_uid
+        auth_uid=safe(user.get('id'))
+        if not auth_uid:
+            # Supabase returns a 200 with no user id when the email is already
+            # registered (an anti-enumeration response). Falling back to a
+            # synthetic non-UUID id here used to sign the browser in anyway,
+            # which then broke every later Supabase query filtering
+            # app_users.auth_user_id (a real uuid column) by that fake string.
+            AUTH_STATUS['last_error']='Supabase sign-up returned no user id, which usually means this email is already registered.'
+            return False,'This email may already have a House Of Wax account. Try Sign In instead.'
         access_token=safe((payload or {}).get('access_token'))
         refresh_token=safe((payload or {}).get('refresh_token'))
     password_hash='' if hosted_enabled() else hash_password(password)
@@ -961,7 +969,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.4 session persistence and local-only data warnings active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.5 signup uuid fix active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -998,8 +1006,9 @@ def setup():
     old_v25_43_1_announcement='V25.43.1'+' simple buyer search and navigation cleanup active'
     old_v25_43_2_announcement='V25.43.2'+' mobile account flow and profile persistence repair active'
     old_v25_43_3_announcement='V25.43.3'+' one account, user directory, and mobile navigation repair active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement]:
-        set_setting('announcement','V25.43.4 session persistence and local-only data warnings active')
+    old_v25_43_4_announcement='V25.43.4'+' session persistence and local-only data warnings active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement]:
+        set_setting('announcement','V25.43.5 signup uuid fix active')
 setup()
 restore_session_from_query_params()
 

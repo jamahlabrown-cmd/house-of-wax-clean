@@ -3,6 +3,8 @@
 import sqlite3
 import re
 import os
+import hashlib
+import secrets
 from uuid import uuid4
 from urllib.parse import quote_plus
 from pathlib import Path
@@ -13,7 +15,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.37 SUPABASE CORE PERSISTENCE FIX'
+APP_VERSION='V25.43.4 SESSION PERSISTENCE + LOCAL-ONLY DATA WARNINGS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -33,6 +35,26 @@ def safe(v,d=''):
 def money(v):
     try: return f'${float(v):,.2f}'
     except Exception: return '$0.00'
+def parse_money_input(value, field_label='Price'):
+    raw=safe(value).strip().replace('$','').replace(',','')
+    if not raw:
+        return 0.0, ''
+    try:
+        parsed=float(raw)
+    except Exception:
+        return 0.0, f'{field_label} must be a number like 10, 10.00, or $10.00.'
+    if parsed<0:
+        return 0.0, f'{field_label} cannot be negative.'
+    return parsed, ''
+def parse_quantity_input(value):
+    raw=safe(value,'1').strip()
+    try:
+        parsed=int(raw)
+    except Exception:
+        return 1, 'Quantity must be a whole number.'
+    if parsed<1:
+        return 1, 'Quantity must be at least 1.'
+    return parsed, ''
 def mask_secret(v):
     s=safe(v)
     if not s:
@@ -49,9 +71,20 @@ def config_value(key):
         return ''
 def supabase_config():
     url=safe(config_value('SUPABASE_URL')).rstrip('/')
+    if url.endswith('/rest/v1'):
+        url=url[:-8].rstrip('/')
     anon=safe(config_value('SUPABASE_ANON_KEY'))
     return url,anon
-CORE_HOSTED_TABLES=['buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback']
+CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports']
+SUPABASE_STATUS={'last_read':'Not run','last_write':'Not run','last_error':''}
+AUTH_STATUS={'last_error':'','last_buyer_save_error':'','last_seller_save_error':'','last_link_error':''}
+def supabase_key_type():
+    _,key=supabase_config()
+    if key.startswith('sb_publishable_'):
+        return 'publishable'
+    if key.startswith('eyJ'):
+        return 'anon JWT'
+    return 'unknown' if key else 'missing'
 def hosted_database_config_status():
     keys=['SUPABASE_URL','SUPABASE_ANON_KEY','DATABASE_URL']
     rows=[]
@@ -66,7 +99,7 @@ def auth_config_status():
     keys=['AUTH_PROVIDER','SUPABASE_URL','SUPABASE_ANON_KEY','ADMIN_EMAILS']
     rows=[]
     for key in keys:
-        value=os.environ.get(key,'')
+        value=config_value(key)
         rows.append({'Setting':key,'Status':'Configured' if value else 'Missing','Value':mask_secret(value)})
     configured=any(row['Status']=='Configured' for row in rows)
     return {'rows':rows,'auth_configured':configured}
@@ -81,13 +114,52 @@ def hosted_enabled():
     return bool(url and anon)
 def hosted_headers(prefer='return=representation'):
     _,anon=supabase_config()
-    headers={'apikey':anon,'Authorization':f'Bearer {anon}','Content-Type':'application/json'}
+    token=(auth_access_token() or anon) if 'auth_access_token' in globals() else anon
+    headers={'apikey':anon,'Authorization':f'Bearer {token}','Content-Type':'application/json'}
     if prefer:
         headers['Prefer']=prefer
     return headers
 def hosted_url(table_name):
     url,_=supabase_config()
     return f"{url}/rest/v1/{table_name}"
+def supabase_auth_url(path):
+    url,_=supabase_config()
+    return f"{url}/auth/v1/{path.lstrip('/')}"
+def hosted_result_summary(resp):
+    text=safe(getattr(resp,'text',''))
+    return {'status_code':getattr(resp,'status_code',0),'ok':bool(getattr(resp,'ok',False)),'message':text[:800]}
+def show_hosted_error(action, table_name, detail):
+    if not hosted_enabled() or detail.get('ok'):
+        return
+    message=f"Supabase {action} failed for {table_name}: HTTP {detail.get('status_code')} {safe(detail.get('message'))}"
+    try:
+        st.error(message)
+    except Exception:
+        pass
+def hosted_request(method, table_name, params=None, data=None, prefer='return=representation'):
+    if not hosted_enabled():
+        detail={'status_code':0,'ok':False,'message':'Supabase settings are missing.'}
+        SUPABASE_STATUS['last_error']=detail['message']
+        return None,detail
+    try:
+        r=requests.request(method,hosted_url(table_name),headers=hosted_headers(prefer),params=params or {},json=data,timeout=12)
+        detail=hosted_result_summary(r)
+        if method.lower()=='get':
+            SUPABASE_STATUS['last_read']=f"{table_name}: HTTP {detail['status_code']}"
+        else:
+            SUPABASE_STATUS['last_write']=f"{table_name}: HTTP {detail['status_code']}"
+        if not detail['ok']:
+            SUPABASE_STATUS['last_error']=f"{table_name}: HTTP {detail['status_code']} {detail['message']}"
+            return None,detail
+        return (r.json() if r.text else []),detail
+    except Exception as e:
+        detail={'status_code':0,'ok':False,'message':str(e)}
+        SUPABASE_STATUS['last_error']=f"{table_name}: {e}"
+        if method.lower()=='get':
+            SUPABASE_STATUS['last_read']=f"{table_name}: error"
+        else:
+            SUPABASE_STATUS['last_write']=f"{table_name}: error"
+        return None,detail
 def hosted_select(table_name, filters=None, order=None, limit=None, in_filters=None, select='*'):
     if not hosted_enabled():
         return pd.DataFrame()
@@ -101,44 +173,31 @@ def hosted_select(table_name, filters=None, order=None, limit=None, in_filters=N
         params['order']=order
     if limit:
         params['limit']=str(limit)
-    try:
-        r=requests.get(hosted_url(table_name),headers=hosted_headers(''),params=params,timeout=12)
-        if r.status_code>=400:
-            return pd.DataFrame()
-        return pd.DataFrame(r.json())
-    except Exception:
-        return pd.DataFrame()
+    data,detail=hosted_request('get',table_name,params=params,prefer='')
+    show_hosted_error('read',table_name,detail)
+    return pd.DataFrame(data or [])
 def hosted_insert(table_name, data):
     if not hosted_enabled():
         return 0
-    try:
-        clean={k:v for k,v in data.items() if k!='id' and v is not None}
-        r=requests.post(hosted_url(table_name),headers=hosted_headers(),json=clean,timeout=12)
-        if r.status_code>=400:
-            return 0
-        payload=r.json() if r.text else []
-        return int(payload[0].get('id',0)) if payload else 0
-    except Exception:
-        return 0
+    clean={k:v for k,v in data.items() if k!='id' and v is not None}
+    payload,detail=hosted_request('post',table_name,data=clean)
+    show_hosted_error('insert',table_name,detail)
+    return int(payload[0].get('id',0)) if payload and payload[0].get('id') else 0
 def hosted_update(table_name, data, filters):
     if not hosted_enabled():
         return False
-    try:
-        params={k:f'eq.{v}' for k,v in filters.items()}
-        clean={k:v for k,v in data.items() if v is not None}
-        r=requests.patch(hosted_url(table_name),headers=hosted_headers(),params=params,json=clean,timeout=12)
-        return r.status_code<400
-    except Exception:
-        return False
+    params={k:f'eq.{v}' for k,v in filters.items()}
+    clean={k:v for k,v in data.items() if v is not None}
+    payload,detail=hosted_request('patch',table_name,params=params,data=clean)
+    show_hosted_error('update',table_name,detail)
+    return bool(detail.get('ok'))
 def hosted_delete(table_name, filters):
     if not hosted_enabled():
         return False
-    try:
-        params={k:f'eq.{v}' for k,v in filters.items()}
-        r=requests.delete(hosted_url(table_name),headers=hosted_headers(''),params=params,timeout=12)
-        return r.status_code<400
-    except Exception:
-        return False
+    params={k:f'eq.{v}' for k,v in filters.items()}
+    payload,detail=hosted_request('delete',table_name,params=params,prefer='')
+    show_hosted_error('delete',table_name,detail)
+    return bool(detail.get('ok'))
 def core_table(table_name, order=None):
     if hosted_enabled() and table_name in CORE_HOSTED_TABLES:
         return hosted_select(table_name,order=order)
@@ -153,6 +212,368 @@ def core_update(table_name, data, filters, sql='', params=()):
     if sql:
         run(sql,params)
     return True
+def active_storage_label():
+    return 'Supabase Hosted' if hosted_enabled() else 'Local SQLite'
+def warn_if_local_only(feature_label):
+    # These features have no Supabase-hosted table yet and always write to
+    # local SQLite, which is ephemeral on Streamlit Cloud. Surface that
+    # plainly instead of letting a live tester believe it persisted.
+    if hosted_enabled():
+        st.warning(f"{feature_label} is saved locally to this session only and will not survive a Streamlit Cloud restart. It is not yet stored in Supabase.")
+def mask_identifier(value):
+    s=safe(value)
+    if not s:
+        return 'None'
+    if len(s)<=10:
+        return s[:2]+'...'
+    return s[:6]+'...'+s[-4:]
+def admin_email_allowlist():
+    raw=safe(config_value('ADMIN_EMAILS') or os.environ.get('ADMIN_EMAILS',''))
+    return [x.strip().lower() for x in re.split(r'[,;\\s]+',raw) if x.strip()]
+def hash_password(password, salt=None):
+    salt=salt or secrets.token_hex(16)
+    digest=hashlib.sha256((salt+safe(password)).encode('utf-8')).hexdigest()
+    return salt+'$'+digest
+def verify_password(password, stored):
+    stored=safe(stored)
+    if '$' not in stored:
+        return False
+    salt,digest=stored.split('$',1)
+    return hash_password(password,salt)==stored
+def auth_session():
+    return st.session_state.get('auth_session') or {}
+def auth_user_id():
+    return safe(auth_session().get('user_id'))
+def auth_user_email():
+    return safe(auth_session().get('email')).lower()
+def auth_access_token():
+    return safe(auth_session().get('access_token'))
+def is_authenticated():
+    return bool(auth_user_id() and auth_user_email())
+def auth_user_row():
+    uid=auth_user_id()
+    email=auth_user_email()
+    if uid:
+        row=hosted_select('app_users',{'auth_user_id':uid},limit=1) if hosted_enabled() else df('SELECT * FROM app_users WHERE auth_user_id=? LIMIT 1',(uid,))
+        if not row.empty:
+            return row.iloc[0]
+    if email:
+        row=hosted_select('app_users',{'email':email},limit=1) if hosted_enabled() else df('SELECT * FROM app_users WHERE lower(email)=lower(?) LIMIT 1',(email,))
+        if not row.empty:
+            return row.iloc[0]
+    return None
+def current_app_user():
+    row=auth_user_row()
+    return row.to_dict() if row is not None else {}
+def effective_account_type():
+    user=current_app_user()
+    if is_admin_user(user):
+        return 'Admin'
+    if user and int(user.get('seller_id') or 0):
+        return 'Seller'
+    if user:
+        return 'Buyer'
+    return 'Public'
+def account_status(user=None):
+    if user is None:
+        user=current_app_user()
+    if user is None:
+        return 'Public'
+    try:
+        if hasattr(user,'empty') and user.empty:
+            return 'Public'
+    except Exception:
+        pass
+    return safe(user.get('account_status') or user.get('status'),'Active')
+def seller_application_status(user=None):
+    if user is None:
+        user=current_app_user()
+    if user is None:
+        return 'Not Applied'
+    try:
+        if hasattr(user,'empty') and user.empty:
+            return 'Not Applied'
+    except Exception:
+        pass
+    raw=safe(user.get('seller_application_status'))
+    if raw:
+        return normalize_seller_status(raw) if raw!='Not Applied' else raw
+    sid=int(user.get('seller_id') or 0)
+    seller=get_seller(sid) if sid else None
+    if seller is not None:
+        return normalize_seller_status(seller.get('status'))
+    return 'Not Applied'
+def has_buyer_capability():
+    return is_authenticated()
+def has_seller_capability():
+    return is_authenticated() and linked_seller_id()>0
+def seller_is_approved_for_current_user():
+    sid=linked_seller_id()
+    seller=get_seller(sid) if sid else None
+    return seller_can_publish(seller) if seller is not None else False
+def linked_buyer_id():
+    user=current_app_user()
+    try:
+        return int(user.get('buyer_id') or 0)
+    except Exception:
+        return 0
+def linked_seller_id():
+    user=current_app_user()
+    try:
+        return int(user.get('seller_id') or 0)
+    except Exception:
+        return 0
+def pending_action():
+    action=st.session_state.get('pending_action') or {}
+    return action if isinstance(action,dict) else {}
+def request_marketplace_navigation(target, clear_product=False, clear_seller=False):
+    st.session_state['pending_marketplace_navigation']=safe(target,'Home')
+    if clear_product:
+        st.session_state['pending_clear_product_id']=True
+    if clear_seller:
+        st.session_state['pending_clear_seller_id']=True
+def apply_pending_marketplace_navigation(marketplace_menu):
+    if st.session_state.pop('pending_clear_product_id',False):
+        st.session_state.pop('product_id',None)
+    if st.session_state.pop('pending_clear_seller_id',False):
+        st.session_state.pop('seller_id',None)
+    pending=st.session_state.pop('pending_marketplace_navigation',None)
+    if pending in marketplace_menu:
+        st.session_state['marketplace_navigation']=pending
+def set_pending_action(action_type, product=None):
+    product_id=int(product.get('id') or 0) if product is not None else int(st.session_state.get('product_id') or 0)
+    seller_id=int(product.get('seller_id') or 0) if product is not None else 0
+    st.session_state['pending_action']={'action_type':safe(action_type),'product_id':product_id,'seller_id':seller_id,'return_page':'Search Music'}
+    if product_id:
+        st.session_state['product_id']=product_id
+def restore_pending_action():
+    action=pending_action()
+    pid=int(action.get('product_id') or 0)
+    if not pid:
+        return False
+    st.session_state['product_id']=pid
+    request_marketplace_navigation('Search Music')
+    if action.get('action_type')=='Ask Seller':
+        st.session_state[f'open_inquiry_{pid}']=True
+    elif action.get('action_type')=='Request to Buy':
+        st.session_state[f'open_purchase_{pid}']=True
+    return True
+def clear_pending_action():
+    st.session_state.pop('pending_action',None)
+def ensure_linked_buyer_profile(name=''):
+    if not is_authenticated():
+        return 0
+    bid=linked_buyer_id()
+    if bid and get_buyer(bid) is not None:
+        return bid
+    email=auth_user_email()
+    display=safe(name) or safe(current_app_user().get('display_name')) or email.split('@')[0]
+    try:
+        bid=create_or_get_buyer_for_auth(email,display)
+        user=current_app_user()
+        if bid:
+            upsert_app_user(auth_user_id(),email,display,'Buyer',bid,int(user.get('seller_id') or 0),'',safe(user.get('admin_access'),'No'),seller_application_status(user),account_status(user))
+            return int(bid)
+    except Exception as e:
+        AUTH_STATUS['last_buyer_save_error']=safe(e)
+        AUTH_STATUS['last_link_error']=safe(e)
+    return 0
+def ensure_linked_seller_profile(name=''):
+    if not is_authenticated():
+        return 0
+    sid=linked_seller_id()
+    if sid and get_seller(sid) is not None:
+        return sid
+    email=auth_user_email()
+    display=safe(name) or safe(current_app_user().get('display_name')) or email.split('@')[0]
+    try:
+        sid=create_or_get_seller_for_auth(email,display)
+        user=current_app_user()
+        if sid:
+            bid=int(user.get('buyer_id') or 0) or ensure_linked_buyer_profile(display)
+            upsert_app_user(auth_user_id(),email,display,'Buyer/Seller',bid,sid,'',safe(user.get('admin_access'),'No'),normalize_seller_status('Pending Seller Approval'),account_status(user))
+            return int(sid)
+    except Exception as e:
+        AUTH_STATUS['last_seller_save_error']=safe(e)
+        AUTH_STATUS['last_link_error']=safe(e)
+    return 0
+def is_admin_user(user=None):
+    user=user or current_app_user()
+    email=safe(user.get('email') if user else auth_user_email()).lower()
+    admin_field=safe(user.get('admin_access') if user else '').lower() in ['yes','true','1','admin']
+    return bool(admin_field or (email and email in admin_email_allowlist()))
+def admin_access_source():
+    user=current_app_user()
+    email=auth_user_email()
+    if safe(user.get('admin_access')).lower() in ['yes','true','1','admin']:
+        return 'app_users.admin_access'
+    if email and email in admin_email_allowlist():
+        return 'ADMIN_EMAILS allowlist'
+    if bool(st.session_state.get('testing_mode_enabled',False)) and not is_authenticated():
+        return 'Unauthenticated Testing mode'
+    return 'None'
+def auth_headers():
+    _,anon=supabase_config()
+    token=auth_access_token() or anon
+    return {'apikey':anon,'Authorization':f'Bearer {token}','Content-Type':'application/json'}
+def supabase_auth_request(path, payload):
+    if not hosted_enabled():
+        return None, {'ok':False,'message':'Supabase Auth is not configured.'}
+    try:
+        r=requests.post(supabase_auth_url(path),headers=auth_headers(),json=payload,timeout=12)
+        if r.status_code>=400:
+            return None, {'ok':False,'message':safe(r.text)}
+        return r.json() if r.text else {}, {'ok':True,'message':'OK'}
+    except Exception as e:
+        return None, {'ok':False,'message':safe(e)}
+def create_or_get_buyer_for_auth(email, name):
+    clean=safe(email).strip().lower()
+    existing=hosted_select('buyers',{'email':clean},limit=1) if hosted_enabled() else df('SELECT * FROM buyers WHERE lower(email)=lower(?) LIMIT 1',(clean,))
+    if not existing.empty:
+        return int(existing.iloc[0]['id'])
+    return create_buyer(clean,name)
+def create_or_get_seller_for_auth(email, name):
+    clean=safe(email).strip().lower()
+    existing=hosted_select('sellers',{'email':clean},limit=1) if hosted_enabled() else df('SELECT * FROM sellers WHERE lower(email)=lower(?) LIMIT 1',(clean,))
+    if not existing.empty:
+        return int(existing.iloc[0]['id'])
+    store=safe(name) or clean.split('@')[0]
+    code=uuid4().hex[:8]
+    data={'store_name':store,'owner_name':safe(name),'email':clean,'phone':'','city':'','state':'','website':'','instagram':'','store_bio':'','seller_story':'','specialties':'','logo_url':'','banner_url':'','status':'Pending Seller Approval','seller_level':'Verified Seller','rating':100,'completed_sales':0,'disputes':0,'strikes':0,'auction_override':'Yes','access_code':code,'rules_accepted':'No','rules_accepted_at':'','created_at':now()}
+    keys=['store_name','owner_name','email','phone','city','state','website','instagram','store_bio','seller_story','specialties','logo_url','banner_url','status','seller_level','rating','completed_sales','disputes','strikes','auction_override','access_code','rules_accepted','rules_accepted_at','created_at']
+    return core_insert('sellers',data,'''INSERT INTO sellers(store_name,owner_name,email,phone,city,state,website,instagram,store_bio,seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,disputes,strikes,auction_override,access_code,rules_accepted,rules_accepted_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in keys))
+def upsert_app_user(auth_uid,email,display_name,account_type='Buyer',buyer_id=0,seller_id=0,password_hash='',admin_access='No',seller_status='Not Applied',account_status_value='Active'):
+    clean=safe(email).strip().lower()
+    now_value=now()
+    existing=hosted_select('app_users',{'auth_user_id':auth_uid},limit=1) if hosted_enabled() else df('SELECT * FROM app_users WHERE auth_user_id=? LIMIT 1',(auth_uid,))
+    if existing.empty:
+        existing=hosted_select('app_users',{'email':clean},limit=1) if hosted_enabled() else df('SELECT * FROM app_users WHERE lower(email)=lower(?) LIMIT 1',(clean,))
+    existing_row=existing.iloc[0].to_dict() if not existing.empty else {}
+    if not seller_status or seller_status=='Not Applied':
+        seller_status=safe(existing_row.get('seller_application_status'),'Not Applied')
+    if not account_status_value:
+        account_status_value=safe(existing_row.get('account_status') or existing_row.get('status'),'Active')
+    data={'auth_user_id':auth_uid,'email':clean,'display_name':display_name,'account_type':account_type,'buyer_id':int(buyer_id or 0),'seller_id':int(seller_id or 0),'admin_access':admin_access,'seller_application_status':seller_status,'account_status':account_status_value,'status':account_status_value,'local_password_hash':password_hash,'updated_at':now_value}
+    if existing.empty:
+        data['created_at']=now_value
+        keys=['auth_user_id','email','display_name','account_type','buyer_id','seller_id','admin_access','seller_application_status','account_status','status','local_password_hash','created_at','updated_at']
+        return core_insert('app_users',data,'INSERT INTO app_users(auth_user_id,email,display_name,account_type,buyer_id,seller_id,admin_access,seller_application_status,account_status,status,local_password_hash,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',tuple(data[k] for k in keys))
+    user_id=int(existing.iloc[0]['id'])
+    if not password_hash:
+        data.pop('local_password_hash',None)
+        core_update('app_users',data,{'id':user_id},'UPDATE app_users SET auth_user_id=?,email=?,display_name=?,account_type=?,buyer_id=?,seller_id=?,admin_access=?,seller_application_status=?,account_status=?,status=?,updated_at=? WHERE id=?',(auth_uid,clean,display_name,account_type,int(buyer_id or 0),int(seller_id or 0),admin_access,seller_status,account_status_value,account_status_value,now_value,user_id))
+    else:
+        core_update('app_users',data,{'id':user_id},'UPDATE app_users SET auth_user_id=?,email=?,display_name=?,account_type=?,buyer_id=?,seller_id=?,admin_access=?,seller_application_status=?,account_status=?,status=?,local_password_hash=?,updated_at=? WHERE id=?',(auth_uid,clean,display_name,account_type,int(buyer_id or 0),int(seller_id or 0),admin_access,seller_status,account_status_value,account_status_value,password_hash,now_value,user_id))
+    return user_id
+def sign_in_session(auth_uid,email,access_token='',refresh_token=''):
+    st.session_state['auth_session']={'user_id':safe(auth_uid),'email':safe(email).lower(),'access_token':safe(access_token),'refresh_token':safe(refresh_token)}
+    if refresh_token:
+        try:
+            st.query_params['rt']=safe(refresh_token)
+        except Exception:
+            pass
+def supabase_refresh_session(refresh_token):
+    refresh_token=safe(refresh_token)
+    if not refresh_token or not hosted_enabled():
+        return False
+    payload,detail=supabase_auth_request('token?grant_type=refresh_token',{'refresh_token':refresh_token})
+    if not detail.get('ok'):
+        AUTH_STATUS['last_error']=detail.get('message')
+        return False
+    user=(payload or {}).get('user') or {}
+    uid=safe(user.get('id'))
+    email=safe(user.get('email')).lower()
+    if not uid or not email:
+        return False
+    new_access=safe((payload or {}).get('access_token'))
+    new_refresh=safe((payload or {}).get('refresh_token')) or refresh_token
+    sign_in_session(uid,email,new_access,new_refresh)
+    return True
+def restore_session_from_query_params():
+    # Streamlit has no server-side session store, so a mobile page reload
+    # otherwise drops auth_session and signs the user out. The Supabase
+    # refresh token is round-tripped through the URL query string instead,
+    # and rotated on every restore (see sign_in_session) to limit the value
+    # of a leaked/logged URL. Good enough for a controlled tester launch;
+    # move to a server-side session table before a public launch.
+    if is_authenticated():
+        return
+    rt=safe(st.query_params.get('rt'))
+    if not rt:
+        return
+    if supabase_refresh_session(rt):
+        reconcile_authenticated_profile()
+    else:
+        try:
+            del st.query_params['rt']
+        except Exception:
+            pass
+def reconcile_authenticated_profile():
+    if not is_authenticated():
+        return
+    user=current_app_user()
+    if not user:
+        display=auth_user_email().split('@')[0]
+        bid=create_or_get_buyer_for_auth(auth_user_email(),display)
+        upsert_app_user(auth_user_id(),auth_user_email(),display,'Buyer',bid,0,'','No','Not Applied','Active')
+        user=current_app_user()
+    bid=ensure_linked_buyer_profile()
+    if bid:
+        st.session_state['buyer_id']=bid
+    sid=int((user or {}).get('seller_id') or 0)
+    if sid and get_seller(sid) is not None:
+        st.session_state['seller_tool_seller_id']=sid
+def auth_sign_out():
+    for key in ['auth_session','buyer_id','seller_tool_seller_id']:
+        st.session_state.pop(key,None)
+    try:
+        del st.query_params['rt']
+    except Exception:
+        pass
+def auth_create_account(name,email,password,confirm,account_type='Buyer'):
+    if not safe(name) or not safe(email):
+        return False,'Name and email are required.'
+    if len(safe(password))<8:
+        return False,'Password must be at least 8 characters.'
+    if password!=confirm:
+        return False,'Password confirmation does not match.'
+    clean=safe(email).strip().lower()
+    auth_uid='local-'+hashlib.sha256(clean.encode('utf-8')).hexdigest()[:24]
+    access_token=''
+    refresh_token=''
+    if hosted_enabled():
+        payload,detail=supabase_auth_request('signup',{'email':clean,'password':password,'data':{'display_name':name,'account_type':'Universal'}})
+        if not detail.get('ok'):
+            AUTH_STATUS['last_error']=detail.get('message')
+            return False,'Supabase sign-up failed. Check Auth Diagnostics for the masked error.'
+        user=(payload or {}).get('user') or {}
+        auth_uid=safe(user.get('id')) or auth_uid
+        access_token=safe((payload or {}).get('access_token'))
+        refresh_token=safe((payload or {}).get('refresh_token'))
+    password_hash='' if hosted_enabled() else hash_password(password)
+    buyer_id=create_or_get_buyer_for_auth(clean,name)
+    upsert_app_user(auth_uid,clean,name,'Buyer',buyer_id,0,password_hash,'No','Not Applied','Active')
+    sign_in_session(auth_uid,clean,access_token,refresh_token)
+    reconcile_authenticated_profile()
+    return True,'House Of Wax account created and signed in. You can buy now and apply to sell from My Account.'
+def auth_sign_in(email,password):
+    clean=safe(email).strip().lower()
+    if hosted_enabled():
+        payload,detail=supabase_auth_request('token?grant_type=password',{'email':clean,'password':password})
+        if not detail.get('ok'):
+            AUTH_STATUS['last_error']=detail.get('message')
+            return False,'Sign-in failed. Check your email/password or Auth Diagnostics.'
+        user=(payload or {}).get('user') or {}
+        sign_in_session(safe(user.get('id')),clean,safe((payload or {}).get('access_token')),safe((payload or {}).get('refresh_token')))
+        reconcile_authenticated_profile()
+        return True,'Signed in.'
+    row=df('SELECT * FROM app_users WHERE lower(email)=lower(?) LIMIT 1',(clean,))
+    if row.empty or not verify_password(password,safe(row.iloc[0].get('local_password_hash'))):
+        AUTH_STATUS['last_error']='Local fallback sign-in failed.'
+        return False,'Sign-in failed. Check your email/password.'
+    sign_in_session(safe(row.iloc[0].get('auth_user_id')),clean)
+    reconcile_authenticated_profile()
+    return True,'Signed in.'
 def conn(): return sqlite3.connect(DB)
 def run(sql,p=()):
     c=conn(); c.execute(sql,p); c.commit(); c.close()
@@ -181,6 +602,33 @@ def save_files(uploads,folder):
     if not uploads: return []
     if not isinstance(uploads,list): uploads=[uploads]
     return [p for p in [save_file(up,folder) for up in uploads] if p]
+def safe_image(image_value, caption=None, width='stretch', fallback_text=None):
+    value=safe(image_value)
+    if image_value is None or (isinstance(image_value,str) and not value):
+        if fallback_text:
+            st.caption(fallback_text)
+        return False
+    image_to_render=image_value
+    if isinstance(image_value,(str,Path)):
+        raw=safe(image_value).strip()
+        if raw.startswith(('http://','https://')):
+            image_to_render=raw
+        else:
+            try:
+                local_path=Path(raw).expanduser()
+                if not local_path.exists() or not local_path.is_file():
+                    st.caption(fallback_text or 'Image unavailable. Prototype image storage may not persist after redeploy. Production launch needs cloud image storage.')
+                    return False
+                image_to_render=str(local_path)
+            except Exception:
+                st.caption(fallback_text or 'Image unavailable. Prototype image storage may not persist after redeploy. Production launch needs cloud image storage.')
+                return False
+    try:
+        st.image(image_to_render,caption=caption,width=width)
+        return True
+    except Exception:
+        st.caption(fallback_text or 'Image unavailable. Prototype image storage may not persist after redeploy. Production launch needs cloud image storage.')
+        return False
 def setting(k,d=''):
     try:
         run('CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY,value TEXT)')
@@ -198,36 +646,212 @@ def email_exists(t,email):
         return not hosted_select(t,{'email':email.strip().lower()},limit=1).empty
     return not df(f'SELECT id FROM {t} WHERE lower(email)=lower(?)',(email.strip(),)).empty
 
-LISTING_REVIEW_STATUSES=['Draft','Submitted for Review','Approved','Needs Changes','Rejected']
-PUBLIC_LISTING_STATUSES=['Active','Approved','Public']
+SELLER_STATUSES=['Pending Seller Approval','Approved Seller','Suspended Seller']
+LISTING_STATUSES=['Draft','Live','Hidden','Sold','Reported','Under Review','Removed by House Of Wax']
+PUBLIC_LISTING_STATUSES=['Live','Active','Approved','Public']
 INQUIRY_STATUSES=['New','Seller Responded','Closed']
 PURCHASE_REQUEST_STATUSES=['New','Seller Accepted','Seller Declined','Pending Pickup/Payment','Sold','Closed']
 UNAVAILABLE_LISTING_STATUSES=['Pending Pickup/Payment','Pending','Sold']
 ACCOUNT_ROLES=['Buyer','Seller','Admin']
-KEY_DATA_TABLES=['products','sellers','listing_inquiries','purchase_requests','product_gallery','tester_feedback']
+KEY_DATA_TABLES=['app_users','products','sellers','listing_inquiries','purchase_requests','product_gallery','tester_feedback','listing_reports']
 
 def listing_status_help():
-    st.info('Listing status guide: Draft = only you can see it. Submitted for Review = waiting for admin review. Approved/Public/Active = buyers can see it. Needs Changes = fix and resubmit. Rejected = not approved. Pending = buyer request is in progress. Sold = no longer available.')
+    st.info('Listing status guide: Draft = only you can see it. Live = buyers can see it. Hidden = not public. Sold = no longer available. Reported/Under Review = House Of Wax may investigate after a complaint. Removed by House Of Wax = removed for a platform rule issue.')
+
+def normalize_seller_status(status):
+    raw=safe(status,'Pending Seller Approval')
+    mapping={'Approved':'Approved Seller','Active':'Approved Seller','Verified':'Approved Seller','Verified Seller':'Approved Seller','Pending':'Pending Seller Approval','Suspended':'Suspended Seller'}
+    return mapping.get(raw,raw if raw in SELLER_STATUSES else 'Pending Seller Approval')
+
+def seller_can_publish(seller):
+    return seller is not None and normalize_seller_status(seller.get('status'))=='Approved Seller'
+
+def seller_rules_accepted(seller):
+    return safe(seller.get('rules_accepted') if seller is not None else '').strip().lower() in ['yes','true','1','accepted']
+
+def seller_can_publish_live(seller):
+    return seller_can_publish(seller) and seller_rules_accepted(seller)
+
+def accept_seller_rules(sid):
+    accepted_at=now()
+    core_update(
+        'sellers',
+        {'rules_accepted':'Yes','rules_accepted_at':accepted_at},
+        {'id':int(sid)},
+        'UPDATE sellers SET rules_accepted=?,rules_accepted_at=? WHERE id=?',
+        ('Yes',accepted_at,int(sid))
+    )
+    return accepted_at
+
+def seller_responsibility_policy_text():
+    st.write('House Of Wax allows approved sellers to manage and publish listings in their own stores. Sellers are responsible for the accuracy, legality, condition, pricing, images, and descriptions of the items they post. House Of Wax does not pre-approve every listing. Listings and sellers may be reported by buyers, sellers, rights owners, or community members. House Of Wax may investigate reports and may hide, remove, or restrict listings or sellers that violate platform rules.')
+    st.write('Prohibited seller behavior:')
+    for item in ['No knowingly stolen goods','No counterfeit items represented as official','No misleading condition, pricing, or item details','No hateful, violent, illegal, or prohibited content','No harassment or abusive seller behavior','No knowingly false claims about rarity, pressing, autograph, or authenticity']:
+        st.write(f'- {item}')
+
+def render_seller_rules_acceptance(sid, seller, key_prefix='seller_rules'):
+    st.markdown('#### Seller rules and responsibility')
+    seller_responsibility_policy_text()
+    if seller_rules_accepted(seller):
+        status_badge('Rules accepted','success')
+        st.caption('Accepted: '+safe(seller.get('rules_accepted_at'),'date not recorded'))
+        return True
+    st.warning('Accept seller rules before publishing. You can still save drafts without accepting rules.')
+    agreed=st.checkbox('I understand that I am responsible for the accuracy, legality, condition, pricing, images, and descriptions of the items I post. I agree to follow House Of Wax marketplace rules.',key=f'{key_prefix}_rules_agreement_{int(sid)}')
+    if st.button('Accept seller rules',key=f'{key_prefix}_accept_rules_{int(sid)}'):
+        if not agreed:
+            st.error('Check the responsibility agreement before accepting seller rules.')
+            return False
+        accepted_at=accept_seller_rules(int(sid))
+        st.success('Seller rules accepted. Publishing is now available for approved sellers.')
+        st.caption('Accepted: '+accepted_at)
+        st.rerun()
+    return False
+
+def seller_onboarding_checklist(sid, seller):
+    listings=hosted_select('products',{'seller_id':int(sid)},order='created_at.desc') if hosted_enabled() else df('SELECT * FROM products WHERE seller_id=? ORDER BY created_at DESC',(sid,))
+    has_profile=bool(seller is not None and safe(seller.get('store_name')) and safe(seller.get('email')))
+    has_contact=bool(seller is not None and (safe(seller.get('city')) or safe(seller.get('state')) or safe(seller.get('phone')) or safe(seller.get('contact_preference'))))
+    has_draft=not listings.empty and listings['listing_status'].fillna('').isin(['Draft']).any()
+    has_live=not listings.empty and listings['listing_status'].fillna('').isin(PUBLIC_LISTING_STATUSES).any()
+    checklist=[
+        ('Create seller store profile',has_profile),
+        ('Add contact/location information',has_contact),
+        ('Read seller rules',True),
+        ('Accept seller responsibility agreement',seller_rules_accepted(seller)),
+        ('Add first draft listing',has_draft or has_live),
+        ('Publish first live listing',has_live),
+    ]
+    st.markdown('### Seller Onboarding')
+    st.caption('Complete these basics so sellers understand their responsibility before publishing.')
+    with st.container(border=True):
+        for label,done in checklist:
+            c1,c2=st.columns([0.7,0.3])
+            c1.write(label)
+            if done:
+                c2.success('Complete')
+            else:
+                c2.warning('Not complete')
+    render_seller_rules_acceptance(sid,seller,'seller_onboarding')
+    return checklist
+
+def seller_public_trust_label(seller):
+    if seller is None:
+        return 'House Of Wax Seller'
+    status=normalize_seller_status(seller.get('status'))
+    level=safe(seller.get('seller_level'))
+    if safe(seller.get('store_name')).lower()=='house of wax official' or 'official' in level.lower():
+        return 'House Of Wax Seller'
+    if status=='Approved Seller':
+        return 'Verified Seller'
+    if status=='Suspended Seller':
+        return 'Not Enabled'
+    return 'New Seller'
+
+def status_badge(label, kind='neutral'):
+    classes={'success':'how-status-success','live':'how-status-success','danger':'how-status-danger','disabled':'how-status-danger','warning':'how-status-warning','pending':'how-status-warning','admin':'how-status-admin','neutral':'how-status-neutral'}
+    css_class=classes.get(kind,'how-status-neutral')
+    st.markdown(f'<span class="how-status {css_class}">{safe(label)}</span>',unsafe_allow_html=True)
+
+def listing_status_badge(status):
+    label=safe(status,'Draft')
+    kind='neutral'
+    if label in ['Live','Active','Approved','Public','Available']:
+        kind='success'
+    elif label in ['Hidden','Removed by House Of Wax','Suspended Seller','Not Enabled']:
+        kind='danger'
+    elif label in ['Draft','Pending','Pending Pickup/Payment','Reported','Under Review','Pending Seller Approval']:
+        kind='warning'
+    elif label=='Sold':
+        kind='danger'
+    status_badge(label,kind)
+
+def admin_seller_status_badge(status):
+    normalized=normalize_seller_status(status)
+    if normalized=='Approved Seller':
+        status_badge(normalized,'success')
+    elif normalized=='Suspended Seller':
+        status_badge(normalized,'danger')
+    else:
+        status_badge(normalized,'warning')
+
+def public_seller_trust_badge(seller):
+    label=seller_public_trust_label(seller)
+    kind='success' if label in ['Verified Seller','Active Seller','Trusted Seller','House Of Wax Seller'] else ('danger' if label=='Not Enabled' else 'neutral')
+    status_badge(label,kind)
+
+def seller_status_notice(seller):
+    status=normalize_seller_status(seller.get('status') if seller is not None else '')
+    if status=='Approved Seller':
+        status_badge('Enabled','success')
+        if seller_rules_accepted(seller):
+            st.success('This seller account can publish listings directly to the store.')
+        else:
+            st.warning('This seller is approved, but must accept House Of Wax seller rules before publishing live listings.')
+    elif status=='Suspended Seller':
+        status_badge('Not Enabled','danger')
+        st.error('Your seller account is suspended. Contact House Of Wax for review.')
+    else:
+        status_badge('Pending','warning')
+        st.warning('You can save drafts while your seller account is being reviewed.')
+    return status
+
+def public_listing_query_statuses():
+    return PUBLIC_LISTING_STATUSES+UNAVAILABLE_LISTING_STATUSES
+
+def live_marketplace_statuses():
+    return PUBLIC_LISTING_STATUSES
+
+def seller_is_public_marketplace_seller(seller):
+    return seller is not None and normalize_seller_status(seller.get('status'))=='Approved Seller'
 
 def current_account_role():
-    return st.session_state.get('account_role','Buyer')
+    return effective_account_type()
 
 def is_admin_unlocked():
-    return current_account_role()=='Admin' or bool(st.session_state.get('testing_mode_enabled',False))
+    return is_admin_user() or (bool(st.session_state.get('testing_mode_enabled',False)) and not is_authenticated())
 
 def prototype_role_notice():
-    st.info('Prototype role control is active. Production launch will require real login and permission checks.')
+    if is_authenticated():
+        st.info('Signed in as '+auth_user_email()+'. Access is limited to the buyer or seller profile linked to this account.')
+    else:
+        st.info('Public browsing is available. Sign in before managing profiles, inventory, inquiries, or purchase requests.')
 
 def admin_access_warning():
-    st.warning('Admin tools are visible because Testing mode/Admin mode is enabled.')
+    st.warning('House Of Wax Admin is visible because Testing mode/Admin mode is enabled.')
+
+def mobile_navigation_bar():
+    st.markdown('### Go to')
+    buttons=['Search Music','My Account']
+    if has_seller_capability():
+        buttons.append('My Store')
+    if is_authenticated():
+        buttons.append('Sign Out')
+    cols=st.columns(len(buttons))
+    for i,label in enumerate(buttons):
+        with cols[i]:
+            if label=='Search Music' and st.button('Search Music',key='mobile_nav_search_music',width='stretch'):
+                request_marketplace_navigation('Search Music',clear_product=True,clear_seller=True)
+                st.rerun()
+            elif label=='My Account' and st.button('My Account',key='mobile_nav_my_account',width='stretch'):
+                request_marketplace_navigation('My Account')
+                st.rerun()
+            elif label=='My Store' and st.button('My Store',key='mobile_nav_my_store',width='stretch'):
+                request_marketplace_navigation('Seller Dashboard')
+                st.rerun()
+            elif label=='Sign Out' and st.button('Sign Out',key='mobile_nav_sign_out',width='stretch'):
+                auth_sign_out()
+                request_marketplace_navigation('Home')
+                st.rerun()
 
 # ---------- Database ----------
 def setup():
     c=conn(); cur=c.cursor()
     cur.execute('CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY,value TEXT)')
+    cur.execute('''CREATE TABLE IF NOT EXISTS app_users(id INTEGER PRIMARY KEY AUTOINCREMENT,auth_user_id TEXT UNIQUE,email TEXT UNIQUE,display_name TEXT,account_type TEXT,buyer_id INTEGER DEFAULT 0,seller_id INTEGER DEFAULT 0,seller_application_status TEXT DEFAULT 'Not Applied',admin_access TEXT DEFAULT 'No',account_status TEXT DEFAULT 'Active',status TEXT DEFAULT 'Active',local_password_hash TEXT,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS buyers(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT,email TEXT UNIQUE,phone TEXT,city TEXT,state TEXT,bio TEXT,status TEXT DEFAULT 'Trusted Buyer',rating REAL DEFAULT 100,completed_purchases INTEGER DEFAULT 0,unpaid_orders INTEGER DEFAULT 0,disputes INTEGER DEFAULT 0,strikes INTEGER DEFAULT 0,created_at TEXT)''')
-    cur.execute('''CREATE TABLE IF NOT EXISTS sellers(id INTEGER PRIMARY KEY AUTOINCREMENT,store_name TEXT,owner_name TEXT,email TEXT UNIQUE,phone TEXT,city TEXT,state TEXT,website TEXT,instagram TEXT,store_bio TEXT,seller_story TEXT,specialties TEXT,logo_url TEXT,banner_url TEXT,status TEXT DEFAULT 'Approved',seller_level TEXT DEFAULT 'Verified Seller',rating REAL DEFAULT 100,completed_sales INTEGER DEFAULT 0,disputes INTEGER DEFAULT 0,strikes INTEGER DEFAULT 0,auction_override TEXT DEFAULT 'Yes',access_code TEXT,created_at TEXT)''')
-    cur.execute('''CREATE TABLE IF NOT EXISTS products(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,sku TEXT,barcode TEXT,catalog_number TEXT,matrix_runout TEXT,category TEXT,artist TEXT,title TEXT,format TEXT,label TEXT,release_year TEXT,genre TEXT,media_grade TEXT,sleeve_grade TEXT,condition_notes TEXT,description TEXT,price REAL DEFAULT 0,quantity INTEGER DEFAULT 1,shipping_price REAL DEFAULT 0,image_url TEXT,video_url TEXT,audio_url TEXT,external_release_url TEXT,listing_status TEXT DEFAULT 'Active',listing_type TEXT DEFAULT 'Fixed Price',created_at TEXT,updated_at TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS sellers(id INTEGER PRIMARY KEY AUTOINCREMENT,store_name TEXT,owner_name TEXT,email TEXT UNIQUE,phone TEXT,city TEXT,state TEXT,website TEXT,instagram TEXT,store_bio TEXT,seller_story TEXT,specialties TEXT,logo_url TEXT,banner_url TEXT,status TEXT DEFAULT 'Pending Seller Approval',seller_level TEXT DEFAULT 'Verified Seller',rating REAL DEFAULT 100,completed_sales INTEGER DEFAULT 0,disputes INTEGER DEFAULT 0,strikes INTEGER DEFAULT 0,auction_override TEXT DEFAULT 'Yes',access_code TEXT,rules_accepted TEXT DEFAULT 'No',rules_accepted_at TEXT,created_at TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS products(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,sku TEXT,barcode TEXT,catalog_number TEXT,matrix_runout TEXT,category TEXT,artist TEXT,title TEXT,format TEXT,label TEXT,release_year TEXT,genre TEXT,media_grade TEXT,sleeve_grade TEXT,condition_notes TEXT,description TEXT,price REAL DEFAULT 0,quantity INTEGER DEFAULT 1,shipping_price REAL DEFAULT 0,image_url TEXT,video_url TEXT,audio_url TEXT,external_release_url TEXT,listing_status TEXT DEFAULT 'Draft',listing_type TEXT DEFAULT 'Fixed Price',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS product_gallery(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,image_url TEXT,caption TEXT,created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,order_type TEXT,status TEXT DEFAULT 'New',item_price REAL DEFAULT 0,shipping_price REAL DEFAULT 0,platform_fee REAL DEFAULT 0,seller_payout REAL DEFAULT 0,buyer_message TEXT,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER,reviewer_type TEXT,reviewer_id INTEGER,reviewee_type TEXT,reviewee_id INTEGER,rating INTEGER,comment TEXT,public TEXT DEFAULT 'Yes',created_at TEXT)''')
@@ -235,6 +859,7 @@ def setup():
     cur.execute('''CREATE TABLE IF NOT EXISTS listing_inquiries(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,message TEXT,status TEXT DEFAULT 'New',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS purchase_requests(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,fulfillment_preference TEXT,offer_price REAL DEFAULT 0,buyer_message TEXT,status TEXT DEFAULT 'New',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS tester_feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,tester_name TEXT,tester_type TEXT,page_flow TEXT,worked_well TEXT,confusing TEXT,felt_broken TEXT,missing TEXT,ease_rating INTEGER,would_use_again TEXT,open_notes TEXT,status TEXT DEFAULT 'New',created_at TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS listing_reports(id INTEGER PRIMARY KEY AUTOINCREMENT,listing_id INTEGER,seller_id INTEGER,reporter_name TEXT,reporter_contact TEXT,reason TEXT,details TEXT,status TEXT DEFAULT 'Open',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_followers(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,buyer_id INTEGER,created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_badges(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,badge_name TEXT,badge_type TEXT,active TEXT DEFAULT 'Yes',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS store_announcements(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,title TEXT,body TEXT,status TEXT DEFAULT 'Active',created_at TEXT)''')
@@ -327,10 +952,16 @@ def setup():
         created_at TEXT
     )""")
     c.commit(); c.close()
-    mig={'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'}}
+    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.37 Supabase core persistence fix active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    try:
+        run("UPDATE app_users SET account_status=COALESCE(NULLIF(account_status,''),COALESCE(NULLIF(status,''),'Active'))")
+        run("UPDATE app_users SET seller_application_status='Not Applied' WHERE COALESCE(seller_id,0)=0 AND (seller_application_status IS NULL OR seller_application_status='')")
+        run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
+    except Exception:
+        pass
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.4 session persistence and local-only data warnings active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -352,9 +983,25 @@ def setup():
     old_v25_36_1_announcement='V25.36.1'+' inventory and store visibility clarity active'
     old_v25_36_2_announcement='V25.36.2'+' tester onboarding and inventory clarity fix active'
     old_v25_36_3_announcement='V25.36.3'+' core inventory and profile persistence fix active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement]:
-        set_setting('announcement','V25.37 Supabase core persistence fix active')
+    old_v25_37_1_announcement='V25.37.1'+' Supabase diagnostics and RLS repair active'
+    old_v25_37_2_announcement='V25.37.2'+' real profile flow repair active'
+    old_v25_37_3_announcement='V25.37.3'+' safe image rendering fix active'
+    old_v25_38_announcement='V25.38'+' seller simplicity and fast listing flow active'
+    old_v25_39_announcement='V25.39'+' seller publishing and trust policy fix active'
+    old_v25_39_1_announcement='V25.39.1'+' direct live publish and button contrast fix active'
+    old_v25_39_2_announcement='V25.39.2'+' marketplace and admin separation fix active'
+    old_v25_40_announcement='V25.40'+' marketplace search across all sellers active'
+    old_v25_40_1_announcement='V25.40.1'+' marketplace polish and status visibility fix active'
+    old_v25_41_announcement='V25.41'+' seller onboarding and rules acceptance active'
+    old_v25_42_announcement='V25.42'+' music data source strategy and lookup reliability active'
+    old_v25_43_announcement='V25.43'+' real login and role access foundation active'
+    old_v25_43_1_announcement='V25.43.1'+' simple buyer search and navigation cleanup active'
+    old_v25_43_2_announcement='V25.43.2'+' mobile account flow and profile persistence repair active'
+    old_v25_43_3_announcement='V25.43.3'+' one account, user directory, and mobile navigation repair active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement]:
+        set_setting('announcement','V25.43.4 session persistence and local-only data warnings active')
 setup()
+restore_session_from_query_params()
 
 
 # ---------- V21 Visual Identity ----------
@@ -435,22 +1082,119 @@ def apply_brand_style():
         box-shadow: 0 18px 44px rgba(0,0,0,.18);
     }
 
-    .stButton > button {
+    .stButton > button,
+    .stFormSubmitButton > button,
+    .stDownloadButton > button,
+    div[data-testid="stButton"] > button,
+    div[data-testid="stFormSubmitButton"] > button,
+    div[data-testid="stDownloadButton"] > button,
+    a[data-testid="stLinkButton"] {
         border-radius: 999px;
-        border: 1px solid rgba(201,164,92,.65);
-        background: linear-gradient(135deg, rgba(201,164,92,.96), rgba(151,111,45,.96));
+        border: 2px solid #c9a45c !important;
+        background: linear-gradient(135deg, #d8b56b 0%, #c9a45c 48%, #9d732d 100%) !important;
         color: #0b0b0b !important;
         font-weight: 800;
         letter-spacing: .01em;
         padding: .55rem 1rem;
-        box-shadow: 0 10px 30px rgba(0,0,0,.22);
+        box-shadow: 0 10px 30px rgba(0,0,0,.3);
         white-space: normal;
+        opacity: 1 !important;
+        text-decoration: none !important;
     }
 
-    .stButton > button:hover {
-        border: 1px solid rgba(246,239,227,.9);
+    .stButton > button *,
+    .stButton > button p,
+    .stButton > button span,
+    .stFormSubmitButton > button *,
+    .stFormSubmitButton > button p,
+    .stFormSubmitButton > button span,
+    .stDownloadButton > button *,
+    .stDownloadButton > button p,
+    .stDownloadButton > button span,
+    a[data-testid="stLinkButton"] *,
+    a[data-testid="stLinkButton"] p,
+    a[data-testid="stLinkButton"] span {
+        color: #0b0b0b !important;
+        font-weight: 850 !important;
+    }
+
+    .stButton > button:hover,
+    .stFormSubmitButton > button:hover,
+    .stDownloadButton > button:hover,
+    div[data-testid="stButton"] > button:hover,
+    div[data-testid="stFormSubmitButton"] > button:hover,
+    div[data-testid="stDownloadButton"] > button:hover,
+    a[data-testid="stLinkButton"]:hover {
+        border-color: #f6efe3 !important;
+        background: linear-gradient(135deg, #f0cf85 0%, #d8b56b 52%, #b88937 100%) !important;
+        color: #0b0b0b !important;
         transform: translateY(-1px);
-        filter: brightness(1.05);
+        filter: brightness(1.06);
+    }
+
+    .stButton > button:hover *,
+    .stFormSubmitButton > button:hover *,
+    .stDownloadButton > button:hover *,
+    a[data-testid="stLinkButton"]:hover * {
+        color: #0b0b0b !important;
+    }
+
+    .stButton > button:active,
+    .stFormSubmitButton > button:active,
+    .stDownloadButton > button:active,
+    div[data-testid="stButton"] > button:active,
+    div[data-testid="stFormSubmitButton"] > button:active,
+    div[data-testid="stDownloadButton"] > button:active,
+    a[data-testid="stLinkButton"]:active {
+        background: #a7792f !important;
+        color: #0b0b0b !important;
+        border-color: #f6efe3 !important;
+        transform: translateY(0);
+    }
+
+    .stButton > button:focus,
+    .stFormSubmitButton > button:focus,
+    .stDownloadButton > button:focus,
+    div[data-testid="stButton"] > button:focus,
+    div[data-testid="stFormSubmitButton"] > button:focus,
+    div[data-testid="stDownloadButton"] > button:focus,
+    a[data-testid="stLinkButton"]:focus {
+        outline: 3px solid rgba(246,239,227,.9) !important;
+        outline-offset: 2px !important;
+        color: #0b0b0b !important;
+    }
+
+    .stButton > button:disabled,
+    .stFormSubmitButton > button:disabled,
+    .stDownloadButton > button:disabled,
+    div[data-testid="stButton"] > button:disabled,
+    div[data-testid="stFormSubmitButton"] > button:disabled,
+    div[data-testid="stDownloadButton"] > button:disabled {
+        background: #4a4237 !important;
+        color: #f6efe3 !important;
+        border-color: rgba(201,164,92,.45) !important;
+        opacity: .75 !important;
+        box-shadow: none !important;
+    }
+
+    .stButton > button:disabled *,
+    .stFormSubmitButton > button:disabled *,
+    .stDownloadButton > button:disabled * {
+        color: #f6efe3 !important;
+    }
+
+    section[data-testid="stSidebar"] .stButton > button,
+    section[data-testid="stSidebar"] .stFormSubmitButton > button,
+    section[data-testid="stSidebar"] .stDownloadButton > button {
+        background: linear-gradient(135deg, #f6efe3 0%, #d8b56b 100%) !important;
+        color: #0b0b0b !important;
+        border-color: #c9a45c !important;
+    }
+
+    section[data-testid="stSidebar"] .stButton > button *,
+    section[data-testid="stSidebar"] .stFormSubmitButton > button *,
+    section[data-testid="stSidebar"] .stDownloadButton > button * {
+        color: #0b0b0b !important;
     }
 
     .stTabs [data-baseweb="tab-list"] {
@@ -586,6 +1330,47 @@ def apply_brand_style():
         margin: .15rem .15rem .15rem 0;
     }
 
+    .how-status {
+        display: inline-block;
+        border-radius: 999px;
+        padding: .28rem .72rem;
+        margin: .18rem .2rem .18rem 0;
+        font-size: .82rem;
+        font-weight: 900;
+        letter-spacing: 0;
+        border: 1px solid rgba(246,239,227,.26);
+    }
+
+    .how-status-success {
+        background: rgba(41,142,74,.22);
+        border-color: rgba(86,205,128,.7);
+        color: #8ff0af;
+    }
+
+    .how-status-danger {
+        background: rgba(154,42,42,.24);
+        border-color: rgba(245,104,104,.72);
+        color: #ffb1a8;
+    }
+
+    .how-status-warning {
+        background: rgba(201,164,92,.2);
+        border-color: rgba(241,202,112,.72);
+        color: #f7d782;
+    }
+
+    .how-status-neutral {
+        background: rgba(246,239,227,.1);
+        border-color: rgba(246,239,227,.35);
+        color: rgba(246,239,227,.9);
+    }
+
+    .how-status-admin {
+        background: rgba(80,143,214,.2);
+        border-color: rgba(123,184,255,.72);
+        color: #a8d4ff;
+    }
+
     .how-callout {
         border-left: 4px solid var(--how-gold);
         background: rgba(251,247,239,.06);
@@ -697,7 +1482,7 @@ def ensure_buyer():
 def ensure_seller():
     s=table('sellers')
     if not s.empty: return int(s.iloc[0]['id'])
-    data={'store_name':'Demo Wax Seller','owner_name':'Demo Owner','email':'seller@test.com','phone':'1234567890','city':'Charlotte','state':'NC','website':'https://example.com','instagram':'@demowax','store_bio':'A demo seller for testing.','seller_story':'We collect records, culture goods, vintage music pieces, and community stories.','specialties':'Soul, jazz, hip-hop, Carolina music, vintage tees','logo_url':'','banner_url':'','status':'Approved','seller_level':'Verified Seller','rating':100,'completed_sales':12,'disputes':0,'strikes':0,'auction_override':'Yes','access_code':'test123','created_at':now()}
+    data={'store_name':'Demo Wax Seller','owner_name':'Demo Owner','email':'seller@test.com','phone':'1234567890','city':'Charlotte','state':'NC','website':'https://example.com','instagram':'@demowax','store_bio':'A demo seller for testing.','seller_story':'We collect records, culture goods, vintage music pieces, and community stories.','specialties':'Soul, jazz, hip-hop, Carolina music, vintage tees','logo_url':'','banner_url':'','status':'Approved Seller','seller_level':'Verified Seller','rating':100,'completed_sales':12,'disputes':0,'strikes':0,'auction_override':'Yes','access_code':'test123','created_at':now()}
     keys=['store_name','owner_name','email','phone','city','state','website','instagram','store_bio','seller_story','specialties','logo_url','banner_url','status','seller_level','rating','completed_sales','disputes','strikes','auction_override','access_code','created_at']
     core_insert('sellers',data,'''INSERT INTO sellers(store_name,owner_name,email,phone,city,state,website,instagram,store_bio,seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,disputes,strikes,auction_override,access_code,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in keys))
     return int(table('sellers').iloc[0]['id'])
@@ -708,7 +1493,7 @@ def ensure_house_of_wax_official():
         sid=int(rows.iloc[0]['id'])
     else:
         run("""INSERT INTO sellers(store_name,owner_name,email,phone,city,state,website,instagram,store_bio,seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,disputes,strikes,auction_override,access_code,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            ('House Of Wax Official','House Of Wax','official@houseofwax.com','','Charlotte','NC','','@houseofwax','The official House Of Wax seller account for branded merchandise, official drops, curated goods, and platform items.','House Of Wax is the platform voice for music culture, collecting education, marketplace trust, and official brand drops.','House Of Wax branded merchandise, slipmats, culture goods, official drops, curated records','','','Approved','Platform Official',100,0,0,0,'Yes','official123',now()))
+            ('House Of Wax Official','House Of Wax','official@houseofwax.com','','Charlotte','NC','','@houseofwax','The official House Of Wax seller account for branded merchandise, official drops, curated goods, and platform items.','House Of Wax is the platform voice for music culture, collecting education, marketplace trust, and official brand drops.','House Of Wax branded merchandise, slipmats, culture goods, official drops, curated records','','','Approved Seller','Platform Official',100,0,0,0,'Yes','official123',now()))
         sid=int(df("SELECT id FROM sellers WHERE lower(email)=lower('official@houseofwax.com')").iloc[0]['id'])
     badge=df("SELECT id FROM seller_badges WHERE seller_id=? AND badge_name='Official House Of Wax'",(sid,))
     if badge.empty:
@@ -716,7 +1501,7 @@ def ensure_house_of_wax_official():
     existing=df("SELECT id FROM products WHERE seller_id=? AND title='House Of Wax Logo Tee'",(sid,))
     if existing.empty:
         run("""INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (sid,'HOW-TEE-001','','','','House Of Wax Merch','House Of Wax','House Of Wax Logo Tee','Apparel','House Of Wax','','Merch','New','New','Official sample item for testing.','Official House Of Wax branded tee sample. Replace with real photos and inventory when ready.',28.00,25,5.00,'','','','','Active','Fixed Price',now(),now()))
+            (sid,'HOW-TEE-001','','','','House Of Wax Merch','House Of Wax','House Of Wax Logo Tee','Apparel','House Of Wax','','Merch','New','New','Official sample item for testing.','Official House Of Wax branded tee sample. Replace with real photos and inventory when ready.',28.00,25,5.00,'','','','','Live','Fixed Price',now(),now()))
     return sid
 
 
@@ -724,7 +1509,7 @@ def ensure_product():
     p=table('products')
     if not p.empty: return int(p.iloc[0]['id'])
     sid=ensure_seller()
-    run('''INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(sid,'DEMO-001','602547234567','CAT-001','A1/B1','Vinyl Records','Demo Artist','Demo Album','Vinyl','Demo Label','1978','Soul','VG+','VG','Light sleeve wear. Plays strong.','Demo product with barcode metadata.',24.99,1,5.00,'','','','','Active','Fixed Price',now(),now()))
+    run('''INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(sid,'DEMO-001','602547234567','CAT-001','A1/B1','Vinyl Records','Demo Artist','Demo Album','Vinyl','Demo Label','1978','Soul','VG+','VG','Light sleeve wear. Plays strong.','Demo product with barcode metadata.',24.99,1,5.00,'','','','','Live','Fixed Price',now(),now()))
     return int(table('products').iloc[0]['id'])
 def seed_all(): return ensure_buyer(), ensure_seller(), ensure_house_of_wax_official(), ensure_product()
 def create_buyer(email,name='Test Buyer'):
@@ -735,7 +1520,8 @@ def create_buyer(email,name='Test Buyer'):
     pid=core_insert('buyers',data,'''INSERT INTO buyers(name,email,phone,city,state,bio,status,rating,completed_purchases,unpaid_orders,disputes,strikes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['name','email','phone','city','state','bio','status','rating','completed_purchases','unpaid_orders','disputes','strikes','created_at']))
     if pid:
         return int(pid)
-    return int(df('SELECT id FROM buyers WHERE lower(email)=lower(?)',(email,)).iloc[0]['id'])
+    reread=hosted_select('buyers',{'email':email},limit=1) if hosted_enabled() else df('SELECT id FROM buyers WHERE lower(email)=lower(?)',(email,))
+    return int(reread.iloc[0]['id']) if not reread.empty else 0
 def update_rating(kind,i):
     r=df("SELECT AVG(rating) avg FROM feedback WHERE reviewee_type=? AND reviewee_id=? AND public='Yes'",(kind,int(i)))
     if not r.empty and not pd.isna(r.iloc[0]['avg']):
@@ -767,7 +1553,7 @@ def seller_profile_completion(sid):
     return score,checks
 
 def seller_quality_listing_stats(sid):
-    prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved','Public')",(int(sid),))
+    prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Live','Active','Approved','Public')",(int(sid),))
     if prods.empty:
         return 0,0,0
     scores=[]
@@ -818,10 +1604,10 @@ def render_seller_trust_badges(sid, context='public'):
     summary=seller_trust_summary(sid)
     labels=summary['badges'] or ['New Seller']
     brand_badges(labels)
-    st.caption('House Of Wax platform indicators based on profile completeness, approved listings, and listing quality. Not outside verification.')
+    st.caption('House Of Wax platform indicators based on profile completeness, live listings, and listing readiness. Not outside verification.')
     if context!='public':
         st.write(f"**Profile completeness:** {summary['profile_score']}%")
-        st.write(f"**Approved/public listings:** {summary['approved_count']} • **Strong quality listings:** {summary['strong_count']} • **Average quality:** {summary['avg_quality']}/100")
+        st.write(f"**Live/public listings:** {summary['approved_count']} • **Strong readiness listings:** {summary['strong_count']} • **Average readiness:** {summary['avg_quality']}/100")
         missing=[name for name,ok in summary['checks'] if not ok]
         if missing:
             st.warning('Missing profile details: '+', '.join(missing))
@@ -835,21 +1621,50 @@ def header():
     st.caption(setting('site_tagline'))
     brand_badges(['Marketplace', 'Knowledge Hub', 'Culture Education', 'Collect Smarter'])
     st.caption(f'Running {APP_VERSION}')
-    st.info('Working prototype demo: marketplace, seller tools, review queue, inquiries, purchase requests, profiles, badges, and database status are available for walkthroughs.')
+    st.info('Working prototype demo: marketplace, seller tools, moderation center, inquiries, purchase requests, profiles, badges, and database status are available for walkthroughs.')
     st.info(setting('announcement'))
+def marketplace_context(label='House Of Wax Marketplace'):
+    st.caption(label)
+def admin_context(label='House Of Wax Admin'):
+    st.caption(label)
+    st.warning('This area is for platform management, seller approval, moderation, reports, diagnostics, and testing.')
 def buyer_pick(key,label='Buyer account',preferred_id=None):
+    if not is_admin_unlocked():
+        bid=ensure_linked_buyer_profile()
+        if bid:
+            st.caption('Using the buyer profile linked to your signed-in account.')
+            return bid
+        st.warning('Sign in as a Buyer to use buyer account features.')
+        return 0
+    st.caption('Admin/testing profile picker. Normal users cannot switch buyer profiles.')
     if table('buyers').empty: ensure_buyer()
-    buyers=table('buyers')
+    buyers=table('buyers').sort_values('id',ascending=False) if 'id' in table('buyers').columns else table('buyers')
     opts=[f"{int(r['id'])} | {safe(r['name'])} | {safe(r['email'])} | {safe(r['status'])}" for _,r in buyers.iterrows()]
     ids=[int(r['id']) for _,r in buyers.iterrows()]
-    index=ids.index(int(preferred_id)) if preferred_id in ids else 0
+    try:
+        preferred=int(preferred_id) if preferred_id else 0
+    except Exception:
+        preferred=0
+    index=ids.index(preferred) if preferred in ids else 0
     return int(st.selectbox(label,opts,index=index,key=key).split('|')[0].strip())
 def seller_pick(key,label='Seller account',preferred_id=None):
+    if not is_admin_unlocked():
+        sid=linked_seller_id()
+        if sid:
+            st.caption('Using the seller store linked to your signed-in account.')
+            return sid
+        st.warning('Sign in as a Seller to use seller tools.')
+        return 0
+    st.caption('Admin/testing profile picker. Normal users cannot switch seller stores.')
     if table('sellers').empty: ensure_seller()
-    sellers=table('sellers')
+    sellers=table('sellers').sort_values('id',ascending=False) if 'id' in table('sellers').columns else table('sellers')
     opts=[f"{int(r['id'])} | {safe(r['store_name'])} | {safe(r['email'])} | {safe(r['status'])}" for _,r in sellers.iterrows()]
     ids=[int(r['id']) for _,r in sellers.iterrows()]
-    index=ids.index(int(preferred_id)) if preferred_id in ids else 0
+    try:
+        preferred=int(preferred_id) if preferred_id else 0
+    except Exception:
+        preferred=0
+    index=ids.index(preferred) if preferred in ids else 0
     return int(st.selectbox(label,opts,index=index,key=key).split('|')[0].strip())
 def feedback_public(kind,i):
     r=df("SELECT * FROM feedback WHERE reviewee_type=? AND reviewee_id=? AND public='Yes' ORDER BY created_at DESC",(kind,int(i)))
@@ -864,8 +1679,218 @@ def buyer_profile_public(bid):
     c1,c2,c3,c4=st.columns(4); c1.metric('Status',safe(b['status'])); c2.metric('Rating',f"{b['rating']}%"); c3.metric('Purchases',int(b['completed_purchases'] or 0)); c4.metric('Unpaid orders',int(b['unpaid_orders'] or 0))
     st.write(f"**Bio:** {safe(b['bio'],'No buyer bio yet.')}"); feedback_public('Buyer',bid)
 
+def apply_to_become_seller(store_name='', owner_name=''):
+    if not is_authenticated():
+        AUTH_STATUS['last_link_error']='Sign in before applying to become a seller.'
+        return 0
+    user=current_app_user()
+    display=safe(owner_name) or safe(user.get('display_name')) or auth_user_email().split('@')[0]
+    bid=int(user.get('buyer_id') or 0) or ensure_linked_buyer_profile(display)
+    sid=int(user.get('seller_id') or 0)
+    if not sid:
+        sid=create_or_get_seller_for_auth(auth_user_email(),safe(store_name) or display)
+    if sid:
+        seller=get_seller(sid)
+        current_status=normalize_seller_status(seller.get('status') if seller is not None else 'Pending Seller Approval')
+        if current_status not in ['Approved Seller','Suspended Seller']:
+            current_status='Pending Seller Approval'
+            core_update('sellers',{'status':current_status},{'id':sid},"UPDATE sellers SET status=? WHERE id=?",(current_status,sid))
+        upsert_app_user(auth_user_id(),auth_user_email(),display,'Buyer/Seller',bid,sid,'',safe(user.get('admin_access'),'No'),current_status,account_status(user))
+        st.session_state['seller_tool_seller_id']=sid
+        return sid
+    AUTH_STATUS['last_link_error']='Seller application could not be created or linked.'
+    return 0
+
+def account_page():
+    header()
+    marketplace_context('House Of Wax Marketplace -> Account')
+    st.header('My Account')
+    st.write('You can buy and sell using the same House Of Wax account. Selling requires approval.')
+    if is_authenticated():
+        reconcile_authenticated_profile()
+        user=current_app_user()
+        buyer_id=ensure_linked_buyer_profile()
+        seller_id=linked_seller_id()
+        seller=get_seller(seller_id) if seller_id else None
+        seller_status=seller_application_status(user)
+        st.success('Signed in as '+auth_user_email())
+        c1,c2,c3=st.columns(3)
+        c1.metric('Account',safe(user.get('display_name')) or auth_user_email().split('@')[0])
+        c2.metric('Buying','Enabled' if buyer_id else 'Needs profile')
+        c3.metric('Selling',seller_status)
+        st.caption('One account per person. Buyer access stays active even after you apply to sell.')
+        action=pending_action()
+        if action:
+            st.info('Saved action waiting: '+safe(action.get('action_type')))
+            if st.button('Back to Item',key='account_back_to_pending_item',width='stretch'):
+                restore_pending_action()
+                st.rerun()
+        if st.button('Go to Marketplace',key='account_go_to_marketplace',width='stretch'):
+            request_marketplace_navigation('Search Music',clear_product=True,clear_seller=True)
+            st.rerun()
+        tabs=st.tabs(['Account','Buying','Selling','Diagnostics','Sign Out'])
+        with tabs[0]:
+            st.subheader('Account')
+            st.write('**Name:** '+(safe(user.get('display_name')) or 'Not set'))
+            st.write('**Email:** '+auth_user_email())
+            st.write('**Account status:** '+account_status(user))
+            st.write('**Admin access:** '+('Yes' if is_admin_user(user) else 'No'))
+            st.caption('Tokens and secrets are never displayed.')
+        with tabs[1]:
+            st.subheader('Buying')
+            if buyer_id:
+                buyer=get_buyer(buyer_id)
+                st.success('Buyer profile linked.')
+                if buyer is not None:
+                    st.write(f"**Buyer profile:** {safe(buyer.get('name'))} | {safe(buyer.get('email'))}")
+                if st.button('Open buyer profile, inquiries, and purchase requests',key='account_open_buyer_dashboard',width='stretch'):
+                    st.session_state['account_show_buyer_dashboard']=True
+                if st.session_state.get('account_show_buyer_dashboard'):
+                    buyer_dashboard()
+            else:
+                st.warning('Buyer profile is missing. The app will try to repair it now.')
+                if st.button('Repair buyer profile link',key='account_repair_buyer_profile'):
+                    if ensure_linked_buyer_profile():
+                        st.success('Buyer profile linked.')
+                        st.rerun()
+                    else:
+                        st.error('Buyer profile could not be linked. Check Auth Diagnostics.')
+        with tabs[2]:
+            st.subheader('Selling')
+            st.info('Apply once from this same account. Do not create a second account to sell.')
+            if not seller_id:
+                with st.form('apply_to_become_seller_form'):
+                    store_name=st.text_input('Store/display name',value=safe(user.get('display_name')) or auth_user_email().split('@')[0],key='apply_seller_store_name')
+                    owner_name=st.text_input('Your name',value=safe(user.get('display_name')),key='apply_seller_owner_name')
+                    sub=st.form_submit_button('Apply to Become a Seller')
+                if sub:
+                    sid=apply_to_become_seller(store_name,owner_name)
+                    if sid:
+                        st.success('Seller application created. You can complete your store and save drafts while House Of Wax reviews it.')
+                        st.rerun()
+                    else:
+                        st.error('Seller application could not be saved. '+safe(AUTH_STATUS.get('last_link_error')))
+            else:
+                st.write('**Seller application status:** '+seller_status)
+                if seller is not None:
+                    st.write(f"**Store:** {safe(seller.get('store_name'))} | {safe(seller.get('email'))}")
+                if seller_status=='Approved Seller':
+                    st.success('Seller tools are unlocked. Publishing still requires accepted seller rules.')
+                elif seller_status=='Suspended Seller':
+                    st.error('Seller privileges are suspended. Buyer access remains available.')
+                else:
+                    st.warning('Seller application is pending. You can complete your store profile and save draft inventory, but cannot publish live until approved.')
+                if st.button('Open Seller Dashboard',key='account_open_seller_dashboard',width='stretch'):
+                    request_marketplace_navigation('Seller Dashboard')
+                    st.rerun()
+        with tabs[3]:
+            auth_diagnostics_section()
+        with tabs[4]:
+            if st.button('Sign Out',key='account_sign_out_button'):
+                auth_sign_out()
+                st.success('Signed out.')
+                st.rerun()
+        return
+    tabs=st.tabs(['Sign In','Create Account','Account Status'])
+    with tabs[0]:
+        with st.form('signin_form'):
+            email=st.text_input('Email',key='signin_email')
+            password=st.text_input('Password',type='password',key='signin_password')
+            sub=st.form_submit_button('Sign In')
+        if sub:
+            ok,msg=auth_sign_in(email,password)
+            if ok:
+                st.success(msg)
+                restore_pending_action()
+                st.rerun()
+            else:
+                st.error(msg)
+        st.caption('Use the same account to buy and apply to sell. Forgot password recovery should be handled through Supabase Auth when configured.')
+    with tabs[1]:
+        st.info('Create one House Of Wax account. Every registered account can buy. Apply to sell later from My Account.')
+        with st.form('create_account_form'):
+            name=st.text_input('Display name',key='create_name')
+            email=st.text_input('Email',key='create_email')
+            password=st.text_input('Password',type='password',key='create_password')
+            confirm=st.text_input('Confirm password',type='password',key='create_confirm')
+            sub=st.form_submit_button('Create House Of Wax Account')
+        if sub:
+            ok,msg=auth_create_account(name,email,password,confirm,'Buyer')
+            if ok:
+                st.success(msg)
+                restore_pending_action()
+                st.rerun()
+            else:
+                st.error(msg)
+        st.caption('Public sign-up cannot create Admin accounts. Admin access must be granted by secure configuration or database field.')
+    with tabs[2]:
+        st.info('Not signed in.')
+        st.write('Supabase Auth configured: '+('Yes' if hosted_enabled() else 'No'))
+        st.caption('Local fallback login is for prototype testing only when Supabase Auth is not configured.')
+
+def auth_diagnostics_section():
+    st.markdown('### Auth Diagnostics')
+    user=current_app_user()
+    action=pending_action()
+    buyer_id=int(user.get('buyer_id') or 0) if user else 0
+    seller_id=int(user.get('seller_id') or 0) if user else 0
+    buyer_found=get_buyer(buyer_id) is not None if buyer_id else False
+    seller_found=get_seller(seller_id) is not None if seller_id else False
+    rows=[
+        ('Supabase Auth configured','Yes' if hosted_enabled() else 'No'),
+        ('Current session detected','Yes' if is_authenticated() else 'No'),
+        ('Current user ID',mask_identifier(auth_user_id())),
+        ('Current user email',auth_user_email() if (is_authenticated() and (is_admin_unlocked() or auth_user_email())) else 'None'),
+        ('Linked app_users row','Yes' if bool(user) else 'No'),
+        ('Linked buyer ID',safe(buyer_id)),
+        ('Buyer row found','Yes' if buyer_found else 'No'),
+        ('Linked seller ID',safe(seller_id)),
+        ('Seller row found','Yes' if seller_found else 'No'),
+        ('Seller application status',seller_application_status(user)),
+        ('Account status',account_status(user)),
+        ('Effective role',effective_account_type()),
+        ('Admin access source',admin_access_source()),
+        ('Pending action',safe(action.get('action_type'),'None')),
+        ('Pending product ID',safe(action.get('product_id'),'0')),
+        ('Current page/route',safe(st.session_state.get('marketplace_navigation') or st.session_state.get('admin_navigation'),'Unknown')),
+        ('Last auth error',safe(AUTH_STATUS.get('last_error'),'None')[:240]),
+        ('Last buyer profile save error',safe(AUTH_STATUS.get('last_buyer_save_error'),'None')[:240]),
+        ('Last seller profile save error',safe(AUTH_STATUS.get('last_seller_save_error'),'None')[:240]),
+        ('Last link error',safe(AUTH_STATUS.get('last_link_error'),'None')[:240]),
+    ]
+    st.dataframe(pd.DataFrame(rows,columns=['Check','Status']),width='stretch')
+    st.caption('No password, access token, refresh token, anon key, or service key is displayed.')
+
+def claim_existing_profile_section():
+    st.markdown('### Claim existing prototype profile')
+    if not is_authenticated():
+        st.info('Sign in first, then use this controlled claim helper if you have an existing prototype buyer or seller profile.')
+        return
+    user=current_app_user()
+    email=auth_user_email()
+    st.caption('Profiles are matched only by your signed-in email. If multiple records match, ask Admin to resolve it.')
+    buyer_matches=table('buyers')
+    buyer_matches=buyer_matches[buyer_matches['email'].fillna('').str.lower()==email] if not buyer_matches.empty and 'email' in buyer_matches.columns else pd.DataFrame()
+    seller_matches=table('sellers')
+    seller_matches=seller_matches[seller_matches['email'].fillna('').str.lower()==email] if not seller_matches.empty and 'email' in seller_matches.columns else pd.DataFrame()
+    c1,c2=st.columns(2)
+    with c1:
+        st.write('Buyer profile matches: '+str(len(buyer_matches)))
+        if len(buyer_matches)==1 and st.button('Claim buyer profile',key='claim_buyer_profile'):
+            upsert_app_user(auth_user_id(),email,safe(user.get('display_name')),safe(user.get('account_type'),'Buyer'),int(buyer_matches.iloc[0]['id']),int(user.get('seller_id') or 0),'',safe(user.get('admin_access'),'No'))
+            st.success('Buyer profile linked.')
+            st.rerun()
+    with c2:
+        st.write('Seller profile matches: '+str(len(seller_matches)))
+        if len(seller_matches)==1 and st.button('Claim seller profile',key='claim_seller_profile'):
+            upsert_app_user(auth_user_id(),email,safe(user.get('display_name')),safe(user.get('account_type'),'Seller'),int(user.get('buyer_id') or 0),int(seller_matches.iloc[0]['id']),'',safe(user.get('admin_access'),'No'))
+            st.success('Seller profile linked.')
+            st.rerun()
+    if len(buyer_matches)>1 or len(seller_matches)>1:
+        st.warning('Multiple matching profiles found. Admin must resolve duplicates before linking.')
+
 def is_public_listing(p):
-    return safe(p.get('listing_status')) in PUBLIC_LISTING_STATUSES+UNAVAILABLE_LISTING_STATUSES
+    return safe(p.get('listing_status')) in public_listing_query_statuses()
 
 def is_available_listing(p):
     return safe(p.get('listing_status')) in PUBLIC_LISTING_STATUSES
@@ -874,6 +1899,10 @@ def listing_availability_label(p):
     status=safe(p.get('listing_status'))
     if status=='Sold':
         return 'Sold'
+    if status=='Hidden':
+        return 'Hidden'
+    if status in ['Under Review','Removed by House Of Wax']:
+        return status
     if status in ['Pending Pickup/Payment','Pending']:
         return 'Pending'
     return 'Available'
@@ -945,18 +1974,46 @@ def render_listing_photo_gallery(pid, primary_image='', context='public'):
     for i,(_,g) in enumerate(gallery.iterrows()):
         with cols[i%3]:
             if safe(g.get('image_url')):
-                st.image(safe(g.get('image_url')),caption=safe(g.get('caption'),'Supporting photo'),width='stretch')
+                safe_image(safe(g.get('image_url')),caption=safe(g.get('caption'),'Supporting photo'),width='stretch',fallback_text='Photo unavailable.')
 
 def render_buyer_inquiry_form(p, seller, key_prefix):
     status=safe(p.get('listing_status'))
     if status not in PUBLIC_LISTING_STATUSES:
         return
     st.info('House Of Wax keeps seller contact details controlled. The seller can respond based on their contact preference.')
+    if not is_authenticated():
+        set_pending_action('Ask Seller',p)
+        st.warning('Sign in to ask the seller. We will bring you back to this item.')
+        if st.button('Sign in or create Buyer account',key=f'inquiry_signin_{key_prefix}',width='stretch'):
+            request_marketplace_navigation('My Account')
+            st.rerun()
+        return
     known_buyers=table('buyers')
-    buyer_id=0
+    buyer_id=ensure_linked_buyer_profile()
     buyer_name=''
     buyer_contact=''
-    if not known_buyers.empty:
+    if buyer_id:
+        buyer=get_buyer(buyer_id)
+        if buyer is not None:
+            buyer_name=safe(buyer.get('name'))
+            buyer_contact=safe(buyer.get('email')) or safe(buyer.get('phone'))
+    if not buyer_id:
+        st.warning('Complete your buyer profile to ask this seller.')
+        with st.form(f'complete_buyer_for_inquiry_{key_prefix}'):
+            profile_name=st.text_input('Name',value=safe(current_app_user().get('display_name')) or auth_user_email().split('@')[0],key=f'complete_buyer_name_inquiry_{key_prefix}')
+            profile_phone=st.text_input('Phone optional',key=f'complete_buyer_phone_inquiry_{key_prefix}')
+            sub_profile=st.form_submit_button('Save buyer profile and continue')
+        if sub_profile:
+            buyer_id=ensure_linked_buyer_profile(profile_name)
+            if buyer_id:
+                core_update('buyers',{'name':profile_name,'phone':profile_phone},{'id':buyer_id},'UPDATE buyers SET name=?,phone=? WHERE id=?',(profile_name,profile_phone,buyer_id))
+                restore_pending_action()
+                st.success('Buyer profile saved. You can ask the seller now.')
+                st.rerun()
+            else:
+                st.error('Buyer profile could not be saved. Check Auth Diagnostics for the exact error.')
+        return
+    elif is_admin_unlocked() and not known_buyers.empty:
         use_buyer=st.checkbox('Use an existing buyer profile',value=False,key=f'inquiry_existing_buyer_{key_prefix}')
         if use_buyer:
             buyer_id=buyer_pick(f'inquiry_buyer_{key_prefix}')
@@ -975,19 +2032,51 @@ def render_buyer_inquiry_form(p, seller, key_prefix):
             st.warning('Add your name, contact info, and question before sending.')
         else:
             data={'product_id':int(p['id']),'seller_id':int(p['seller_id']),'buyer_id':int(buyer_id or 0),'buyer_name':name,'buyer_contact':contact,'preferred_contact_method':method,'message':message,'status':'New','created_at':now(),'updated_at':now()}
-            core_insert('listing_inquiries',data,'''INSERT INTO listing_inquiries(product_id,seller_id,buyer_id,buyer_name,buyer_contact,preferred_contact_method,message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['product_id','seller_id','buyer_id','buyer_name','buyer_contact','preferred_contact_method','message','status','created_at','updated_at']))
-            st.success('Inquiry sent. The seller can view it inside Seller Tools.')
+            new_id=core_insert('listing_inquiries',data,'''INSERT INTO listing_inquiries(product_id,seller_id,buyer_id,buyer_name,buyer_contact,preferred_contact_method,message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['product_id','seller_id','buyer_id','buyer_name','buyer_contact','preferred_contact_method','message','status','created_at','updated_at']))
+            if new_id or not hosted_enabled():
+                clear_pending_action()
+                st.success('Inquiry sent. The seller can view it inside Seller Tools.')
+            else:
+                st.error('Inquiry could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
 
 def render_purchase_request_form(p, key_prefix):
     if not is_available_listing(p):
         st.info('Purchase requests are available only while a listing is available.')
         return
     st.info('Checkout is not live yet. This sends a purchase request so the seller can confirm availability, pickup/shipping, and next steps.')
+    if not is_authenticated():
+        set_pending_action('Request to Buy',p)
+        st.warning('Sign in to request this item. We will bring you back here.')
+        if st.button('Sign in or create Buyer account',key=f'purchase_signin_{key_prefix}',width='stretch'):
+            request_marketplace_navigation('My Account')
+            st.rerun()
+        return
     known_buyers=table('buyers')
-    buyer_id=0
+    buyer_id=ensure_linked_buyer_profile()
     buyer_name=''
     buyer_contact=''
-    if not known_buyers.empty:
+    if buyer_id:
+        buyer=get_buyer(buyer_id)
+        if buyer is not None:
+            buyer_name=safe(buyer.get('name'))
+            buyer_contact=safe(buyer.get('email')) or safe(buyer.get('phone'))
+    if not buyer_id:
+        st.warning('Complete your buyer profile to request this item.')
+        with st.form(f'complete_buyer_for_purchase_{key_prefix}'):
+            profile_name=st.text_input('Name',value=safe(current_app_user().get('display_name')) or auth_user_email().split('@')[0],key=f'complete_buyer_name_purchase_{key_prefix}')
+            profile_phone=st.text_input('Phone optional',key=f'complete_buyer_phone_purchase_{key_prefix}')
+            sub_profile=st.form_submit_button('Save buyer profile and continue')
+        if sub_profile:
+            buyer_id=ensure_linked_buyer_profile(profile_name)
+            if buyer_id:
+                core_update('buyers',{'name':profile_name,'phone':profile_phone},{'id':buyer_id},'UPDATE buyers SET name=?,phone=? WHERE id=?',(profile_name,profile_phone,buyer_id))
+                restore_pending_action()
+                st.success('Buyer profile saved. You can request this item now.')
+                st.rerun()
+            else:
+                st.error('Buyer profile could not be saved. Check Auth Diagnostics for the exact error.')
+        return
+    elif is_admin_unlocked() and not known_buyers.empty:
         use_buyer=st.checkbox('Use an existing buyer profile',value=False,key=f'purchase_existing_buyer_{key_prefix}')
         if use_buyer:
             buyer_id=buyer_pick(f'purchase_buyer_{key_prefix}')
@@ -1008,18 +2097,45 @@ def render_purchase_request_form(p, key_prefix):
             st.warning('Add your name and contact info before sending a purchase request.')
         else:
             data={'product_id':int(p['id']),'seller_id':int(p['seller_id']),'buyer_id':int(buyer_id or 0),'buyer_name':name,'buyer_contact':contact,'preferred_contact_method':method,'fulfillment_preference':fulfillment,'offer_price':float(offer or 0),'buyer_message':message,'status':'New','created_at':now(),'updated_at':now()}
-            core_insert('purchase_requests',data,'''INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,preferred_contact_method,fulfillment_preference,offer_price,buyer_message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['product_id','seller_id','buyer_id','buyer_name','buyer_contact','preferred_contact_method','fulfillment_preference','offer_price','buyer_message','status','created_at','updated_at']))
-            st.success('Purchase request sent. The seller can review it inside Seller Tools.')
+            new_id=core_insert('purchase_requests',data,'''INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,preferred_contact_method,fulfillment_preference,offer_price,buyer_message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['product_id','seller_id','buyer_id','buyer_name','buyer_contact','preferred_contact_method','fulfillment_preference','offer_price','buyer_message','status','created_at','updated_at']))
+            if new_id or not hosted_enabled():
+                clear_pending_action()
+                st.success('Purchase request sent. The seller can review it inside Seller Tools.')
+            else:
+                st.error('Purchase request could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
 
-def buyer_request_history(bid):
-    st.subheader('Buyer inquiries and purchase requests')
-    st.caption('These views show activity tied to the selected buyer profile. Requests sent without selecting a buyer profile are still delivered to the seller, but will not appear here.')
+REPORT_REASONS=['Misleading description','Wrong condition','Counterfeit / bootleg concern','Stolen item concern','Offensive or prohibited content','Seller behavior issue','Other']
+
+def report_listing_form(listing=None, seller=None, key_prefix='report'):
+    listing_id=int(listing.get('id') or 0) if listing is not None else 0
+    seller_id=int((seller.get('id') if seller is not None else 0) or (listing.get('seller_id') if listing is not None else 0) or 0)
+    with st.form(f'report_form_{key_prefix}_{listing_id}_{seller_id}'):
+        reporter_name=st.text_input('Your name optional',key=f'report_name_{key_prefix}_{listing_id}_{seller_id}')
+        reporter_contact=st.text_input('Your email or phone optional',key=f'report_contact_{key_prefix}_{listing_id}_{seller_id}')
+        reason=st.selectbox('Reason',REPORT_REASONS,key=f'report_reason_{key_prefix}_{listing_id}_{seller_id}')
+        details=st.text_area('Details',key=f'report_details_{key_prefix}_{listing_id}_{seller_id}',placeholder='Explain what House Of Wax should review. Do not enter sensitive private information.')
+        sub=st.form_submit_button('Submit Report')
+    if sub:
+        if not safe(details):
+            st.warning('Add a few details so House Of Wax knows what to review.')
+            return
+        data={'listing_id':listing_id,'seller_id':seller_id,'reporter_name':reporter_name,'reporter_contact':reporter_contact,'reason':reason,'details':details,'status':'Open','created_at':now(),'updated_at':now()}
+        core_insert('listing_reports',data,'''INSERT INTO listing_reports(listing_id,seller_id,reporter_name,reporter_contact,reason,details,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['listing_id','seller_id','reporter_name','reporter_contact','reason','details','status','created_at','updated_at']))
+        st.success('Report received. House Of Wax may review the listing or seller under platform rules.')
+
+def buyer_activity_tables(bid):
     if hosted_enabled():
         inquiries=enrich_activity_rows(hosted_select('listing_inquiries',{'buyer_id':int(bid)},order='created_at.desc'))
         purchases=enrich_activity_rows(hosted_select('purchase_requests',{'buyer_id':int(bid)},order='created_at.desc'))
     else:
         inquiries=df("""SELECT i.*,p.artist,p.title,p.listing_status,s.store_name FROM listing_inquiries i LEFT JOIN products p ON i.product_id=p.id LEFT JOIN sellers s ON i.seller_id=s.id WHERE i.buyer_id=? ORDER BY i.created_at DESC""",(int(bid),))
         purchases=df("""SELECT pr.*,p.artist,p.title,p.listing_status,s.store_name FROM purchase_requests pr LEFT JOIN products p ON pr.product_id=p.id LEFT JOIN sellers s ON pr.seller_id=s.id WHERE pr.buyer_id=? ORDER BY pr.created_at DESC""",(int(bid),))
+    return inquiries,purchases
+
+def buyer_request_history(bid):
+    st.subheader('Buyer inquiries and purchase requests')
+    st.caption('These views show activity tied to the selected buyer profile. Requests sent without selecting a buyer profile are still delivered to the seller, but will not appear here.')
+    inquiries,purchases=buyer_activity_tables(bid)
     itab,ptab=st.tabs(['My inquiries','My purchase requests'])
     with itab:
         if inquiries.empty:
@@ -1034,62 +2150,171 @@ def buyer_request_history(bid):
             cols=[c for c in ['id','store_name','artist','title','fulfillment_preference','offer_price','buyer_message','status','listing_status','created_at'] if c in purchases.columns]
             st.dataframe(purchases[cols],width='stretch')
 
+def enrich_listing_with_seller_columns(products):
+    if products.empty:
+        return products
+    out=products.copy()
+    for col in ['store_name','seller_status','seller_level','seller_city','seller_state']:
+        if col not in out.columns:
+            out[col]=''
+    for idx,row in out.iterrows():
+        seller=get_seller(int(row.get('seller_id') or 0)) if safe(row.get('seller_id')) else None
+        if seller is not None:
+            out.at[idx,'store_name']=safe(seller.get('store_name'))
+            out.at[idx,'seller_status']=normalize_seller_status(seller.get('status'))
+            out.at[idx,'seller_level']=safe(seller.get('seller_level'))
+            out.at[idx,'seller_city']=safe(seller.get('city'))
+            out.at[idx,'seller_state']=safe(seller.get('state'))
+        else:
+            out.at[idx,'seller_status']='Missing Seller'
+    return out
+
+def load_global_marketplace_listings():
+    statuses=live_marketplace_statuses()
+    if hosted_enabled():
+        prods=hosted_select('products',in_filters={'listing_status':statuses},order='created_at.desc')
+    else:
+        placeholders=','.join(['?']*len(statuses))
+        prods=df(f"""SELECT p.*,s.store_name,s.status seller_status,s.seller_level,s.city seller_city,s.state seller_state
+            FROM products p
+            LEFT JOIN sellers s ON p.seller_id=s.id
+            WHERE p.listing_status IN ({placeholders})
+            ORDER BY p.created_at DESC""",tuple(statuses))
+    prods=enrich_listing_with_seller_columns(prods)
+    if prods.empty:
+        return prods
+    return prods[prods['seller_status'].apply(lambda value: normalize_seller_status(value)=='Approved Seller')].copy()
+
+def filter_global_marketplace_listings(prods, keyword='', category='All', fmt='All', condition='All', seller='All', location='', min_price='', max_price='', sort_by='Newest'):
+    shown=prods.copy()
+    if keyword:
+        term=keyword.strip().lower()
+        fields=['artist','title']
+        mask=pd.Series(False,index=shown.index)
+        for field in fields:
+            if field in shown.columns:
+                mask=mask | shown[field].fillna('').astype(str).str.lower().str.contains(term,na=False,regex=False)
+        words=[word for word in re.split(r'\s+',term) if word]
+        if len(words)>1:
+            word_mask=pd.Series(True,index=shown.index)
+            combined=(shown.get('artist',pd.Series('',index=shown.index)).fillna('').astype(str)+' '+shown.get('title',pd.Series('',index=shown.index)).fillna('').astype(str)).str.lower()
+            for word in words:
+                word_mask=word_mask & combined.str.contains(word,na=False,regex=False)
+            mask=mask | word_mask
+        shown=shown[mask]
+    if category!='All' and 'category' in shown.columns:
+        shown=shown[shown['category'].fillna('').astype(str)==category]
+    if fmt!='All' and 'format' in shown.columns:
+        shown=shown[shown['format'].fillna('').astype(str)==fmt]
+    if condition!='All':
+        condition_mask=pd.Series(False,index=shown.index)
+        for field in ['media_grade','sleeve_grade']:
+            if field in shown.columns:
+                condition_mask=condition_mask | shown[field].fillna('').astype(str).str.contains(condition,na=False,regex=False)
+        shown=shown[condition_mask]
+    if seller!='All' and 'store_name' in shown.columns:
+        shown=shown[shown['store_name'].fillna('').astype(str)==seller]
+    if location:
+        term=location.strip().lower()
+        location_mask=pd.Series(False,index=shown.index)
+        for field in ['seller_city','seller_state']:
+            if field in shown.columns:
+                location_mask=location_mask | shown[field].fillna('').astype(str).str.lower().str.contains(term,na=False,regex=False)
+        shown=shown[location_mask]
+    min_value,min_error=parse_money_input(min_price,'Minimum price')
+    max_value,max_error=parse_money_input(max_price,'Maximum price')
+    if min_price and not min_error:
+        shown=shown[pd.to_numeric(shown['price'],errors='coerce').fillna(0)>=float(min_value)]
+    if max_price and not max_error:
+        shown=shown[pd.to_numeric(shown['price'],errors='coerce').fillna(0)<=float(max_value)]
+    if min_error:
+        st.warning(min_error)
+    if max_error:
+        st.warning(max_error)
+    if sort_by=='Price low to high':
+        shown=shown.sort_values('price',ascending=True,na_position='last')
+    elif sort_by=='Price high to low':
+        shown=shown.sort_values('price',ascending=False,na_position='last')
+    elif sort_by=='Artist/title A-Z':
+        shown=shown.sort_values([c for c in ['artist','title'] if c in shown.columns],ascending=True,na_position='last') if any(c in shown.columns for c in ['artist','title']) else shown
+    else:
+        shown=shown.sort_values('created_at',ascending=False,na_position='last') if 'created_at' in shown.columns else shown
+    return shown
+
 def product_card(p):
     with st.container(border=True):
         seller=get_seller(int(p['seller_id'])) if safe(p.get('seller_id')) else None
         image=listing_primary_image(p)
-        if image: st.image(image,width='stretch')
+        if image: safe_image(image,width='stretch',fallback_text='Listing image unavailable.')
         else: st.info('No listing image yet.')
-        title_text=' - '.join([part for part in [safe(p.get('artist')),safe(p.get('title'))] if part]) or 'Untitled listing'
-        st.subheader(title_text)
-        st.caption(f"{safe(p.get('category'))} • {safe(p.get('format')) or 'Format not set'} • Barcode: {safe(p.get('barcode'),'none')}")
+        st.subheader(safe(p.get('title'),'Untitled listing'))
+        st.write('**Artist:** '+safe(p.get('artist'),'Unknown artist'))
+        st.caption(f"Format: {safe(p.get('format')) or 'Not listed'}")
+        st.caption(f"Condition: {safe(p.get('media_grade'),'Not listed')}")
         status_label=listing_availability_label(p)
         price_col,status_col=st.columns(2)
         price_col.metric('Price',money(p['price']))
         if status_label=='Available':
-            status_col.success('Available')
+            with status_col:
+                status_badge('Live','success')
         elif status_label=='Pending':
-            status_col.warning(status_label)
+            with status_col:
+                status_badge(status_label,'warning')
         elif status_label=='Sold':
-            status_col.error(status_label)
+            with status_col:
+                status_badge(status_label,'danger')
         else:
-            status_col.info(status_label)
-        score,quality_label,_=listing_quality_assessment(safe(p.get('category')),safe(p.get('artist')),safe(p.get('title')),p.get('price'),safe(p.get('description')),safe(p.get('media_grade')),safe(p.get('sleeve_grade')),safe(p.get('image_url')),has_listing_photos(int(p['id'])),safe(p.get('smart_confidence')))
-        st.caption(f"Listing quality: {quality_label} ({score}/100)")
+            with status_col:
+                listing_status_badge(status_label)
         if seller is not None:
             st.caption('Seller: '+safe(seller.get('store_name')))
-            render_seller_trust_badges(int(seller.get('id')),'public')
+            public_seller_trust_badge(seller)
+            if st.button('View Store',key=f"seller_store_from_item_{int(p['id'])}_{int(seller.get('id'))}",width='stretch'):
+                st.session_state['seller_id']=int(seller.get('id'))
+                st.session_state.pop('product_id',None)
+                st.rerun()
+        if st.button('View Item',key=f"item_{int(p['id'])}",width='stretch'): st.session_state['product_id']=int(p['id']); st.rerun()
         if is_available_listing(p):
-            st.caption('Questions before buying? Contact the seller through House Of Wax.')
-            if st.button('Contact Seller / Ask About This Item',key=f"ask_item_{int(p['id'])}",width='stretch'):
+            if st.button('Ask Seller',key=f"ask_item_{int(p['id'])}",width='stretch'):
+                set_pending_action('Ask Seller',p)
                 st.session_state['product_id']=int(p['id'])
                 st.session_state[f'open_inquiry_{int(p["id"])}']=True
+                if not is_authenticated():
+                    request_marketplace_navigation('My Account')
                 st.rerun()
             if st.button('Request to Buy',key=f"buy_request_item_{int(p['id'])}",width='stretch'):
+                set_pending_action('Request to Buy',p)
                 st.session_state['product_id']=int(p['id'])
                 st.session_state[f'open_purchase_{int(p["id"])}']=True
+                if not is_authenticated():
+                    request_marketplace_navigation('My Account')
                 st.rerun()
         else:
-            st.caption('Buyer actions are hidden unless the listing is approved, public, active, and available.')
-        if st.button('View item',key=f"item_{int(p['id'])}",width='stretch'): st.session_state['product_id']=int(p['id']); st.rerun()
+            st.caption('Buyer actions are hidden unless the listing is live/public and available.')
+        with st.expander('Report Listing',expanded=False):
+            report_listing_form(p,seller,f'card_listing_{int(p["id"])}')
 def seller_profile(sid):
     s=get_seller(sid)
     if s is None: st.error('Seller not found.'); return
     if st.button('← Back to marketplace'): st.session_state.pop('seller_id',None); st.rerun()
-    if safe(s['banner_url']): st.image(safe(s['banner_url']),width='stretch')
+    if safe(s['banner_url']): safe_image(safe(s['banner_url']),width='stretch',fallback_text='Banner image unavailable.')
     col1,col2=st.columns([1,4])
     with col1:
-        if safe(s['logo_url']): st.image(safe(s['logo_url']),width='stretch')
+        if safe(s['logo_url']): safe_image(safe(s['logo_url']),width='stretch',fallback_text='Logo image unavailable.')
         else: st.markdown('## 🏪')
     with col2:
-        st.title(safe(s['store_name'])); st.caption(f"{safe(s['seller_level'])} • Rating {s['rating']}% • Sales {s['completed_sales']} • Followers {followers(sid)}")
+        st.title(safe(s['store_name']))
+        public_seller_trust_badge(s)
+        st.caption(f"Rating {s['rating']}% • Sales {s['completed_sales']} • Followers {followers(sid)}")
         render_seller_trust_badges(sid,'public')
         if safe(s['instagram']): st.write('Instagram: '+safe(s['instagram']))
         if safe(s['website']): st.link_button('Seller website',safe(s['website']))
     with st.expander('Follow this seller'):
-        bid=buyer_pick(f'follow{sid}')
-        if st.button('Follow seller',key=f'followbtn{sid}'):
-            if df('SELECT id FROM seller_followers WHERE seller_id=? AND buyer_id=?',(sid,bid)).empty: run('INSERT INTO seller_followers(seller_id,buyer_id,created_at) VALUES(?,?,?)',(sid,bid,now())); st.success('Followed.')
+        bid=ensure_linked_buyer_profile() if is_authenticated() else 0
+        if not bid:
+            st.info('Sign in as a Buyer to follow this seller.')
+        elif st.button('Follow seller',key=f'followbtn{sid}'):
+            if df('SELECT id FROM seller_followers WHERE seller_id=? AND buyer_id=?',(sid,bid)).empty: run('INSERT INTO seller_followers(seller_id,buyer_id,created_at) VALUES(?,?,?)',(sid,bid,now())); warn_if_local_only('Following this seller'); st.success('Followed.')
             else: st.info('Already following.')
     anns=df("SELECT * FROM store_announcements WHERE seller_id=? AND status='Active' ORDER BY created_at DESC",(sid,))
     if not anns.empty:
@@ -1111,6 +2336,9 @@ def seller_profile(sid):
     st.write('**Favorite genres/categories:** '+safe(s['specialties'],'Not listed'))
     st.write('**Contact preference:** '+safe(s.get('contact_preference'),'Use House Of Wax messages when available.'))
     st.caption('Reviews coming soon. Ratings will appear after completed buyer transactions.')
+    with st.expander('Report Seller',expanded=False):
+        st.caption('Use this if a seller appears misleading, unsafe, abusive, or against House Of Wax platform rules.')
+        report_listing_form(None,s,f'seller_{sid}')
     pol=df('SELECT * FROM seller_policies WHERE seller_id=?',(sid,))
     if not pol.empty:
         p=pol.iloc[0]
@@ -1120,8 +2348,8 @@ def seller_profile(sid):
         if safe(p.get('local_pickup_policy')): st.write('**Pickup / meetups:** '+safe(p.get('local_pickup_policy')))
     st.subheader('Public seller feedback'); feedback_public('Seller',sid)
     st.subheader('Public inventory')
-    prods=hosted_select('products',{'seller_id':int(sid)},in_filters={'listing_status':PUBLIC_LISTING_STATUSES+UNAVAILABLE_LISTING_STATUSES},order='created_at.desc') if hosted_enabled() else df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved','Public','Pending Pickup/Payment','Pending','Sold') ORDER BY created_at DESC",(sid,))
-    if prods.empty: st.info('No public inventory yet. Draft, Submitted for Review, Needs Changes, and Rejected listings stay private inside Seller Tools until they are approved or made public.')
+    prods=hosted_select('products',{'seller_id':int(sid)},in_filters={'listing_status':public_listing_query_statuses()},order='created_at.desc') if hosted_enabled() else df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Live','Active','Approved','Public','Pending Pickup/Payment','Pending','Sold') ORDER BY created_at DESC",(sid,))
+    if prods.empty: st.info('No public inventory yet. Draft, Hidden, Under Review, and Removed listings stay private or unavailable inside Seller Tools.')
     else:
         cols=st.columns(3)
         for i,(_,p) in enumerate(prods.iterrows()):
@@ -1136,7 +2364,7 @@ def product_detail(pid):
     l,rcol=st.columns([1.2,1])
     with l:
         primary_image=listing_primary_image(p)
-        if primary_image: st.image(primary_image,width='stretch')
+        if primary_image: safe_image(primary_image,width='stretch',fallback_text='Listing image unavailable.')
         else: st.markdown('## 🎵')
         render_listing_photo_gallery(pid,primary_image,'public')
     with rcol:
@@ -1151,14 +2379,23 @@ def product_detail(pid):
             if is_available:
                 st.caption('Questions before buying? Contact the seller through House Of Wax.')
                 if st.button('Contact Seller / Ask About This Item',key=f'detail_ask_top_{pid}',width='stretch'):
+                    set_pending_action('Ask Seller',p)
                     st.session_state[f'open_inquiry_{pid}']=True
+                    if not is_authenticated():
+                        request_marketplace_navigation('My Account')
                     st.rerun()
                 if st.button('Request to Buy',key=f'detail_purchase_top_{pid}',width='stretch'):
+                    set_pending_action('Request to Buy',p)
                     st.session_state[f'open_purchase_{pid}']=True
+                    if not is_authenticated():
+                        request_marketplace_navigation('My Account')
                     st.rerun()
                 st.caption('Checkout is not live yet. Request to Buy sends a purchase request, not a payment.')
             if st.button('View seller public profile'): st.session_state['seller_id']=int(s['id']); st.session_state.pop('product_id',None); st.rerun()
     st.subheader('Description'); st.write(safe(p['description'],'No description.'))
+    st.info('This listing was published by the seller. Report concerns to House Of Wax.')
+    with st.expander('Report Listing',expanded=False):
+        report_listing_form(p,s,f'listing_{pid}')
     st.divider(); st.subheader('Buyer actions')
     if not is_public:
         st.info('Buyer actions appear only for public marketplace listings.')
@@ -1172,8 +2409,8 @@ def product_detail(pid):
             render_purchase_request_form(p,f'product_{pid}')
     else:
         st.info(f"This listing is {listing_availability_label(p).lower()}, so public buyer actions are turned off.")
-    bid=buyer_pick(f'buy{pid}')
-    if is_available:
+    bid=ensure_linked_buyer_profile() if is_authenticated() else 0
+    if is_available and bid:
         with st.expander('Message seller',expanded=False):
             action=st.selectbox('Action',['Ask a Question','Make Offer'],key=f'act{pid}'); msg=st.text_area('Message',key=f'msg{pid}')
             if st.button('Send to seller',key=f'send{pid}'):
@@ -1238,7 +2475,7 @@ def make_social_pack(title,category,summary,body,tip):
 
 def knowledge_card(row, key_prefix='knowledge'):
     with st.container(border=True):
-        if safe(row.get('image_url')): st.image(safe(row.get('image_url')),width='stretch')
+        if safe(row.get('image_url')): safe_image(safe(row.get('image_url')),width='stretch',fallback_text='Image unavailable.')
         st.subheader(safe(row.get('title')))
         st.caption(f"{safe(row.get('category'))} • {safe(row.get('level'))} • {safe(row.get('audience'))}")
         st.write(safe(row.get('summary')))
@@ -1255,7 +2492,7 @@ def tester_start_here(key_prefix='main'):
         st.subheader('Buyer Test Path')
         for item in [
             'Go to Marketplace.',
-            'Open an approved item.',
+            'Open a live marketplace item.',
             'Review photos and condition.',
             'Click Contact Seller / Ask About This Item.',
             'Submit a sample inquiry.',
@@ -1276,22 +2513,22 @@ def tester_start_here(key_prefix='main'):
             'Add condition and photos.',
             'Preview listing.',
             'Save as Draft.',
-            'Submit for Review.',
+            'Publish to My Store if your seller account is approved.',
             'Check My Listings / Inventory.',
             'Leave tester feedback.'
         ]:
             st.write(f'- {item}')
-        st.caption('Your public store/profile may only show public approved listings. Draft and review listings stay inside Seller Tools.')
+        st.caption('Your public store/profile may only show live/public listings. Draft, hidden, and moderation listings stay inside Seller Tools.')
     with admin:
         st.subheader('Admin Test Path')
         for item in [
             'Go to My House of Wax.',
             'Turn on Testing/Admin mode if needed.',
             'Open Admin Tools.',
-            'Open Review Queue.',
-            'Review submitted listing.',
-            'Add reviewer notes.',
-            'Approve or mark Needs Changes.',
+            'Open Moderation Center.',
+            'Review seller approval and listing/seller reports.',
+            'Add moderation notes if needed.',
+            'Hide/remove a reported listing or suspend/reinstate a seller when needed.',
             'Check Admin Tester Feedback Review.',
             'Leave tester feedback.'
         ]:
@@ -1306,13 +2543,13 @@ def tester_start_here(key_prefix='main'):
 def tester_feedback_form(key_prefix='public'):
     st.markdown('## Tester Feedback')
     st.info('Use sample information only. Do not enter sensitive private information, real payment details, passwords, private addresses, or anything you would not want reviewed by the House Of Wax team.')
-    st.write('Test buyer flow, seller flow, Knowledge Center, admin/review flow if available, and tell us where you got stuck. This helps House Of Wax improve before adding risky production features.')
+    st.write('Test buyer flow, seller flow, Knowledge Center, and admin/moderation flow if available, and tell us where you got stuck. This helps House Of Wax improve before adding risky production features.')
     with st.expander('Tester Start Here',expanded=False):
         tester_start_here(f'feedback_{key_prefix}')
     with st.form(f'tester_feedback_form_{key_prefix}'):
         tester_name=st.text_input('Tester name optional',key=f'tester_feedback_name_{key_prefix}')
         tester_type=st.selectbox('Tester type',['Buyer','Seller','Admin/Reviewer','Investor/Advisor','Other'],key=f'tester_feedback_type_{key_prefix}')
-        page_flow=st.text_input('Page/flow tested',placeholder='Example: Marketplace buyer flow, Seller upload, Knowledge Center, Admin review queue',key=f'tester_feedback_flow_{key_prefix}')
+        page_flow=st.text_input('Page/flow tested',placeholder='Example: Marketplace buyer flow, Seller upload, Knowledge Center, Moderation Center',key=f'tester_feedback_flow_{key_prefix}')
         worked_well=st.text_area('What worked well',key=f'tester_feedback_worked_{key_prefix}')
         confusing=st.text_area('What was confusing',key=f'tester_feedback_confusing_{key_prefix}')
         felt_broken=st.text_area('What felt broken',key=f'tester_feedback_broken_{key_prefix}')
@@ -1384,8 +2621,8 @@ def knowledge_center_education_hub():
     with buying:
         st.subheader('How Buying Works')
         for item in [
-            'Browse Marketplace for approved, public, or active listings.',
-            'Review photos, condition notes, seller profile, trust badges, and listing quality information.',
+            'Browse Marketplace for live listings from approved sellers.',
+            'Review photos, condition notes, seller profile, trust badges, and listing readiness information.',
             'Ask the seller a question if condition, shipping, photos, or availability are unclear.',
             'Use Request to Buy when you are ready to move forward.',
             'In the prototype, checkout/payment may not be live yet. Request to Buy sends purchase intent, not payment.',
@@ -1400,8 +2637,8 @@ def knowledge_center_education_hub():
             'Confirm the match before using search/database information.',
             'Add seller details, price, quantity, shipping, and condition notes.',
             'Add real photos of the exact item whenever possible.',
-            'Preview the listing and review the listing quality score.',
-            'Save as Draft if it is not ready, or Submit for Review when it is ready for House Of Wax.',
+            'Preview the listing and review the listing readiness checklist.',
+            'Save as Draft if it is not ready, or Publish to My Store when your seller account is approved.',
             'Respond to buyer inquiries and purchase requests.',
             'Mark items Pending or Sold when availability changes.'
         ]:
@@ -1436,10 +2673,10 @@ def knowledge_center_education_hub():
         st.subheader('Trust and Safety Guide')
         for item in [
             'Seller profiles help buyers understand the seller, location, specialties, and marketplace history.',
-            'Trust badges are House Of Wax platform indicators based on profile completeness, approved listings, and listing quality.',
-            'Listing quality score rewards clear details, photos, condition notes, price, and complete item information.',
-            'The admin review queue lets House Of Wax approve, request changes, or reject listings before public display.',
-            'House Of Wax may reject or request changes when photos, condition, item identity, safety, or seller details are not clear.',
+            'Trust badges are House Of Wax platform indicators based on profile completeness, live listings, and marketplace history.',
+            'Listing readiness helps sellers include clear details, photos, condition notes, price, and complete item information.',
+            'The Moderation Center lets House Of Wax review reports, hide/remove problem listings, and manage seller approval.',
+            'House Of Wax may investigate reports when photos, condition, item identity, safety, or seller behavior appears unclear or unsafe.',
             'Counterfeit, stolen, unsafe, misleading, or deceptive listings do not belong on House Of Wax.'
         ]:
             st.write(f'- {item}')
@@ -1448,8 +2685,8 @@ def knowledge_center_education_hub():
         faq=[
             ('What does Request to Buy mean?','It means you want to move forward. In the prototype it creates a purchase request so the seller can confirm availability, pickup/shipping, and next steps.'),
             ('Is payment live?','Not yet. The current prototype does not process checkout or payment.'),
-            ('How do I contact a seller?','Use Contact Seller / Ask About This Item on approved/public/active listings.'),
-            ('How do I know if an item is available?','Approved, Active, or Public listings can show buyer action buttons. Pending and Sold items show unavailable status.'),
+            ('How do I contact a seller?','Use Contact Seller / Ask About This Item on live/public listings.'),
+            ('How do I know if an item is available?','Live listings can show buyer action buttons. Pending and Sold items show unavailable status.'),
             ('What does Pending mean?','The item may be held, in discussion, or waiting on next steps.'),
             ('What does Sold mean?','The item should no longer be available to buy.'),
             ('What should I check before buying?','Photos, condition, seller profile, trust badges, listing quality, price, shipping/pickup, and any flaws or missing details.')
@@ -1461,10 +2698,10 @@ def knowledge_center_education_hub():
         st.subheader('Seller FAQ')
         faq=[
             ('Do I need exact item photos?','Yes when possible. Exact photos are especially important for condition-sensitive and non-music items.'),
-            ('Why does my listing need review?','Review helps protect trust, improve listing quality, and catch missing details before buyers rely on the listing.'),
+            ('Why does my seller account need approval?','House Of Wax approves who can sell. Approved sellers can publish directly, and House Of Wax can moderate reports afterward.'),
             ('What makes a strong listing?','Clear title, category, price, condition, seller notes, real photos, item identifiers, and honest flaws.'),
-            ('What happens if my listing needs changes?','Review notes explain what to fix. Update the listing, add missing details/photos, then submit again.'),
-            ('How do I improve my quality score?','Add condition notes, photos, accurate item details, price, format/category, and seller-specific information.'),
+            ('What happens if House Of Wax reviews a report?','A listing may be hidden, placed under review, removed, or the seller may be restricted based on platform rules.'),
+            ('How do I improve listing readiness?','Add condition notes, photos, accurate item details, price, format/category, and seller-specific information.'),
             ('What should I do when an item sells?','Update the listing status to Pending or Sold so buyers do not keep requesting unavailable items.')
         ]
         for q,a in faq:
@@ -1499,6 +2736,7 @@ def knowledge_center_education_hub():
 def knowledge_hub():
     seed_knowledge()
     header()
+    marketplace_context('House Of Wax Marketplace → Knowledge Hub')
     st.header('House Of Wax Knowledge Center / Education Hub')
     st.write('House Of Wax-owned education, culture, history, discovery, content series, and marketplace learning. This is not seller promotion. This hub teaches buyers, collectors, sellers, and early testers how to understand records, music culture, formats, trust, grading, photos, listing quality, barcodes, catalog numbers, matrix/runouts, genres, eras, and safer buying.')
     knowledge_center_education_hub()
@@ -1513,7 +2751,7 @@ def knowledge_hub():
             st.session_state.pop('selected_knowledge_id',None); st.rerun()
         st.title(safe(post['title']))
         st.caption(f"{safe(post['category'])} • {safe(post['level'])} • For {safe(post['audience'])}")
-        if safe(post['image_url']): st.image(safe(post['image_url']),width='stretch')
+        if safe(post['image_url']): safe_image(safe(post['image_url']),width='stretch',fallback_text='Post image unavailable.')
         st.markdown('### Quick answer')
         st.write(safe(post['summary']))
         st.markdown('### Full guide')
@@ -1722,6 +2960,7 @@ def mini_card(title,subtitle,body):
 def home():
     seed_homepage_editorial()
     header()
+    marketplace_context('House Of Wax Marketplace → Home')
     hero=home_block('hero')
     st.markdown('---')
     st.markdown(f'''
@@ -1739,6 +2978,7 @@ def home():
     if c.button("Read This Week's Feature"): st.info('Use the sidebar to open Knowledge Hub.')
     with st.expander('Tester Start Here',expanded=True):
         tester_start_here('home')
+    st.info('Looking for music? Open Search Music and type an artist or album name.')
     c1,c2,c3,c4=st.columns(4)
     c1.metric('Knowledge Articles',len(table('knowledge_posts')))
     c2.metric('Glossary Terms',len(table('glossary_terms')))
@@ -1813,6 +3053,7 @@ def home():
         if not safe(email): st.warning('Enter an email first.')
         else:
             run("INSERT INTO newsletter_signups(email,name,source,created_at) VALUES(?,?,?,?)",(email,name,'Homepage',now()))
+            warn_if_local_only('Newsletter signup')
             st.success('You are on the House Of Wax list.')
 
 def homepage_editor():
@@ -1829,6 +3070,7 @@ def homepage_editor():
             order=st.number_input('Sort order',min_value=0,value=1)
             if st.form_submit_button('Save homepage block'):
                 run("INSERT INTO homepage_blocks(block_name,title,subtitle,body,button_text,button_target,status,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",(bn,title,sub,body,btn,target,status,int(order),now(),now()))
+                warn_if_local_only('Homepage block')
                 st.success('Homepage block saved.')
     with tabs[1]:
         st.dataframe(table('quick_tips'),width='stretch')
@@ -1837,6 +3079,7 @@ def homepage_editor():
             status=st.selectbox('Status',['Active','Draft','Hidden'],key='tip_status')
             if st.form_submit_button('Save quick tip'):
                 run("INSERT INTO quick_tips(tip_text,category,status,created_at,updated_at) VALUES(?,?,?,?,?)",(tip,cat,status,now(),now()))
+                warn_if_local_only('Quick tip')
                 st.success('Quick tip saved.')
     with tabs[2]:
         st.dataframe(table('did_you_know'),width='stretch')
@@ -1845,6 +3088,7 @@ def homepage_editor():
             status=st.selectbox('Status',['Active','Draft','Hidden'],key='fact_status')
             if st.form_submit_button('Save fact'):
                 run("INSERT INTO did_you_know(fact_text,category,status,created_at,updated_at) VALUES(?,?,?,?,?)",(fact,cat,status,now(),now()))
+                warn_if_local_only('Did You Know fact')
                 st.success('Fact saved.')
     with tabs[3]:
         data=table('newsletter_signups')
@@ -1853,77 +3097,247 @@ def homepage_editor():
             st.download_button('Download newsletter signups',data.to_csv(index=False),file_name='newsletter_signups.csv')
 
 def test_setup():
-    header(); st.header('Test setup')
+    header(); admin_context('House Of Wax Admin → Test Setup'); st.header('Test setup')
     if st.button('Create/repair demo buyer, seller, and product'): st.success(f'Demo ready: buyer/seller/product IDs {seed_all()}')
     st.code('Buyer: buyer@test.com\nSeller: seller@test.com\nSeller access code: test123')
     st.subheader('Buyers'); st.dataframe(table('buyers'),width='stretch'); st.subheader('Sellers'); st.dataframe(table('sellers'),width='stretch'); st.subheader('Products'); st.dataframe(table('products'),width='stretch')
 def register():
-    header(); st.header('Sell on House Of Wax / Create Accounts')
+    header(); marketplace_context('House Of Wax Marketplace → Sell on House Of Wax'); st.header('Sell on House Of Wax / Create Accounts')
     st.info('House Of Wax is the platform. Independent sellers list their own inventory. House Of Wax can also sell through its official seller account for branded merch, official drops, curated goods, and platform items. Seller tools now live under My House of Wax. Before public launch, sellers should review Seller Standards and House Of Wax trust expectations.'); btab,stab=st.tabs(['Buyer','Seller store'])
     with btab:
+        buyers=table('buyers')
+        if buyers.empty:
+            st.warning('No buyer profile found yet. Create one here.')
+        else:
+            latest=buyers.sort_values('id',ascending=False).head(5)
+            st.success('Saved buyer profiles found.')
+            st.dataframe(latest[[c for c in ['id','name','email','status','created_at'] if c in latest.columns]],width='stretch')
         with st.form('buyerform'):
             name=st.text_input('Buyer name'); email=st.text_input('Buyer email'); phone=st.text_input('Phone'); city=st.text_input('City'); state=st.text_input('State'); bio=st.text_area('Buyer bio'); sub=st.form_submit_button('Create buyer')
         if sub:
-            if email_exists('buyers',email): st.warning('Buyer already exists. Open My House of Wax.')
+            clean_email=email.strip().lower()
+            existing=hosted_select('buyers',{'email':clean_email},limit=1) if hosted_enabled() else df('SELECT id FROM buyers WHERE lower(email)=lower(?)',(clean_email,))
+            if not existing.empty:
+                bid=int(existing.iloc[0]['id'])
+                st.session_state['buyer_id']=bid
+                st.session_state['pending_my_house_workspace']='Buyer Profile'
+                st.warning('Buyer already exists. It is now the active buyer profile.')
             else:
-                data={'name':name,'email':email.strip().lower(),'phone':phone,'city':city,'state':state,'bio':bio,'status':'Trusted Buyer','rating':100,'completed_purchases':0,'unpaid_orders':0,'disputes':0,'strikes':0,'created_at':now()}
+                data={'name':name,'email':clean_email,'phone':phone,'city':city,'state':state,'bio':bio,'status':'Trusted Buyer','rating':100,'completed_purchases':0,'unpaid_orders':0,'disputes':0,'strikes':0,'created_at':now()}
                 bid=core_insert('buyers',data,'''INSERT INTO buyers(name,email,phone,city,state,bio,status,rating,completed_purchases,unpaid_orders,disputes,strikes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['name','email','phone','city','state','bio','status','rating','completed_purchases','unpaid_orders','disputes','strikes','created_at']))
                 if not bid:
-                    bid=int(df('SELECT id FROM buyers WHERE lower(email)=lower(?)',(email.strip(),)).iloc[0]['id'])
-                st.session_state['buyer_id']=bid
-                st.success('Buyer created and saved. Open My House of Wax > Buyer Profile to reload it.')
+                    reread=hosted_select('buyers',{'email':clean_email},limit=1) if hosted_enabled() else df('SELECT id FROM buyers WHERE lower(email)=lower(?)',(clean_email,))
+                    bid=int(reread.iloc[0]['id']) if not reread.empty else 0
+                if bid:
+                    st.session_state['buyer_id']=bid
+                    st.session_state['pending_my_house_workspace']='Buyer Profile'
+                    st.success('Buyer created and saved. This is now the active buyer profile.')
+                else:
+                    st.error('Buyer profile was not saved. Check System Diagnostics for Supabase read/write errors.')
+            if st.session_state.get('buyer_id'):
+                b=get_buyer(int(st.session_state['buyer_id']))
+                if b is not None:
+                    st.write(f"**Active buyer profile:** {safe(b.get('name'))} | {safe(b.get('email'))}")
+        if st.session_state.get('buyer_id'):
+            b=get_buyer(int(st.session_state['buyer_id']))
+            if b is not None:
+                with st.container(border=True):
+                    st.write(f"**Active buyer profile:** {safe(b.get('name'))} | {safe(b.get('email'))}")
+                    st.caption('Open My House of Wax with Buyer role, then Buyer Profile, to view or edit this saved profile.')
+                    if st.button('Open Buyer Profile now',key='open_buyer_account_after_create'):
+                        st.session_state['pending_my_house_workspace']='Buyer Profile'
+                        st.rerun()
     with stab:
+        sellers=table('sellers')
+        if sellers.empty:
+            st.warning('No seller store/profile found yet. Create one here.')
+        else:
+            latest=sellers.sort_values('id',ascending=False).head(5)
+            st.success('Saved seller stores found.')
+            st.dataframe(latest[[c for c in ['id','store_name','email','status','created_at'] if c in latest.columns]],width='stretch')
         with st.form('sellerform'):
             store=st.text_input('Store name'); owner=st.text_input('Owner'); email=st.text_input('Seller email'); code=st.text_input('Access code',type='password'); bio=st.text_area('Store bio'); story=st.text_area('Seller story'); spec=st.text_area('Specialties'); logo=st.file_uploader('Logo',type=['png','jpg','jpeg','webp']); banner=st.file_uploader('Banner',type=['png','jpg','jpeg','webp']); sub=st.form_submit_button('Create active seller store')
         if sub:
-            if email_exists('sellers',email): st.warning('Seller already exists. Open Seller Tools.')
+            clean_email=email.strip().lower()
+            existing=hosted_select('sellers',{'email':clean_email},limit=1) if hosted_enabled() else df('SELECT id FROM sellers WHERE lower(email)=lower(?)',(clean_email,))
+            if not existing.empty:
+                sid=int(existing.iloc[0]['id'])
+                st.session_state['seller_tool_seller_id']=sid
+                st.session_state['pending_my_house_workspace']='Seller Dashboard'
+                st.session_state['pending_seller_tools_primary_section']='My Store Profile'
+                st.warning('Seller already exists. It is now the active seller store.')
             else:
-                data={'store_name':store,'owner_name':owner,'email':email.strip().lower(),'phone':'','city':'','state':'','website':'','instagram':'','store_bio':bio,'seller_story':story,'specialties':spec,'logo_url':save_file(logo,'seller_logos'),'banner_url':save_file(banner,'seller_banners'),'status':'Approved','seller_level':'Verified Seller','rating':100,'completed_sales':0,'disputes':0,'strikes':0,'auction_override':'Yes','access_code':code,'created_at':now()}
+                data={'store_name':store,'owner_name':owner,'email':clean_email,'phone':'','city':'','state':'','website':'','instagram':'','store_bio':bio,'seller_story':story,'specialties':spec,'logo_url':save_file(logo,'seller_logos'),'banner_url':save_file(banner,'seller_banners'),'status':'Pending Seller Approval','seller_level':'Verified Seller','rating':100,'completed_sales':0,'disputes':0,'strikes':0,'auction_override':'Yes','access_code':code,'created_at':now()}
                 keys=['store_name','owner_name','email','phone','city','state','website','instagram','store_bio','seller_story','specialties','logo_url','banner_url','status','seller_level','rating','completed_sales','disputes','strikes','auction_override','access_code','created_at']
                 sid=core_insert('sellers',data,'''INSERT INTO sellers(store_name,owner_name,email,phone,city,state,website,instagram,store_bio,seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,disputes,strikes,auction_override,access_code,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in keys))
                 if not sid:
-                    sid=int(df('SELECT id FROM sellers WHERE lower(email)=lower(?)',(email.strip(),)).iloc[0]['id'])
-                st.session_state['seller_tool_seller_id']=sid
-                st.success('Seller store active and saved. Open My House of Wax > Seller Tools > My Store / Seller Profile to reload it.')
+                    reread=hosted_select('sellers',{'email':clean_email},limit=1) if hosted_enabled() else df('SELECT id FROM sellers WHERE lower(email)=lower(?)',(clean_email,))
+                    sid=int(reread.iloc[0]['id']) if not reread.empty else 0
+                if sid:
+                    st.session_state['seller_tool_seller_id']=sid
+                    st.session_state['pending_my_house_workspace']='Seller Dashboard'
+                    st.session_state['pending_seller_tools_primary_section']='My Store Profile'
+                    st.success('Seller store saved. This is now the active seller store. You can save drafts while House Of Wax reviews seller approval.')
+                else:
+                    st.error('Seller store was not saved. Check System Diagnostics for Supabase read/write errors.')
+            if st.session_state.get('seller_tool_seller_id'):
+                s=get_seller(int(st.session_state['seller_tool_seller_id']))
+                if s is not None:
+                    st.write(f"**Active seller store:** {safe(s.get('store_name'))} | {safe(s.get('email'))}")
+        if st.session_state.get('seller_tool_seller_id'):
+            s=get_seller(int(st.session_state['seller_tool_seller_id']))
+            if s is not None:
+                with st.container(border=True):
+                    st.write(f"**Active seller store:** {safe(s.get('store_name'))} | {safe(s.get('email'))}")
+                    st.caption('Open My House of Wax with Seller role, then Seller Dashboard, to view My Store Profile, My Inventory, and Add Inventory.')
+                    if st.button('Open Seller Dashboard / My Store now',key='open_seller_tools_after_create'):
+                        st.session_state['pending_my_house_workspace']='Seller Dashboard'
+                        st.session_state['pending_seller_tools_primary_section']='My Store Profile'
+                        st.rerun()
 def marketplace():
-    header(); st.header('Marketplace')
-    st.write('Browse approved and public House Of Wax listings from independent sellers and House Of Wax Official.')
-    st.caption('Cards show item image, price, status, seller trust signals, listing quality, and buyer actions when the item is available.')
-    st.info('New to House Of Wax? Open Knowledge Hub for the Knowledge Center / Education Hub: buying basics, condition, photo standards, trust badges, Request to Buy, and marketplace rules.')
+    header(); marketplace_context('House Of Wax Marketplace → Search Music'); st.header('Search Music')
+    st.write('Type an artist or album name to search all sellers.')
+    st.caption('Search all live listings from House Of Wax sellers.')
     with st.expander('Tester Feedback for this page',expanded=False):
         tester_feedback_form('marketplace')
     if 'seller_id' in st.session_state: seller_profile(int(st.session_state['seller_id'])); return
     if 'product_id' in st.session_state: product_detail(int(st.session_state['product_id'])); return
-    prods=hosted_select('products',in_filters={'listing_status':PUBLIC_LISTING_STATUSES+UNAVAILABLE_LISTING_STATUSES},order='created_at.desc') if hosted_enabled() else df("SELECT * FROM products WHERE listing_status IN ('Active','Approved','Public','Pending Pickup/Payment','Pending','Sold') ORDER BY created_at DESC")
+    prods=load_global_marketplace_listings()
     if prods.empty:
         all_products=table('products')
         if all_products.empty:
-            st.info('No inventory yet. Use Seller Tools to create a listing, then submit it for review and approve it before it appears publicly.')
+            st.info('No live inventory yet. Approved sellers can use Seller Tools to create a listing and publish it directly to their store.')
         else:
             statuses=', '.join([f"{safe(k)}: {int(v)}" for k,v in all_products['listing_status'].fillna('Blank').value_counts().items()])
-            st.info('Public marketplace cards appear for Approved, Active, Public, Pending, or Sold listings. Buyer contact and purchase buttons appear only when a listing is Approved, Active, or Public. Current non-public listing statuses: '+safe(statuses,'none'))
-            st.write('To make the button appear: open My House of Wax, turn on Testing mode, open Admin, approve a submitted listing in Listing Review, then return to Marketplace.')
+            st.info('Public marketplace cards appear for Live listings from approved sellers, plus older Approved/Active/Public listing records for compatibility. Draft, Hidden, Under Review, Removed, Sold, and listings from pending/suspended sellers are not shown in global marketplace search. Current listing statuses: '+safe(statuses,'none'))
+            st.write('To make a listing appear: open My House of Wax, choose Seller role, open Seller Dashboard, select an approved seller, and Publish to My Store from Add Inventory or My Inventory.')
         return
-    q=st.text_input('Search marketplace',placeholder='Title, artist, barcode, catalog, or category')
-    if q:
-        term=q.lower(); prods=prods[prods['artist'].fillna('').str.lower().str.contains(term)|prods['title'].fillna('').str.lower().str.contains(term)|prods['barcode'].fillna('').str.lower().str.contains(term)|prods['catalog_number'].fillna('').str.lower().str.contains(term)|prods['category'].fillna('').str.lower().str.contains(term)]
+    q=st.text_input('Search by artist or album',placeholder="Example: Marvin Gaye or What's Going On",help='Search all live listings from House Of Wax sellers.',key='global_marketplace_search')
+    category='All'
+    fmt='All'
+    condition='All'
+    seller_filter='All'
+    location=''
+    min_price=''
+    max_price=''
+    sort_by='Newest'
+    with st.expander('More filters',expanded=False):
+        st.caption('Optional. Leave filters blank to see all matching listings.')
+        f1,f2,f3=st.columns(3)
+        categories=['All']+sorted([safe(x) for x in prods['category'].dropna().unique().tolist() if safe(x)])
+        formats=['All']+sorted([safe(x) for x in prods['format'].dropna().unique().tolist() if safe(x)])
+        conditions=['All conditions']+sorted(set([safe(x) for col in ['media_grade','sleeve_grade'] if col in prods.columns for x in prods[col].dropna().unique().tolist() if safe(x)]))
+        category=f1.selectbox('Category',categories,index=0,key='simple_marketplace_category')
+        fmt=f2.selectbox('Format',formats,index=0,key='simple_marketplace_format')
+        condition_choice=f3.selectbox('Condition',conditions,index=0,key='simple_marketplace_condition')
+        condition='All' if condition_choice=='All conditions' else condition_choice
+        f4,f5,f6=st.columns(3)
+        sellers=['All']+sorted([safe(x) for x in prods['store_name'].dropna().unique().tolist() if safe(x)])
+        seller_filter=f4.selectbox('Seller/store',sellers,index=0,key='simple_marketplace_seller')
+        location=f5.text_input('Location',placeholder='Leave blank',key='simple_marketplace_location')
+        sort_by=f6.selectbox('Sort',['Newest','Price low to high','Price high to low','Artist/title A-Z'],key='simple_marketplace_sort')
+        p1,p2=st.columns(2)
+        min_price=p1.text_input('Minimum price',placeholder='Leave blank',key='simple_marketplace_min_price')
+        max_price=p2.text_input('Maximum price',placeholder='Leave blank',key='simple_marketplace_max_price')
+    prods=filter_global_marketplace_listings(prods,q,category,fmt,condition,seller_filter,location,min_price,max_price,sort_by)
+    seller_count=prods['store_name'].fillna('').replace('',pd.NA).dropna().nunique() if not prods.empty and 'store_name' in prods.columns else 0
+    st.caption(f'Showing {len(prods)} live listing{"s" if len(prods)!=1 else ""} from {seller_count} seller{"s" if seller_count!=1 else ""}')
+    if prods.empty:
+        st.info('No matching live listings found. Try a different artist, title, barcode, or seller name.')
+        return
     cols=st.columns(2)
     for i,(_,p) in enumerate(prods.iterrows()):
         with cols[i%2]: product_card(p)
 def seller_stores():
-    header(); st.header('Seller stores')
+    header(); marketplace_context('House Of Wax Marketplace → Seller Stores'); st.header('Seller Stores')
+    st.write('Browse individual stores and see what each seller has available.')
     if 'seller_id' in st.session_state: seller_profile(int(st.session_state['seller_id'])); return
     sellers=table('sellers')
     if sellers.empty: st.info('No sellers yet.'); return
     for _,s in sellers.iterrows():
         with st.container(border=True):
-            if safe(s['banner_url']): st.image(safe(s['banner_url']),width='stretch')
-            st.subheader(safe(s['store_name'])); st.caption(f"{safe(s['seller_level'])} • Rating {s['rating']}% • Followers {followers(int(s['id']))}"); st.write(safe(s['store_bio']))
+            if safe(s['banner_url']): safe_image(safe(s['banner_url']),width='stretch',fallback_text='Banner image unavailable.')
+            st.subheader(safe(s['store_name']))
+            public_seller_trust_badge(s)
+            st.caption(f"Rating {s['rating']}% • Followers {followers(int(s['id']))}")
+            st.write(safe(s['store_bio']))
             if badges(int(s['id'])): st.info('Badges: '+badges(int(s['id'])))
             if st.button('Open public profile',key=f"openseller{int(s['id'])}"): st.session_state['seller_id']=int(s['id']); st.rerun()
 def buyer_dashboard():
-    header(); st.header('Buyer dashboard')
+    header(); marketplace_context('House Of Wax Marketplace → My Account'); st.header('My Account')
+    st.write('View your profile, questions, and purchase requests.')
     prototype_role_notice()
+    st.caption(f'Active storage mode: {active_storage_label()}')
+    if not is_admin_unlocked():
+        if not is_authenticated():
+            st.warning('Sign in as a Buyer to view your buyer dashboard.')
+            account_page()
+            return
+        bid=ensure_linked_buyer_profile()
+        if not bid:
+            st.error('No buyer profile is linked to this account. Use Account to claim or create a buyer profile.')
+            claim_existing_profile_section()
+            return
+        st.session_state['buyer_id']=bid
+        b=get_buyer(bid)
+        if b is None:
+            st.error('Linked buyer profile was not found.')
+            return
+        st.success(f"Loaded your buyer profile: {safe(b['name'])} | {safe(b['email'])}")
+        tabs=st.tabs(['My Profile','My Inquiries','My Purchase Requests','Sign Out'])
+        with tabs[0]:
+            with st.form('bp_auth'):
+                name=st.text_input('Name',value=safe(b['name']))
+                phone=st.text_input('Phone',value=safe(b.get('phone')))
+                city=st.text_input('City',value=safe(b.get('city')))
+                state=st.text_input('State',value=safe(b.get('state')))
+                bio=st.text_area('Bio',value=safe(b['bio']))
+                sub=st.form_submit_button('Save buyer profile')
+            if sub:
+                AUTH_STATUS['last_buyer_save_error']=''
+                ok=core_update('buyers',{'name':name,'phone':phone,'city':city,'state':state,'bio':bio},{'id':bid},'UPDATE buyers SET name=?,phone=?,city=?,state=?,bio=? WHERE id=?',(name,phone,city,state,bio,bid))
+                reloaded=get_buyer(bid)
+                if ok and reloaded is not None:
+                    st.success('Buyer profile saved and reloaded.')
+                    st.write(f"Saved profile: {safe(reloaded.get('name'))} | {safe(reloaded.get('email'))}")
+                else:
+                    AUTH_STATUS['last_buyer_save_error']=safe(SUPABASE_STATUS.get('last_error'),'Buyer profile save failed.')
+                    st.error('Buyer profile did not save. Supabase error: '+AUTH_STATUS['last_buyer_save_error'])
+        inquiries,purchases=buyer_activity_tables(bid)
+        with tabs[1]:
+            st.subheader('My Inquiries')
+            if inquiries.empty:
+                st.info('No questions sent yet.')
+            else:
+                cols=[c for c in ['id','store_name','artist','title','preferred_contact_method','message','status','created_at'] if c in inquiries.columns]
+                st.dataframe(inquiries[cols],width='stretch')
+        with tabs[2]:
+            st.subheader('My Purchase Requests')
+            if purchases.empty:
+                st.info('No purchase requests sent yet.')
+            else:
+                cols=[c for c in ['id','store_name','artist','title','fulfillment_preference','offer_price','buyer_message','status','created_at'] if c in purchases.columns]
+                st.dataframe(purchases[cols],width='stretch')
+        with tabs[3]:
+            st.write('Signed in as '+auth_user_email())
+            if st.button('Sign Out',key='buyer_account_sign_out'):
+                auth_sign_out()
+                st.success('Signed out.')
+                st.rerun()
+        return
+    st.caption('Admin/testing buyer profile inspection is enabled.')
+    buyers=table('buyers')
+    if buyers.empty:
+        st.warning('No profile found yet. Create one from Sell on House Of Wax or use Create/open by email below.')
+    else:
+        latest=buyers.sort_values('id',ascending=False).head(8)
+        st.success('Saved profiles found.')
+        st.dataframe(latest[[c for c in ['id','name','email','status','created_at'] if c in latest.columns]],width='stretch')
+        active_id=st.session_state.get('buyer_id')
+        if active_id:
+            active=get_buyer(int(active_id))
+            if active is not None:
+                st.info(f"Currently active buyer profile: {safe(active.get('name'))} | {safe(active.get('email'))}")
     mode=st.radio('Open buyer by',['Choose existing buyer','Create/open by email'],horizontal=True)
     if mode=='Choose existing buyer':
         bid=buyer_pick('buyerdb',preferred_id=st.session_state.get('buyer_id'))
@@ -1931,8 +3345,12 @@ def buyer_dashboard():
     else:
         email=st.text_input('Buyer email',value='buyer@test.com'); name=st.text_input('Buyer name',value='Test Buyer')
         if st.button('Create/open buyer'):
-            st.session_state['buyer_id']=create_buyer(email,name)
-            st.success('Buyer profile saved/opened from the database.')
+            bid=create_buyer(email,name)
+            if bid:
+                st.session_state['buyer_id']=bid
+                st.success('Buyer profile saved/opened from the database and set as active.')
+            else:
+                st.error('Buyer profile could not be saved or reopened. Check System Diagnostics for Supabase errors.')
         existing=hosted_select('buyers',{'email':email.strip().lower()},limit=1) if hosted_enabled() else df('SELECT id FROM buyers WHERE lower(email)=lower(?)',(email.strip(),))
         bid=int(existing.iloc[0]['id']) if not existing.empty else st.session_state.get('buyer_id',ensure_buyer())
     b=get_buyer(bid); st.success(f"Loaded buyer: {safe(b['name'])} | {safe(b['email'])}")
@@ -1947,9 +3365,13 @@ def buyer_dashboard():
             bio=st.text_area('Bio',value=safe(b['bio']))
             sub=st.form_submit_button('Save buyer profile')
         if sub:
-            core_update('buyers',{'name':name,'email':email.strip().lower(),'phone':phone,'city':city,'state':state,'bio':bio},{'id':bid},'UPDATE buyers SET name=?,email=?,phone=?,city=?,state=?,bio=? WHERE id=?',(name,email,phone,city,state,bio,bid))
+            ok=core_update('buyers',{'name':name,'email':email.strip().lower(),'phone':phone,'city':city,'state':state,'bio':bio},{'id':bid},'UPDATE buyers SET name=?,email=?,phone=?,city=?,state=?,bio=? WHERE id=?',(name,email,phone,city,state,bio,bid))
             st.session_state['buyer_id']=bid
-            st.success('Buyer profile saved to the database.')
+            if ok and get_buyer(bid) is not None:
+                st.success('Buyer profile saved and reloaded.')
+            else:
+                AUTH_STATUS['last_buyer_save_error']=safe(SUPABASE_STATUS.get('last_error'),'Buyer profile save failed.')
+                st.error('Buyer profile did not save. Supabase error: '+AUTH_STATUS['last_buyer_save_error'])
     with tabs[1]: buyer_request_history(bid)
     with tabs[2]: st.dataframe(df('SELECT * FROM orders WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),width='stretch')
     with tabs[3]: st.dataframe(df('SELECT * FROM messages WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),width='stretch')
@@ -1962,14 +3384,40 @@ def buyer_dashboard():
     with tabs[6]: buyer_profile_public(bid)
 
 # ---------- V24 Barcode Lookup + Auto-Fill ----------
-MUSIC_CATEGORIES=['Vinyl Records','CDs','Cassettes']
+MUSIC_CATEGORIES=['Vinyl Records','CDs','Cassettes','Albums','Music Releases']
 NON_MUSIC_PHOTO_REQUIRED=['Clothing','Music Memorabilia','Culture Goods','House Of Wax Merch','Official Drops','Slipmats & Accessories']
 
 def is_music_category(category):
     return safe(category) in MUSIC_CATEGORIES
 
 def normalize_barcode(code):
-    return re.sub(r'[^0-9A-Za-z]', '', safe(code))
+    return re.sub(r'[^0-9]', '', safe(code))
+
+def partial_barcode_ready(code, min_digits=5):
+    return len(normalize_barcode(code)) >= min_digits
+
+def barcode_match_label(result, artist='', title=''):
+    match_type=safe(result.get('_barcode_match_type'))
+    if match_type=='exact':
+        return 'Strong match'
+    if match_type=='partial':
+        details=search_match_details(result,artist,title)
+        if details['artist_matched'] and details['title_matched']:
+            return 'Possible match'
+        return 'Broad match'
+    return match_confidence_label(result,artist,title)
+
+def mark_barcode_results(results, match_type, fragment=''):
+    marked=[]
+    for res in results:
+        item=dict(res)
+        item['_barcode_match_type']=match_type
+        if fragment:
+            item['_barcode_fragment']=fragment
+            if not safe(item.get('barcode')) and match_type=='exact':
+                item['barcode']=normalize_barcode(fragment)
+        marked.append(item)
+    return marked
 
 def seed_listing_media_policy():
     policies=[
@@ -2401,6 +3849,14 @@ def search_match_details(result, artist='', title=''):
     }
 
 def match_confidence_label(result, artist='', title=''):
+    match_type=safe(result.get('_barcode_match_type'))
+    if match_type=='exact':
+        return 'Strong match'
+    if match_type=='partial':
+        details=search_match_details(result,artist,title)
+        if details['artist_matched'] and details['title_matched']:
+            return 'Possible match'
+        return 'Broad match'
     score=int(result.get('_final_score') or result.get('_match_score') or 0)
     details=search_match_details(result,artist,title)
     if details['artist_matched'] and details['title_matched'] and score >= 110:
@@ -2433,7 +3889,7 @@ def match_explanation(result, artist='', title=''):
 
 def use_search_match(result, key_prefix='main'):
     st.session_state['v24_autofill_listing']=result
-    st.session_state['v24_autofill_barcode']=st.session_state.get(f'v24_lookup_barcode_clean_{key_prefix}','')
+    st.session_state['v24_autofill_barcode']=normalize_barcode(result.get('barcode')) or st.session_state.get(f'v24_lookup_barcode_clean_{key_prefix}','')
     try:
         rid=create_or_update_how_release(st.session_state['v24_autofill_barcode'],result)
         st.session_state['v25_release_id']=rid
@@ -2469,7 +3925,7 @@ def render_best_match_card(best, key_prefix='main', ranked=None, artist='', titl
         c1,c2=st.columns([1,2])
         with c1:
             if safe(best.get('image_url')):
-                st.image(safe(best.get('image_url')),width='stretch')
+                safe_image(safe(best.get('image_url')),width='stretch',fallback_text='Search result image unavailable.')
             else:
                 st.info('No image returned.')
         with c2:
@@ -2510,7 +3966,7 @@ def render_best_match_card(best, key_prefix='main', ranked=None, artist='', titl
                 c1,c2=st.columns([1,3])
                 with c1:
                     if safe(item.get('image_url')):
-                        st.image(safe(item.get('image_url')),width='stretch')
+                        safe_image(safe(item.get('image_url')),width='stretch',fallback_text='Search result image unavailable.')
                 with c2:
                     st.write(f"**{i}. {safe(item.get('artist'))} - {safe(item.get('title'))}**")
                     st.caption(f"{safe(item.get('source'))} • {safe(item.get('format'))} • {safe(item.get('release_year'))} • score {safe(item.get('_match_score'))}")
@@ -2900,13 +4356,16 @@ def lookup_barcode_with_diagnostics(barcode):
     if not code:
         diagnostics.append({'Step':'Result','Status':'Stopped','Details':'No barcode was entered.'})
         return [], diagnostics
+    if len(code)<5:
+        diagnostics.append({'Step':'Partial barcode search','Status':'Stopped','Details':'Enter at least 5 digits to search possible partial barcode matches, or use artist/title search or manual entry.'})
+        return [], diagnostics
 
     # 1. House Of Wax internal release database
     try:
         internal=get_best_how_release(code)
         if internal:
             diagnostics.append({'Step':'House Of Wax release database','Status':'Match found','Details':'Using internal House Of Wax release record first.'})
-            return [how_release_to_autofill(internal)], diagnostics
+            return mark_barcode_results([how_release_to_autofill(internal)],'exact',code), diagnostics
         diagnostics.append({'Step':'House Of Wax release database','Status':'No match','Details':'No internal House Of Wax release record exists for this barcode yet.'})
     except Exception as e:
         diagnostics.append({'Step':'House Of Wax release database','Status':'Error','Details':safe(e)})
@@ -2917,14 +4376,14 @@ def lookup_barcode_with_diagnostics(barcode):
         if not cached.empty:
             results=[]
             for _,r in cached.iterrows():
-                res={k:r.get(k,'') for k in ['source','external_id','artist','title','format','label','release_year','country','genre','style','catalog_number','image_url','external_url','raw_summary']}
+                res=cache_row_to_autofill(r)
                 results.append(res)
                 try:
                     create_or_update_how_release(code,res)
                 except Exception:
                     pass
             diagnostics.append({'Step':'Barcode lookup cache','Status':f'{len(results)} cached match(es)','Details':'Using prior lookup results saved by House Of Wax.'})
-            return results, diagnostics
+            return mark_barcode_results(results,'exact',code), diagnostics
         diagnostics.append({'Step':'Barcode lookup cache','Status':'No match','Details':'This barcode has not been cached from a prior lookup.'})
     except Exception as e:
         diagnostics.append({'Step':'Barcode lookup cache','Status':'Error','Details':safe(e)})
@@ -2941,7 +4400,7 @@ def lookup_barcode_with_diagnostics(barcode):
                     except Exception:
                         pass
                 diagnostics.append({'Step':'Discogs','Status':f'{len(discogs_results)} match(es)','Details':'Discogs token is connected and returned results.'})
-                return discogs_results, diagnostics
+                return mark_barcode_results(discogs_results,'exact',code), diagnostics
             diagnostics.append({'Step':'Discogs','Status':'No match','Details':'Discogs token is connected, but no results were returned for this barcode.'})
         except Exception as e:
             diagnostics.append({'Step':'Discogs','Status':'Error','Details':safe(e)})
@@ -2959,12 +4418,25 @@ def lookup_barcode_with_diagnostics(barcode):
                 except Exception:
                     pass
             diagnostics.append({'Step':'MusicBrainz','Status':f'{len(mb_results)} match(es)','Details':'MusicBrainz returned results for this barcode.'})
-            return mb_results, diagnostics
+            return mark_barcode_results(mb_results,'exact',code), diagnostics
         diagnostics.append({'Step':'MusicBrainz','Status':'No match','Details':'MusicBrainz responded, but did not return a release for this barcode.'})
     except Exception as e:
         diagnostics.append({'Step':'MusicBrainz','Status':'Error','Details':safe(e)})
 
-    diagnostics.append({'Step':'Final result','Status':'Manual entry needed','Details':'No source returned a match. Seller can still enter the item manually and House Of Wax can build the database over time.'})
+    # 5. Partial barcode matching against House Of Wax-owned local data only.
+    if len(code)<5:
+        diagnostics.append({'Step':'Partial barcode search','Status':'Skipped','Details':'Enter at least 5 digits to search possible partial barcode matches.'})
+    else:
+        try:
+            partial_results=find_partial_barcode_matches(code)
+            if partial_results:
+                diagnostics.append({'Step':'Partial barcode search','Status':f'{len(partial_results)} possible match(es)','Details':'Possible matches from partial barcode. These are not exact barcode matches; review before using.'})
+                return partial_results, diagnostics
+            diagnostics.append({'Step':'Partial barcode search','Status':'No match','Details':'No House Of Wax cached or internal barcode records contain this fragment.'})
+        except Exception as e:
+            diagnostics.append({'Step':'Partial barcode search','Status':'Error','Details':safe(e)})
+
+    diagnostics.append({'Step':'Final result','Status':'Manual entry needed','Details':'No exact or partial barcode matches found. Try artist/title search or enter the item manually.'})
     return [], diagnostics
 
 def show_barcode_diagnostics(diagnostics):
@@ -2985,18 +4457,18 @@ def lookup_barcode(barcode):
     # First check House Of Wax internal verified/release database.
     internal=get_best_how_release(barcode)
     if internal:
-        return [how_release_to_autofill(internal)]
+        return mark_barcode_results([how_release_to_autofill(internal)],'exact',barcode)
     cached=df("SELECT * FROM barcode_lookup_cache WHERE barcode=? ORDER BY id DESC LIMIT 10",(barcode,))
     results=[]
     if not cached.empty:
         for _,r in cached.iterrows():
-            res={k:r.get(k,'') for k in ['source','external_id','artist','title','format','label','release_year','country','genre','style','catalog_number','image_url','external_url','raw_summary']}
+            res=cache_row_to_autofill(r)
             results.append(res)
             try:
                 create_or_update_how_release(barcode,res)
             except Exception:
                 pass
-        return results
+        return mark_barcode_results(results,'exact',barcode)
     results=lookup_discogs_barcode(barcode)
     if not results:
         results=lookup_musicbrainz_barcode(barcode)
@@ -3006,15 +4478,18 @@ def lookup_barcode(barcode):
             create_or_update_how_release(barcode,res)
         except Exception:
             pass
-    return results
+    if results:
+        return mark_barcode_results(results,'exact',barcode)
+    return find_partial_barcode_matches(barcode)
 
 def render_barcode_lookup_widget(key_prefix='main'):
     seed_listing_media_policy()
     st.markdown('### Barcode / UPC lookup')
     st.write('For records, CDs, and cassettes, scan or type the barcode. House Of Wax checks its own release database first, then outside sources for release information and cover art. For shirts, dolls, memorabilia, merch, and accessories, sellers should use a photo of the exact item or an official product image.')
+    st.caption('Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches.')
     render_source_health_panel(key_prefix)
     c1,c2=st.columns([2,1])
-    barcode=c1.text_input('Scan or enter barcode / UPC',key=f'v24_lookup_barcode_{key_prefix}',placeholder='Click here, then scan with USB/Bluetooth scanner or type manually')
+    barcode=c1.text_input('Scan or enter barcode / UPC',key=f'v24_lookup_barcode_{key_prefix}',placeholder='Click here, scan, or type at least 5-6 digits',help='Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches.')
     lookup_clicked=c2.button('Lookup barcode',key=f'v24_lookup_button_{key_prefix}')
 
     with st.expander('No barcode match? Broad search by artist and album title'):
@@ -3026,6 +4501,8 @@ def render_barcode_lookup_widget(key_prefix='main'):
         code=normalize_barcode(barcode)
         if not code:
             st.error('Enter or scan a barcode first.')
+        elif len(code)<5:
+            st.error('Enter at least 5 digits for partial barcode search, or use artist/title search or manual entry.')
         else:
             with st.spinner('Looking up barcode...'):
                 matches,diagnostics=lookup_barcode_with_diagnostics(code)
@@ -3035,7 +4512,7 @@ def render_barcode_lookup_widget(key_prefix='main'):
                 st.session_state[f'v24_lookup_barcode_clean_{key_prefix}']=code
                 st.success(f'Found {len(matches)} possible match(es). Choose one below to auto-fill the listing draft.')
             else:
-                st.warning('No lookup match found yet. Review diagnostics below, then manually enter the product if needed.')
+                st.warning('No exact or partial barcode matches found. Try artist/title search or enter the item manually.')
 
     if text_search_clicked:
         with st.spinner('Searching Discogs, Apple/iTunes, and MusicBrainz...'):
@@ -3087,34 +4564,51 @@ def render_barcode_lookup_widget(key_prefix='main'):
 
     matches=st.session_state.get(f'v24_barcode_matches_{key_prefix}',[])
     if matches:
-        labels=[f"{i+1}. {safe(m.get('artist'))} - {safe(m.get('title'))} ({safe(m.get('source'))}, {safe(m.get('release_year'))})" for i,m in enumerate(matches)]
+        partial_count=sum(1 for m in matches if safe(m.get('_barcode_match_type'))=='partial')
+        if partial_count:
+            st.markdown('### Possible matches from partial barcode')
+            st.caption('These are possible or broad matches, not exact barcode matches. Review full barcode and release details before using one.')
+        labels=[f"{i+1}. {safe(m.get('artist'))} - {safe(m.get('title'))} ({barcode_match_label(m,current_artist,current_title)}, {safe(m.get('source'))}, {safe(m.get('release_year'))})" for i,m in enumerate(matches)]
         pick=st.selectbox('Possible barcode matches',labels,key=f'v24_match_select_{key_prefix}')
         idx=int(pick.split('.',1)[0])-1
         selected=matches[idx]
         colA,colB=st.columns([1,2])
         with colA:
             if safe(selected.get('image_url')):
-                st.image(safe(selected.get('image_url')),width='stretch')
+                safe_image(safe(selected.get('image_url')),width='stretch',fallback_text='Release image unavailable.')
             else:
                 st.info('No image returned.')
         with colB:
+            st.write(f"**Match type:** {barcode_match_label(selected,current_artist,current_title)}")
+            st.write(f"**Full barcode:** {safe(selected.get('barcode'),'Not listed')}")
             st.write(f"**Artist:** {safe(selected.get('artist'))}")
             st.write(f"**Title:** {safe(selected.get('title'))}")
             st.write(f"**Format:** {safe(selected.get('format'))}")
             st.write(f"**Label:** {safe(selected.get('label'))}")
             st.write(f"**Year:** {safe(selected.get('release_year'))}")
+            st.write(f"**Country:** {safe(selected.get('country'),'Not listed')}")
+            st.write(f"**Catalog number:** {safe(selected.get('catalog_number'),'Not listed')}")
             st.write(f"**Source:** {safe(selected.get('source'))}")
             if safe(selected.get('external_url')):
                 st.write(f"External release URL: {safe(selected.get('external_url'))}")
-        if st.button('Use this match to auto-fill listing draft',key=f'v24_use_match_{key_prefix}'):
+        a,b,c=st.columns(3)
+        if a.button('Use this release',key=f'v24_use_match_{key_prefix}'):
             st.session_state['v24_autofill_listing']=selected
-            st.session_state['v24_autofill_barcode']=st.session_state.get(f'v24_lookup_barcode_clean_{key_prefix}',normalize_barcode(barcode))
+            st.session_state['v24_autofill_barcode']=normalize_barcode(selected.get('barcode')) or st.session_state.get(f'v24_lookup_barcode_clean_{key_prefix}',normalize_barcode(barcode))
             try:
                 rid=create_or_update_how_release(st.session_state['v24_autofill_barcode'],selected)
                 st.session_state['v25_release_id']=rid
             except Exception:
                 pass
             st.success('Listing draft filled and saved to the House Of Wax release database. Scroll to the Add Product form and review before saving.')
+        if b.button('None of these - search another way',key=f'v42_none_of_these_{key_prefix}'):
+            st.session_state[f'v24_barcode_matches_{key_prefix}']=[]
+            st.info('Use artist/title search above or try a longer barcode fragment.')
+            st.rerun()
+        if c.button('Enter manually',key=f'v42_enter_manually_{key_prefix}'):
+            st.session_state['v24_autofill_listing']={}
+            st.session_state['v24_autofill_barcode']=normalize_barcode(barcode)
+            st.info('Scroll to Add Inventory and enter the item details manually.')
 
 def v24_listing_defaults():
     selected=st.session_state.get('v24_autofill_listing',{})
@@ -3205,6 +4699,7 @@ def how_release_to_autofill(release):
     return {
         'source':'House Of Wax',
         'external_id':safe(release.get('id')),
+        'barcode':normalize_barcode(release.get('barcode')),
         'artist':safe(release.get('artist')),
         'title':safe(release.get('title')),
         'format':safe(release.get('format')),
@@ -3218,6 +4713,39 @@ def how_release_to_autofill(release):
         'external_url':safe(release.get('external_release_url')),
         'raw_summary':'House Of Wax internal release database match'
     }
+
+def cache_row_to_autofill(row):
+    return {k:row.get(k,'') for k in ['barcode','source','external_id','artist','title','format','label','release_year','country','genre','style','catalog_number','image_url','external_url','raw_summary']}
+
+def find_partial_barcode_matches(fragment, limit=12):
+    code=normalize_barcode(fragment)
+    if len(code)<5:
+        return []
+    results=[]
+    seen=set()
+    releases=df("""SELECT * FROM how_releases
+        WHERE barcode LIKE ?
+        ORDER BY source_confidence DESC, id DESC
+        LIMIT ?""",(f'%{code}%',int(limit)))
+    for _,release in releases.iterrows():
+        res=how_release_to_autofill(release.to_dict())
+        key=('how',normalize_barcode(res.get('barcode')),safe(res.get('artist')).lower(),safe(res.get('title')).lower())
+        if key not in seen:
+            seen.add(key)
+            results.append(res)
+    remaining=max(int(limit)-len(results),0)
+    if remaining:
+        cached=df("""SELECT * FROM barcode_lookup_cache
+            WHERE barcode LIKE ?
+            ORDER BY id DESC
+            LIMIT ?""",(f'%{code}%',remaining))
+        for _,row in cached.iterrows():
+            res=cache_row_to_autofill(row)
+            key=('cache',normalize_barcode(res.get('barcode')),safe(res.get('source')).lower(),safe(res.get('external_id')).lower(),safe(res.get('artist')).lower(),safe(res.get('title')).lower())
+            if key not in seen:
+                seen.add(key)
+                results.append(res)
+    return mark_barcode_results(results,'partial',code)
 
 def submit_release_correction(release_id, seller_id, field_name, old_value, suggested_value, note):
     run("""INSERT INTO how_release_corrections(release_id,seller_id,field_name,old_value,suggested_value,correction_note,status,created_at) VALUES(?,?,?,?,?,?,?,?)""",
@@ -3269,62 +4797,46 @@ def release_database_admin():
         st.dataframe(corrections,width='stretch')
 
 def listing_quality_assessment(category='', artist='', title='', price=0, description='', mg='', sg='', image='', has_uploaded_photo=False, smart_confidence=''):
-    music=is_music_category(category)
     try:
         priced=float(price or 0)>0
     except Exception:
         priced=False
-    media_ok=bool(safe(mg)) and safe(mg)!='N/A'
-    sleeve_ok=bool(safe(sg)) and safe(sg)!='N/A'
-    condition_ok=media_ok or sleeve_ok
-    search_or_seller_photo=bool(safe(image)) or bool(has_uploaded_photo)
-    seller_photo_ok=bool(has_uploaded_photo)
+    condition_ok=(bool(safe(mg)) and safe(mg)!='N/A') or (bool(safe(sg)) and safe(sg)!='N/A')
     checks=[
-        ('Title present',bool(safe(title)),12),
-        ('Artist / brand present',bool(safe(artist)),10),
-        ('Category present',bool(safe(category)),10),
-        ('Price present',priced,10),
-        ('Description present',bool(safe(description)),12),
-        ('Condition present',condition_ok,12),
-        ('Photos present',search_or_seller_photo,8),
-        ('Seller-uploaded photos present',seller_photo_ok,8),
+        ('Category selected',bool(safe(category)),1),
+        ('Artist / brand added',bool(safe(artist)),1),
+        ('Title added',bool(safe(title)),1),
+        ('Price added',priced,1),
+        ('Quantity added',True,1),
+        ('Condition selected',condition_ok,1),
+        ('Photo added',bool(safe(image)) or bool(has_uploaded_photo),1),
+        ('Seller notes added, optional',bool(safe(description)),0),
     ]
-    if music:
-        checks.extend([
-            ('Media condition present',media_ok,8),
-            ('Sleeve / case condition present',sleeve_ok,6),
-            ('Release cover art may come from search/database',bool(safe(image)),4),
-            ('Real condition photos are preferred',seller_photo_ok,6),
-        ])
-    else:
-        checks.extend([
-            ('Exact item photos are preferred',seller_photo_ok,12),
-            ('Official/product images should only support exact item photos',search_or_seller_photo,4),
-        ])
-    if safe(smart_confidence):
-        checks.append((f'Smart Search confidence: {safe(smart_confidence)}',safe(smart_confidence) in ['Strong','Medium'],4))
-    possible=sum(weight for _,_,weight in checks)
-    earned=sum(weight for _,ok,weight in checks if ok)
+    possible=sum(weight for _,_,weight in checks if weight)
+    earned=sum(weight for _,ok,weight in checks if ok and weight)
     score=int(round((earned / possible) * 100)) if possible else 0
-    if score>=80:
-        label='Strong listing'
-    elif score>=55:
-        label='Needs improvement'
+    if earned>=possible:
+        label='Ready to submit'
+    elif earned>=max(possible-2,1):
+        label='Almost ready'
     else:
-        label='Weak listing'
+        label='Needs basics'
     return score,label,checks
 
 def render_listing_quality(score, label, checks, context='seller'):
-    st.metric('Listing Quality Score',f'{score}/100',label)
-    if label=='Weak listing':
-        st.warning('This listing is missing important trust details. You can save it, but review the checklist before submitting.')
-    elif label=='Needs improvement':
-        st.info('This listing can be improved before review.')
+    st.markdown('#### Listing readiness checklist')
+    if context=='admin':
+        st.caption(f'Readiness: {label} ({score}/100). This is a practical completeness check, not a grade of the seller writing.')
     else:
-        st.success('This listing has strong trust signals.')
-    with st.expander('Listing quality checklist',expanded=(context=='admin')):
-        for text,ok,_ in checks:
-            st.write(('✓ ' if ok else '• Missing: ')+text)
+        st.caption('This is a simple checklist for the basics. It does not grade how you write.')
+    with st.expander('Listing readiness checklist',expanded=(context!='seller')):
+        for text,ok,weight in checks:
+            prefix='✓ ' if ok else ('• Optional: ' if not weight else '• Add: ')
+            st.write(prefix+text)
+    if label=='Ready to submit':
+        st.success('Ready to submit.')
+    elif context=='admin':
+        st.info('Review the missing basics before approving.')
 
 def listing_preview_card(category, artist, title, fmt, label, year, genre, mg, sg, price, qty, ship, image, description, has_uploaded_photo=False, smart_confidence='', quality_context='seller', photo_previews=None):
     st.markdown('#### Listing preview')
@@ -3334,10 +4846,10 @@ def listing_preview_card(category, artist, title, fmt, label, year, genre, mg, s
         with c1:
             if photo_previews:
                 st.caption(photo_previews[0][0])
-                st.image(photo_previews[0][1],width='stretch')
+                safe_image(photo_previews[0][1],width='stretch',fallback_text='Preview image unavailable.')
             elif safe(image):
                 st.caption('Search/database image or supporting product image')
-                st.image(safe(image),width='stretch')
+                safe_image(safe(image),width='stretch',fallback_text='Preview image unavailable.')
             else:
                 st.info('No image selected yet.')
             if len(photo_previews)>1:
@@ -3345,7 +4857,7 @@ def listing_preview_card(category, artist, title, fmt, label, year, genre, mg, s
                 cols=st.columns(2)
                 for i,(caption,img) in enumerate(photo_previews[1:5]):
                     with cols[i%2]:
-                        st.image(img,caption=caption,width='stretch')
+                        safe_image(img,caption=caption,width='stretch',fallback_text='Preview image unavailable.')
         with c2:
             heading=' - '.join([p for p in [safe(artist),safe(title)] if p]) or 'Untitled listing'
             st.subheader(heading)
@@ -3363,63 +4875,81 @@ def listing_preview_card(category, artist, title, fmt, label, year, genre, mg, s
 
 def upload_product(sid,key):
     defaults=v24_listing_defaults()
-    st.markdown('### Guided product upload')
-    st.write('Work through each step, confirm any House Of Wax search data, add seller-specific details, then review the preview before submitting.')
-    st.caption('Need help with condition, photos, or marketplace standards? Open Knowledge Center / Education Hub from My House of Wax or the public Knowledge Hub.')
+    seller=get_seller(int(sid))
+    seller_status=normalize_seller_status(seller.get('status') if seller is not None else '')
+    is_approved=seller_can_publish(seller)
+    rules_ok=seller_rules_accepted(seller)
+    can_publish=seller_can_publish_live(seller)
+    st.markdown('### Add Inventory')
+    st.write('Create one item at a time. You can save as draft, or publish directly once your seller account is approved and seller rules are accepted.')
+    seller_status_notice(seller)
     listing_status_help()
     if defaults:
         source_bits=[v for v in [defaults.get('artist'),defaults.get('title'),defaults.get('label'),defaults.get('release_year')] if safe(v)]
         if source_bits:
             st.info('House Of Wax search/database fields are prefilled below. Review them before submitting.')
     with st.form(key):
-        st.markdown('#### Step 1: Search item')
-        st.caption('Use the Smart Search area above for records, CDs, cassettes, and known music releases. You can also enter details manually here.')
+        st.markdown('#### Step 1: Find the item')
+        st.caption('Search by barcode, artist/title, or item name. If this is a record, CD, or cassette, House Of Wax will try to find the album information for you.')
         c1,c2,c3=st.columns(3)
-        barcode=c1.text_input('Barcode / UPC / EAN - from House Of Wax search or manual',value=defaults.get('barcode',''))
-        catalog=c2.text_input('Catalog number - from House Of Wax search or manual',value=defaults.get('catalog_number',''))
-        matrix=c3.text_input('Matrix / runout - seller provides when visible')
+        barcode=c1.text_input('Barcode / UPC / EAN - optional search field',value=defaults.get('barcode',''),help='Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches.')
+        catalog=c2.text_input('Catalog number - auto-filled if found',value=defaults.get('catalog_number',''))
+        matrix=c3.text_input('Matrix / runout - optional')
 
-        st.markdown('#### Step 2: Confirm match')
-        st.caption('These release/product identity fields may come from House Of Wax search/database. Correct anything that does not match the item.')
+        st.markdown('#### Step 2: Confirm item details')
+        st.caption('Check the artist, title, format, label, year, and category. These may be filled automatically if the item is found.')
         c4,c5,c6=st.columns(3)
-        category=c4.selectbox('Category',['Vinyl Records','CDs','Cassettes','Clothing','Music Memorabilia','Culture Goods','House Of Wax Merch','Official Drops','Slipmats & Accessories'])
-        artist=c5.text_input('Artist / Brand - search/database or seller corrected',value=defaults.get('artist',''))
-        title=c6.text_input('Title / Product - search/database or seller corrected',value=defaults.get('title',''))
+        category=c4.selectbox('Category - required',['Vinyl Records','CDs','Cassettes','Albums','Music Releases','Clothing','Music Memorabilia','Culture Goods','House Of Wax Merch','Official Drops','Slipmats & Accessories'])
+        artist=c5.text_input('Artist / Brand - usually auto-filled',value=defaults.get('artist',''),help='Usually filled automatically after search.')
+        title=c6.text_input('Title / Product - required',value=defaults.get('title',''),help='Usually filled automatically after search.')
         c7,c8,c9=st.columns(3)
         fmt_default=defaults.get('format','') or ('Vinyl' if category=='Vinyl Records' else '')
-        fmt=c7.text_input('Format - search/database or seller corrected',value=fmt_default)
-        label=c8.text_input('Label / Brand - search/database or seller corrected',value=defaults.get('label',''))
-        year=c9.text_input('Release year - search/database or seller corrected',value=defaults.get('release_year',''))
-        genre=st.text_input('Genre / style - search/database or seller corrected',value=defaults.get('genre',''))
-        external_release_url=st.text_input('External release URL - from House Of Wax search/database',value=defaults.get('external_url',''))
+        fmt=c7.text_input('Format - auto-filled if found',value=fmt_default,help='Filled automatically if found.')
+        label=c8.text_input('Label / Brand - auto-filled if found',value=defaults.get('label',''),help='Filled automatically if found.')
+        year=c9.text_input('Release year - auto-filled if found',value=defaults.get('release_year',''),help='Filled automatically if found.')
+        genre=st.text_input('Genre / style - auto-filled if found',value=defaults.get('genre',''))
+        external_release_url=st.text_input('External release URL - optional',value=defaults.get('external_url',''))
 
-        st.markdown('#### Step 3: Add seller details')
-        st.caption('Seller-provided fields describe your actual item, price, quantity, and condition.')
-        sku=st.text_input('SKU - seller provides')
+        st.markdown('#### Step 3: Add your selling details')
+        st.caption('Now add the details that are specific to the copy you are selling.')
+        sku=st.text_input('SKU - optional')
         if is_music_category(category):
-            st.info('Music item guidance: condition should include media condition and sleeve/case condition when relevant.')
+            st.info('For most music listings, the album cover image is enough to get started. Your own photos are optional.')
         else:
-            st.info('Non-music item guidance: describe the exact item, size, defects, packaging, and whether it is new or used.')
+            st.info('For unique or non-music items, adding your own photo is recommended.')
         c10,c11=st.columns(2)
-        mg=c10.selectbox('Media/product grade - seller provides',['Mint','Near Mint','VG+','VG','Good','Used','New','N/A'])
-        sg=c11.selectbox('Sleeve/packaging grade - seller provides',['Mint','Near Mint','VG+','VG','Good','Used','New','N/A'])
-        notes=st.text_area('Condition notes - seller provides')
-        desc=st.text_area('Description - seller provides or edits')
+        mg=c10.selectbox('Condition - required',['Mint','Near Mint','VG+','VG','Good','Used','New','N/A'],help='Tell buyers the condition of the copy you are selling.')
+        sg=c11.selectbox('Sleeve/packaging condition - optional',['Mint','Near Mint','VG+','VG','Good','Used','New','N/A'])
+        notes=st.text_area('Seller notes - optional',help='Optional. Add anything buyers should know.')
+        desc=st.text_area('Extra description - optional',help='Optional. Add anything buyers should know.')
         c10,c11,c12=st.columns(3)
-        price=c10.number_input('Price',min_value=0.0,step=.01)
-        qty=c11.number_input('Quantity',min_value=1,value=1)
-        ship=c12.number_input('Shipping price',min_value=0.0,step=.01)
+        price_text=c10.text_input('Price - required',help='Type your asking price. Examples: 10, 10.00, or $10.00.',placeholder='10.00')
+        qty_text=c11.text_input('Quantity - required',value='1',help='Type the number of copies/items you have.')
+        ship_text=c12.text_input('Shipping price - optional',help='Type shipping price if needed. Examples: 5, 5.00, or $5.00.',placeholder='0.00')
+        price,price_error=parse_money_input(price_text,'Price')
+        qty,qty_error=parse_quantity_input(qty_text)
+        ship,ship_error=parse_money_input(ship_text,'Shipping price')
+        if price_error:
+            st.warning(price_error)
+        if qty_error:
+            st.warning(qty_error)
+        if ship_error:
+            st.warning(ship_error)
 
-        st.markdown('#### Step 4: Add photos')
+        st.markdown('#### Step 4: Photos')
         st.caption('Prototype storage: uploaded images are saved locally under house_of_wax_uploads/product_images. Production launch should use hosted storage.')
         if is_music_category(category):
-            st.info('Music item: cover art from search/database can be used as reference. Add real condition photos when possible, including media, sleeve/case, labels, and any damage.')
+            st.info('For most music listings, the album cover image is enough to get started. You can add your own photos if you want.')
         else:
-            st.warning('Non-music item: exact item photos are required/preferred. Official/product images are only supporting images.')
-        main_img=st.file_uploader('Main listing photo - seller uploaded exact item photo',type=['png','jpg','jpeg','webp'],key=f'main_photo_{key}')
-        supporting_imgs=st.file_uploader('Supporting photos - extra angles or official/product images',type=['png','jpg','jpeg','webp'],accept_multiple_files=True,key=f'supporting_photos_{key}')
-        condition_imgs=st.file_uploader('Condition photos - media, sleeve/case, labels, damage',type=['png','jpg','jpeg','webp'],accept_multiple_files=True,key=f'condition_photos_{key}')
-        imgurl=st.text_input('Search/database image URL - cover art or supporting official image',value=defaults.get('image_url',''))
+            st.warning('For unique or non-music items, adding your own photo is recommended.')
+        imgurl=st.text_input('Album cover / product image URL - auto-filled if found',value=defaults.get('image_url',''),help='Album cover may be added automatically. Your own photos are optional for music items.')
+        if is_music_category(category) and safe(imgurl):
+            st.success('Album cover image found automatically.')
+        elif is_music_category(category):
+            st.info('No cover image found. You can still save the listing.')
+        main_img=st.file_uploader('Your own main photo - optional for music',type=['png','jpg','jpeg','webp'],key=f'main_photo_{key}')
+        supporting_imgs=st.file_uploader('Extra photos - optional',type=['png','jpg','jpeg','webp'],accept_multiple_files=True,key=f'supporting_photos_{key}')
+        condition_imgs=st.file_uploader('Condition photos - optional',type=['png','jpg','jpeg','webp'],accept_multiple_files=True,key=f'condition_photos_{key}')
         uploaded_previews=[]
         if main_img is not None:
             uploaded_previews.append(('Main listing photo',main_img))
@@ -3429,9 +4959,12 @@ def upload_product(sid,key):
             uploaded_previews.append((f'Condition photo {i}',up))
         has_uploaded_photos=bool(uploaded_previews)
         if not has_uploaded_photos:
-            st.warning('No seller-uploaded photos are present. You can save the listing, but real item/condition photos improve trust.')
+            if is_music_category(category):
+                st.info('No seller-uploaded photo needed for standard music listings. The album cover can be used when available.')
+            else:
+                st.info('No seller-uploaded photo yet. You can still save, but adding your own photo is recommended for unique or non-music items.')
 
-        st.markdown('#### Step 5: Preview listing')
+        st.markdown('#### Preview')
         preview_description=desc or f'{artist} - {title}. {notes}'
         search_key='upload_product' if key=='normal_upload' else key
         smart_match=st.session_state.get(f'v25_best_match_{search_key}',{})
@@ -3439,11 +4972,19 @@ def upload_product(sid,key):
         preview_image=main_img if main_img is not None else imgurl
         listing_preview_card(category,artist,title,fmt,label,year,genre,mg,sg,price,qty,ship,preview_image,preview_description,has_uploaded_photos,smart_confidence,'seller',uploaded_previews)
 
-        st.markdown('#### Step 6: Submit listing')
-        st.caption('Save as Draft if the listing is not ready. Submit for Review when it is ready for House Of Wax to check before it goes public.')
+        st.markdown('#### Step 5: Save or publish')
+        st.caption('Save as Draft if you are not ready. Approved sellers can Publish to My Store after accepting House Of Wax seller rules.')
+        st.info('Before publishing, confirm the item details, condition, price, and seller notes are accurate. You are responsible for your listing under House Of Wax rules.')
+        if not is_approved:
+            if seller_status=='Suspended Seller':
+                st.error('Your seller account is suspended. Contact House Of Wax for review.')
+            else:
+                st.warning('Your seller account must be approved before you can publish listings.')
+        elif not rules_ok:
+            st.warning('Accept seller rules before publishing.')
         c13,c14=st.columns(2)
         save_draft=c13.form_submit_button('Save as Draft')
-        submit_review=c14.form_submit_button('Submit for Review')
+        publish_listing=c14.form_submit_button('Publish to My Store')
     release_id=st.session_state.get('v25_release_id')
     if release_id:
         with st.expander('Suggest a correction to the House Of Wax release database'):
@@ -3455,13 +4996,25 @@ def upload_product(sid,key):
                 old_val=defaults.get(field_name,'')
                 submit_release_correction(int(release_id),sid,field_name,old_val,suggested,note)
                 st.success('Correction submitted for review.')
-    if save_draft or submit_review:
+    if save_draft or publish_listing:
+        if not safe(price_text):
+            st.error('Price is required. Type your asking price, like 10, 10.00, or $10.00.')
+            return
+        if price_error or qty_error or ship_error:
+            st.error('Fix the price, quantity, or shipping field before saving.')
+            return
+        if publish_listing and not is_approved:
+            st.error('Your seller account must be approved before you can publish listings.')
+            return
+        if publish_listing and not rules_ok:
+            st.error('Accept seller rules before publishing.')
+            return
         saved_main=save_file(main_img,'product_images')
         saved_supporting=save_files(supporting_imgs,'product_images')
         saved_condition=save_files(condition_imgs,'product_images')
         image=saved_main or imgurl
         description=desc or f'{artist} — {title}. {notes}'
-        listing_status='Submitted for Review' if submit_review else 'Draft'
+        listing_status='Live' if publish_listing else 'Draft'
         has_saved_seller_photos=bool(saved_main or saved_supporting or saved_condition)
         score,quality_label,_=listing_quality_assessment(category,artist,title,price,description,mg,sg,image,has_saved_seller_photos,smart_confidence)
         product_data={'seller_id':int(sid),'sku':sku,'barcode':barcode,'catalog_number':catalog,'matrix_runout':matrix,'category':category,'artist':artist,'title':title,'format':fmt,'label':label,'release_year':year,'genre':genre,'media_grade':mg,'sleeve_grade':sg,'condition_notes':notes,'description':description,'price':float(price),'quantity':int(qty),'shipping_price':float(ship),'image_url':image,'video_url':'','audio_url':'','external_release_url':external_release_url,'listing_status':listing_status,'listing_type':'Fixed Price','created_at':now(),'updated_at':now()}
@@ -3473,16 +5026,76 @@ def upload_product(sid,key):
             core_insert('product_gallery',{'product_id':int(pid),'image_url':path,'caption':f'Supporting photo {i}','created_at':now()},'INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),path,f'Supporting photo {i}',now()))
         for i,path in enumerate(saved_condition,1):
             core_insert('product_gallery',{'product_id':int(pid),'image_url':path,'caption':f'Condition photo {i}','created_at':now()},'INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),path,f'Condition photo {i}',now()))
-        if submit_review and quality_label=='Weak listing':
-            st.warning(f'Submitted for review with a weak quality score ({score}/100). House Of Wax may request changes.')
+        if listing_status=='Live':
+            st.success('Published. This item is now live in your store.')
         if is_music_category(category) and imgurl and not has_saved_seller_photos:
-            st.success(f'Listing saved as {listing_status} using barcode/release image.')
+            st.success(f'Inventory saved as {listing_status} using the album cover image.')
+        elif is_music_category(category) and not image:
+            st.info(f'Inventory saved as {listing_status}. No cover image found, and no personal photo is required to save.')
         elif not is_music_category(category) and not image:
             st.warning(f'Listing saved as {listing_status}, but this non-music item should have an exact item or official product image before review.')
         elif not has_saved_seller_photos:
-            st.warning(f'Listing saved as {listing_status}, but no seller-uploaded photos were added.')
+            st.info(f'Inventory saved as {listing_status}. You can add optional photos later.')
         else:
-            st.success(f'Listing saved as {listing_status}.')
+            st.success(f'Inventory saved as {listing_status}.')
+        st.session_state['last_saved_listing_id']=int(pid or 0)
+        st.session_state['last_saved_listing_seller_id']=int(sid)
+        st.session_state['last_saved_listing_status']=listing_status
+        st.session_state['pending_seller_tools_primary_section']='My Inventory'
+        st.success('Inventory saved.')
+        st.success('Saved. You can find this item in My Inventory.')
+        c_view,c_market,c_add=st.columns(3)
+        if c_view.button('View in My Inventory',key=f'view_inventory_after_save_{key}_{int(pid or 0)}'):
+            st.session_state['pending_seller_tools_primary_section']='My Inventory'
+            st.rerun()
+        if listing_status=='Live' and c_market.button('View in Marketplace',key=f'view_marketplace_after_save_{key}_{int(pid or 0)}'):
+            st.session_state['product_id']=int(pid or 0)
+            product_detail(int(pid or 0))
+        elif listing_status=='Draft':
+            c_market.info('Publish to show this item in Marketplace.')
+        if c_add.button('Add Another Item',key=f'add_another_after_save_{key}_{int(pid or 0)}'):
+            st.session_state['pending_seller_tools_primary_section']='Add Inventory'
+            st.rerun()
+        if listing_status=='Draft':
+            c_publish=st.columns(1)[0]
+            if can_publish and c_publish.button('Publish to My Store',key=f'publish_after_save_{key}_{int(pid or 0)}'):
+                core_update('products',{'listing_status':'Live','updated_at':now()},{'id':int(pid),'seller_id':int(sid)},'UPDATE products SET listing_status=?,updated_at=? WHERE id=? AND seller_id=?',('Live',now(),int(pid),int(sid)))
+                st.success('Published. This item is now live in your store.')
+                st.session_state['pending_seller_tools_primary_section']='My Inventory'
+                st.rerun()
+            elif not is_approved:
+                c_publish.info('Seller approval required before publishing.')
+            elif not rules_ok:
+                c_publish.info('Accept seller rules before publishing.')
+    last_id=int(st.session_state.get('last_saved_listing_id') or 0)
+    last_sid=int(st.session_state.get('last_saved_listing_seller_id') or 0)
+    if last_id and last_sid==int(sid):
+        last_row=hosted_select('products',{'id':last_id,'seller_id':int(sid)},limit=1) if hosted_enabled() else df('SELECT * FROM products WHERE id=? AND seller_id=?',(last_id,int(sid)))
+        if not last_row.empty:
+            current_status=safe(last_row.iloc[0].get('listing_status'))
+            with st.container(border=True):
+                st.write(f"**Last saved item:** {safe(last_row.iloc[0].get('artist'))} - {safe(last_row.iloc[0].get('title'))}")
+                st.write(f"**Status:** {current_status}")
+                a,b,c=st.columns(3)
+                if current_status=='Live' and a.button('View in Marketplace',key=f'persistent_view_marketplace_{last_id}'):
+                    st.session_state['product_id']=last_id
+                    product_detail(last_id)
+                elif current_status!='Live':
+                    a.info('Publish to show this item in Marketplace.')
+                if current_status=='Draft':
+                    if can_publish and b.button('Publish to My Store',key=f'persistent_publish_listing_{last_id}'):
+                        core_update('products',{'listing_status':'Live','updated_at':now()},{'id':last_id,'seller_id':int(sid)},'UPDATE products SET listing_status=?,updated_at=? WHERE id=? AND seller_id=?',('Live',now(),last_id,int(sid)))
+                        st.success('Published. This item is now live in your store.')
+                        st.rerun()
+                    elif not is_approved:
+                        b.info('Seller approval required before publishing.')
+                    elif not rules_ok:
+                        b.info('Accept seller rules before publishing.')
+                if c.button('Clear last saved item',key=f'clear_last_saved_listing_{last_id}'):
+                    st.session_state.pop('last_saved_listing_id',None)
+                    st.session_state.pop('last_saved_listing_seller_id',None)
+                    st.session_state.pop('last_saved_listing_status',None)
+                    st.rerun()
 
 def seller_inquiry_view(sid):
     st.subheader('Buyer inquiries')
@@ -3634,22 +5247,22 @@ def admin_purchase_request_view():
 def seller_inventory_visibility_summary(sid):
     listings=hosted_select('products',{'seller_id':int(sid)},order='created_at.desc') if hosted_enabled() else df('SELECT * FROM products WHERE seller_id=? ORDER BY created_at DESC',(sid,))
     st.subheader('Inventory and store visibility')
-    st.info('Add inventory in the Add Inventory / Upload Product tab. This is where sellers add items they want to list. Saved drafts and submitted listings stay private until House Of Wax approves them. Your public store/profile may only show public approved listings.')
+    st.info('Add inventory in the Add Inventory / Upload Product tab. Approved sellers can publish listings directly to their store. Draft, Hidden, Under Review, and Removed listings are not public.')
     counts=listings['listing_status'].fillna('Blank').value_counts().to_dict() if not listings.empty else {}
     c1,c2,c3,c4=st.columns(4)
     c1.metric('Total listings',len(listings))
-    c2.metric('Public/approved',sum(int(counts.get(s,0)) for s in PUBLIC_LISTING_STATUSES))
-    c3.metric('Draft/review',sum(int(counts.get(s,0)) for s in ['Draft','Submitted for Review','Needs Changes','Rejected']))
+    c2.metric('Live/public',sum(int(counts.get(s,0)) for s in PUBLIC_LISTING_STATUSES))
+    c3.metric('Private/moderation',sum(int(counts.get(s,0)) for s in ['Draft','Hidden','Reported','Under Review','Removed by House Of Wax','Submitted for Review','Needs Changes','Rejected']))
     c4.metric('Pending/sold',sum(int(counts.get(s,0)) for s in UNAVAILABLE_LISTING_STATUSES))
     if listings.empty:
         st.warning('No listings are connected to this seller profile yet. Open Add Inventory / Upload Product to create the first listing.')
         return listings
     st.caption('These listings are connected to the currently loaded seller profile by seller ID.')
-    visible=listings[listings['listing_status'].isin(PUBLIC_LISTING_STATUSES+UNAVAILABLE_LISTING_STATUSES)]
+    visible=listings[listings['listing_status'].isin(public_listing_query_statuses())]
     if visible.empty:
-        st.warning('This seller profile exists, but buyers will not clearly see its inventory yet because no listings are Approved/Public/Active, Pending, or Sold.')
+        st.warning('This seller profile exists, but buyers will not clearly see its inventory yet because no listings are Live/Public/Active, Pending, or Sold.')
     else:
-        st.success('This seller has listings that can appear publicly. Buyer action buttons only show on Approved/Public/Active available listings.')
+        st.success('This seller has listings that can appear publicly. Buyer action buttons only show on Live/Public/Active available listings.')
     preview_cols=[c for c in ['id','artist','title','category','price','quantity','listing_status','reviewer_notes','created_at','updated_at'] if c in listings.columns]
     st.dataframe(listings[preview_cols],width='stretch')
     return listings
@@ -3657,16 +5270,16 @@ def seller_inventory_visibility_summary(sid):
 def seller_store_profile_editor(sid, s, key_prefix='seller_profile'):
     st.subheader('My Store / Seller Profile')
     st.write('These saved details help buyers understand who they are buying from. Private email and phone are not shown publicly.')
-    st.caption('My Store Preview: this profile remains saved even when there are no public listings. Public buyers may only see approved/public listings.')
+    st.caption('My Store Preview: this profile remains saved even when there are no public listings. Public buyers may only see live/public listings.')
     render_seller_trust_badges(sid,'seller')
-    public_count=len(df("SELECT id FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved','Public')",(sid,)))
+    public_count=len(df("SELECT id FROM products WHERE seller_id=? AND listing_status IN ('Live','Active','Approved','Public')",(sid,)))
     unavailable_count=len(df("SELECT id FROM products WHERE seller_id=? AND listing_status IN ('Pending Pickup/Payment','Pending','Sold')",(sid,)))
     if public_count:
-        st.success(f'My Store Preview is ready: {public_count} available public listing(s) can lead buyers to this seller profile.')
+        st.success(f'My Store Preview is ready: {public_count} live/public listing(s) can lead buyers to this seller profile.')
     elif unavailable_count:
-        st.warning('Your store profile is saved. It has pending/sold public-status examples, but no available Approved/Public/Active listings with buyer action buttons.')
+        st.warning('Your store profile is saved. It has pending/sold examples, but no available Live/Public/Active listings with buyer action buttons.')
     else:
-        st.warning('Your store profile is saved. Add inventory and submit listings for review before buyers can see them.')
+        st.warning('Your store profile is saved. Add inventory and publish live listings before buyers can see public inventory.')
     with st.form(f'seller_profile_form_{key_prefix}'):
         store=st.text_input('Seller/display name',value=safe(s['store_name']))
         city=st.text_input('City',value=safe(s.get('city')))
@@ -3681,34 +5294,130 @@ def seller_store_profile_editor(sid, s, key_prefix='seller_profile'):
         banner_url=st.text_input('Banner URL/path',value=safe(s['banner_url']))
         sub=st.form_submit_button('Save profile')
     if sub:
-        data={'store_name':store,'city':city,'state':state,'store_bio':bio,'seller_story':story,'specialties':spec,'contact_preference':contact_pref,'logo_url':save_file(logo,'seller_logos') or logo_url,'banner_url':save_file(banner,'seller_banners') or banner_url,'status':'Approved','seller_level':'Verified Seller','auction_override':'Yes'}
-        core_update('sellers',data,{'id':sid},"UPDATE sellers SET store_name=?,city=?,state=?,store_bio=?,seller_story=?,specialties=?,contact_preference=?,logo_url=?,banner_url=?,status='Approved',seller_level='Verified Seller',auction_override='Yes' WHERE id=?",(store,city,state,bio,story,spec,contact_pref,data['logo_url'],data['banner_url'],sid))
-        st.success('Seller profile saved to the database.')
+        data={'store_name':store,'city':city,'state':state,'store_bio':bio,'seller_story':story,'specialties':spec,'contact_preference':contact_pref,'logo_url':save_file(logo,'seller_logos') or logo_url,'banner_url':save_file(banner,'seller_banners') or banner_url,'seller_level':safe(s.get('seller_level'),'Verified Seller'),'auction_override':'Yes'}
+        AUTH_STATUS['last_seller_save_error']=''
+        ok=core_update('sellers',data,{'id':sid},"UPDATE sellers SET store_name=?,city=?,state=?,store_bio=?,seller_story=?,specialties=?,contact_preference=?,logo_url=?,banner_url=?,seller_level=?,auction_override='Yes' WHERE id=?",(store,city,state,bio,story,spec,contact_pref,data['logo_url'],data['banner_url'],data['seller_level'],sid))
+        reloaded=get_seller(sid)
+        if ok and reloaded is not None:
+            st.success('Seller profile saved and reloaded.')
+            st.write(f"Saved store: {safe(reloaded.get('store_name'))} | {safe(reloaded.get('email'))}")
+        else:
+            AUTH_STATUS['last_seller_save_error']=safe(SUPABASE_STATUS.get('last_error'),'Seller profile save failed.')
+            st.error('Seller profile did not save. Supabase error: '+AUTH_STATUS['last_seller_save_error'])
 
 def seller_listings_manager(sid, key_prefix='seller_listings'):
-    st.subheader('My Listings')
-    st.caption('This shows every listing saved for this seller, including Draft, Submitted for Review, Approved/Public/Active, Needs Changes, Rejected, Pending, and Sold.')
+    st.subheader('My Inventory')
+    st.caption('Everything you add for sale will appear here.')
+    seller=get_seller(int(sid))
+    is_approved=seller_can_publish(seller)
+    rules_ok=seller_rules_accepted(seller)
+    can_publish=seller_can_publish_live(seller)
+    seller_status_notice(seller)
+    if is_approved and not rules_ok:
+        st.warning('Accept seller rules before publishing inventory live. Drafts can still be saved and managed.')
     listing_status_help()
     prods=hosted_select('products',{'seller_id':int(sid)},order='created_at.desc') if hosted_enabled() else df('SELECT * FROM products WHERE seller_id=? ORDER BY created_at DESC',(sid,))
     if prods.empty:
-        st.warning('No listings are connected to this seller profile yet. Open Add Inventory to create the first listing.')
+        st.warning('No inventory yet. Add your first item.')
+        if st.button('Add Inventory',key=f'{key_prefix}_empty_add_inventory'):
+            st.session_state['pending_seller_tools_primary_section']='Add Inventory'
+            st.rerun()
         return
-    cols=[c for c in ['id','artist','title','category','price','quantity','listing_status','reviewer_notes','created_at','updated_at'] if c in prods.columns]
+    cols=[c for c in ['id','title','artist','price','quantity','listing_status','created_at','reviewer_notes'] if c in prods.columns]
     st.dataframe(prods[cols],width='stretch')
     pid=st.selectbox('Listing ID',prods['id'].tolist(),key=f'{key_prefix}_listing_id')
     row=prods[prods['id']==pid].iloc[0]
-    st.write(f"**Current status:** {safe(row.get('listing_status'))}")
+    st.write(f"**Selected item:** {safe(row.get('title'),'Untitled')} • {safe(row.get('artist'),'No artist/brand')} • {money(row.get('price'))}")
+    current_status=safe(row.get('listing_status'))
+    st.write(f"**Current status:** {current_status}")
+    listing_status_badge(current_status)
     if safe(row.get('reviewer_notes')):
-        st.warning('Reviewer notes: '+safe(row.get('reviewer_notes')))
-    status=st.selectbox('Seller action',['Draft','Submitted for Review','Pending Pickup/Payment','Sold','Removed'],key=f'{key_prefix}_seller_action',help='Draft stays private. Submitted for Review waits for admin. Pending/Sold updates availability.')
+        st.warning('House Of Wax notes: '+safe(row.get('reviewer_notes')))
+    actions=['Draft','Live','Hidden','Sold']
+    if current_status in ['Reported','Under Review','Removed by House Of Wax']:
+        st.info('This listing has a House Of Wax moderation status. Some seller actions may be limited.')
+        actions=['Draft','Hidden','Sold']
+    status=st.selectbox('Seller action',actions,key=f'{key_prefix}_seller_action',help='Draft stays private. Live publishes to your store. Hidden removes it from public view. Sold marks it no longer available.')
     if st.button('Update listing status',key=f'{key_prefix}_update_{int(pid)}'):
+        if status=='Live' and not is_approved:
+            st.error('Your seller account must be approved before you can publish listings.')
+            return
+        if status=='Live' and not rules_ok:
+            st.error('Accept seller rules before publishing.')
+            return
         core_update('products',{'listing_status':status,'updated_at':now()},{'id':int(pid),'seller_id':int(sid)},'UPDATE products SET listing_status=?,updated_at=? WHERE id=? AND seller_id=?',(status,now(),int(pid),sid))
         st.success('Listing status updated.')
 
 
 def seller_dashboard():
-    header(); st.header('Seller dashboard')
+    header(); marketplace_context('House Of Wax Marketplace → Seller Dashboard'); st.header('Seller Dashboard')
     prototype_role_notice()
+    pending_section=st.session_state.pop('pending_seller_tools_primary_section',None)
+    if pending_section:
+        st.session_state['seller_tools_primary_section']=pending_section
+    st.caption(f'Active storage mode: {active_storage_label()}')
+    if not is_admin_unlocked():
+        if not is_authenticated():
+            st.warning('Sign in as a Seller to use Seller Dashboard.')
+            account_page()
+            return
+        if not has_seller_capability():
+            st.error('This account has not applied to become a seller yet. Open My Account and use Apply to Become a Seller.')
+            return
+        sid=ensure_linked_seller_profile()
+        if not sid:
+            st.error('No seller store is linked to this account. Use Account to claim or create a seller store.')
+            claim_existing_profile_section()
+            return
+        st.session_state['seller_tool_seller_id']=sid
+        s=get_seller(sid)
+        if s is None:
+            st.error('Linked seller store was not found.')
+            return
+        with st.container(border=True):
+            st.subheader(safe(s['store_name'],'Seller Store'))
+            st.write(f"**Store email:** {safe(s['email'])}")
+            seller_status_notice(s)
+            st.caption('Seller account status controls whether this store can publish live inventory.')
+            st.success('You are managing your signed-in seller store.')
+        seller_onboarding_checklist(sid,s)
+        if not hosted_enabled():
+            st.warning('For real tester data persistence, connect Supabase before collecting tester data. Local SQLite is for development and can reset on Streamlit Cloud.')
+        st.info('Use My Inventory to find everything you added. Use Add Inventory to create one new item.')
+        primary_section=st.radio('Seller Tools section',['My Inventory','Add Inventory','My Store Profile','Buyer Requests','Seller Messages/Inquiries','All Seller Tools'],horizontal=True,key='seller_tools_primary_section_auth')
+        if primary_section=='My Inventory':
+            seller_listings_manager(sid,'primary_my_inventory')
+            return
+        if primary_section=='Add Inventory':
+            st.subheader('Add Inventory')
+            st.info('Create one item at a time. Approved sellers can publish directly after accepting seller rules. Pending sellers can save drafts.')
+            render_barcode_lookup_widget('primary_add_inventory')
+            upload_product(sid,'primary_add_inventory')
+            return
+        if primary_section=='My Store Profile':
+            seller_store_profile_editor(sid,s,'primary_my_store')
+            return
+        if primary_section=='Buyer Requests':
+            seller_purchase_request_view(sid)
+            return
+        if primary_section=='Seller Messages/Inquiries':
+            seller_inquiry_view(sid)
+            return
+        seller_inventory_visibility_summary(sid)
+        return
+    st.caption('Admin/testing seller store inspection is enabled.')
+    sellers=table('sellers')
+    if sellers.empty:
+        st.warning('No seller store/profile found yet. Create one from Sell on House Of Wax, then return here.')
+    else:
+        latest=sellers.sort_values('id',ascending=False).head(8)
+        st.success('Saved seller stores found.')
+        st.dataframe(latest[[c for c in ['id','store_name','email','status','rules_accepted','rules_accepted_at','created_at'] if c in latest.columns]],width='stretch')
+        active_id=st.session_state.get('seller_tool_seller_id')
+        if active_id:
+            active=get_seller(int(active_id))
+            if active is not None:
+                st.info(f"Currently active seller store: {safe(active.get('store_name'))} | {safe(active.get('email'))}")
     mode=st.radio('Open seller by',['Choose existing seller','Email + access code'],horizontal=True)
     preferred_seller=st.session_state.get('seller_tool_seller_id')
     if mode=='Choose existing seller':
@@ -3723,6 +5432,7 @@ def seller_dashboard():
                 st.warning('No saved seller profile matched that email and access code. Create it under Sell on House Of Wax, or choose it from the existing seller list.')
             else:
                 st.session_state['seller_tool_seller_id']=int(r.iloc[0]['id'])
+                st.success('Seller profile opened from the database and set as active.')
         sid=st.session_state.get('seller_tool_seller_id')
         if not sid:
             st.info('Enter your seller email/access code and click Open saved seller profile, or switch to Choose existing seller.')
@@ -3732,22 +5442,35 @@ def seller_dashboard():
         st.warning('The selected seller profile was not found in the database. Choose an existing seller or create a seller store first.')
         st.session_state.pop('seller_tool_seller_id',None)
         return
-    st.success(f"Loaded seller: {safe(s['store_name'])} | {safe(s['email'])}")
+    with st.container(border=True):
+        st.subheader(safe(s['store_name'],'Seller Store'))
+        st.write(f"**Store email:** {safe(s['email'])}")
+        status=seller_status_notice(s)
+        st.caption('Seller account status controls whether this store can publish live inventory.')
+        st.success('You are managing this store.')
+        st.caption('Start here if you are selling records, merch, or collectibles.')
+    seller_onboarding_checklist(sid,s)
     if not hosted_enabled():
         st.warning('For real tester data persistence, connect Supabase before collecting tester data. Local SQLite is for development and can reset on Streamlit Cloud.')
-    st.info('Inventory entry point: open the Add Inventory / Upload Product tab to create a listing. Open My Listings / Inventory to see drafts, submitted listings, reviewer notes, approved listings, pending items, and sold items.')
-    primary_section=st.radio('Seller Tools section',['Add Inventory','My Listings','My Store / Seller Profile','All Seller Tools'],horizontal=True,key='seller_tools_primary_section')
+    st.info('Use My Inventory to find everything you added. Use Add Inventory to create one new item.')
+    primary_section=st.radio('Seller Tools section',['My Inventory','Add Inventory','My Store Profile','Buyer Requests','Seller Messages/Inquiries','All Seller Tools'],horizontal=True,key='seller_tools_primary_section')
+    if primary_section=='My Inventory':
+        seller_listings_manager(sid,'primary_my_inventory')
+        return
     if primary_section=='Add Inventory':
-        st.subheader('Add Inventory / Upload Product')
-        st.info('This is where sellers add items they want to list. Required basics: title/item name, category, price, condition, description/notes, and photos when available.')
+        st.subheader('Add Inventory')
+        st.info('Create one item at a time. Approved sellers can publish directly after accepting seller rules. Pending sellers can save drafts.')
         render_barcode_lookup_widget('primary_add_inventory')
         upload_product(sid,'primary_add_inventory')
         return
-    if primary_section=='My Listings':
-        seller_listings_manager(sid,'primary_my_listings')
-        return
-    if primary_section=='My Store / Seller Profile':
+    if primary_section=='My Store Profile':
         seller_store_profile_editor(sid,s,'primary_my_store')
+        return
+    if primary_section=='Buyer Requests':
+        seller_purchase_request_view(sid)
+        return
+    if primary_section=='Seller Messages/Inquiries':
+        seller_inquiry_view(sid)
         return
     seller_inventory_visibility_summary(sid)
     tabs=st.tabs(['My Store / Seller Profile','Policies','Add Inventory / Upload Product','Barcode scanner','Bulk import','Gallery','My Listings / Inventory','Inquiries','Purchase requests','Orders','Messages','Announcements','Events/drops','Badges','Leave buyer feedback','Public feedback'])
@@ -3757,10 +5480,10 @@ def seller_dashboard():
         p=df('SELECT * FROM seller_policies WHERE seller_id=?',(sid,)); pol=p.iloc[0] if not p.empty else {}
         with st.form('policy'):
             shipping=st.text_area('Shipping policy',value=safe(pol.get('shipping_policy') if len(pol) else 'Ships within 3 business days.')); returns=st.text_area('Return policy',value=safe(pol.get('return_policy') if len(pol) else 'No buyer remorse returns unless seller approves.')); grading=st.text_area('Grading policy',value=safe(pol.get('grading_policy') if len(pol) else 'Collector grading standards.')); pickup=st.text_area('Pickup / meetup / local policy notes',value=safe(pol.get('local_pickup_policy') if len(pol) else '')); sub=st.form_submit_button('Save policies')
-        if sub: run('INSERT OR REPLACE INTO seller_policies(seller_id,shipping_policy,return_policy,grading_policy,local_pickup_policy) VALUES(?,?,?,?,?)',(sid,shipping,returns,grading,pickup)); st.success('Policies saved.')
+        if sub: run('INSERT OR REPLACE INTO seller_policies(seller_id,shipping_policy,return_policy,grading_policy,local_pickup_policy) VALUES(?,?,?,?,?)',(sid,shipping,returns,grading,pickup)); warn_if_local_only('Seller policies'); st.success('Policies saved.')
     with tabs[2]:
         st.subheader('Add Inventory / Upload Product')
-        st.info('This is where sellers add items they want to list. Create one listing here. Save as Draft to keep it private, or Submit for Review when it is ready for House Of Wax. Buyers will not see Draft, Submitted for Review, Needs Changes, or Rejected listings.')
+        st.info('This is where sellers add items they want to list. Create one listing here. Save as Draft to keep it private, or Publish to My Store if your seller account is approved and seller rules are accepted.')
         render_barcode_lookup_widget('upload_product')
         upload_product(sid,'normal_upload')
     with tabs[3]:
@@ -3774,8 +5497,15 @@ def seller_dashboard():
             data=pd.read_csv(csv); st.dataframe(data,width='stretch')
             if st.button('Import CSV products'):
                 n=0
-                for _,r in data.iterrows(): run('''INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(sid,safe(r.get('sku')),safe(r.get('barcode')),safe(r.get('catalog_number')),safe(r.get('matrix_runout')),safe(r.get('category'),'Vinyl Records'),safe(r.get('artist')),safe(r.get('title')),safe(r.get('format'),'Vinyl'),safe(r.get('label')),safe(r.get('release_year')),safe(r.get('genre')),safe(r.get('media_grade')),safe(r.get('sleeve_grade')),safe(r.get('condition_notes')),safe(r.get('description')),float(r.get('price',0) or 0),int(r.get('quantity',1) or 1),float(r.get('shipping_price',0) or 0),safe(r.get('image_url')),safe(r.get('video_url')),safe(r.get('audio_url')),safe(r.get('external_release_url')),safe(r.get('listing_status'),'Active'),'Fixed Price',now(),now())); n+=1
-                st.success(f'Imported {n}.')
+                imported_seller=get_seller(int(sid))
+                imported_status='Live' if seller_can_publish_live(imported_seller) else 'Draft'
+                for _,r in data.iterrows(): run('''INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(sid,safe(r.get('sku')),safe(r.get('barcode')),safe(r.get('catalog_number')),safe(r.get('matrix_runout')),safe(r.get('category'),'Vinyl Records'),safe(r.get('artist')),safe(r.get('title')),safe(r.get('format'),'Vinyl'),safe(r.get('label')),safe(r.get('release_year')),safe(r.get('genre')),safe(r.get('media_grade')),safe(r.get('sleeve_grade')),safe(r.get('condition_notes')),safe(r.get('description')),float(r.get('price',0) or 0),int(r.get('quantity',1) or 1),float(r.get('shipping_price',0) or 0),safe(r.get('image_url')),safe(r.get('video_url')),safe(r.get('audio_url')),safe(r.get('external_release_url')),imported_status,'Fixed Price',now(),now())); n+=1
+                if imported_status=='Live':
+                    st.success(f'Imported {n}. Published imported items as Live.')
+                elif seller_can_publish(imported_seller) and not seller_rules_accepted(imported_seller):
+                    st.warning(f'Imported {n} as Draft. Accept seller rules before publishing imported listings live.')
+                else:
+                    st.warning(f'Imported {n} as Draft. Seller approval is required before publishing live.')
     with tabs[5]:
         prods=df('SELECT * FROM products WHERE seller_id=?',(sid,)); st.dataframe(prods,width='stretch')
         if not prods.empty:
@@ -3800,11 +5530,11 @@ def seller_dashboard():
     with tabs[10]: st.dataframe(df('SELECT * FROM messages WHERE seller_id=? ORDER BY created_at DESC',(sid,)),width='stretch')
     with tabs[11]:
         with st.form('ann'): title=st.text_input('Announcement title'); body=st.text_area('Announcement body'); sub=st.form_submit_button('Post announcement')
-        if sub: run("INSERT INTO store_announcements(seller_id,title,body,status,created_at) VALUES(?,?,?,'Active',?)",(sid,title,body,now())); st.success('Posted.')
+        if sub: run("INSERT INTO store_announcements(seller_id,title,body,status,created_at) VALUES(?,?,?,'Active',?)",(sid,title,body,now())); warn_if_local_only('Store announcement'); st.success('Posted.')
         st.dataframe(df('SELECT * FROM store_announcements WHERE seller_id=?',(sid,)),width='stretch')
     with tabs[12]:
         with st.form('ev'): title=st.text_input('Drop/event title'); typ=st.selectbox('Type',['Record Drop','Auction Drop','Sale','Live Event','Other']); date=st.text_input('Date/time'); desc=st.text_area('Description'); sub=st.form_submit_button('Save event')
-        if sub: run("INSERT INTO seller_events(seller_id,event_title,event_type,event_date,description,status,created_at) VALUES(?,?,?,?,?,'Active',?)",(sid,title,typ,date,desc,now())); st.success('Saved.')
+        if sub: run("INSERT INTO seller_events(seller_id,event_title,event_type,event_date,description,status,created_at) VALUES(?,?,?,?,?,'Active',?)",(sid,title,typ,date,desc,now())); warn_if_local_only('Seller event'); st.success('Saved.')
     with tabs[13]: st.write(badges(sid) or 'No badges yet.'); st.dataframe(df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),width='stretch')
     with tabs[14]:
         orders=df("SELECT * FROM orders WHERE seller_id=? AND status='Completed'",(sid,)); st.dataframe(orders,width='stretch')
@@ -3823,48 +5553,125 @@ def culture():
     if posts.empty: st.info('No culture posts yet.')
     for _,p in posts.iterrows():
         with st.container(border=True):
-            if safe(p['image_url']): st.image(safe(p['image_url']),width='stretch')
+            if safe(p['image_url']): safe_image(safe(p['image_url']),width='stretch',fallback_text='Image unavailable.')
             st.subheader(safe(p['title'])); st.caption(f"{safe(p['category'])} • {safe(p['author'])}"); st.write(safe(p['body']))
-def listing_review_queue():
-    st.subheader('Listing Review Queue')
-    listing_status_help()
-    if hosted_enabled():
-        listings=hosted_select('products',in_filters={'listing_status':['Submitted for Review','Needs Changes','Rejected','Draft']},order='updated_at.desc')
-        if not listings.empty:
-            for idx,row in listings.iterrows():
-                seller=get_seller(int(row.get('seller_id') or 0))
-                if seller is not None:
-                    listings.at[idx,'store_name']=safe(seller.get('store_name'))
-                    listings.at[idx,'seller_email']=safe(seller.get('email'))
-    else:
-        listings=df("""SELECT p.*,s.store_name,s.email seller_email FROM products p LEFT JOIN sellers s ON p.seller_id=s.id WHERE p.listing_status IN ('Submitted for Review','Needs Changes','Rejected','Draft') ORDER BY p.updated_at DESC,p.created_at DESC""")
-    if listings.empty:
-        st.info('No listings are waiting for review.')
+def seller_approval_area():
+    st.markdown('#### Seller Approval')
+    sellers=table('sellers')
+    if sellers.empty:
+        st.info('No seller profiles found.')
         return
-    cols=[c for c in ['id','store_name','artist','title','category','price','listing_status','reviewer_notes','created_at','updated_at'] if c in listings.columns]
-    st.dataframe(listings[cols],width='stretch')
-    labels=[f"{int(r.id)} | {safe(r.store_name)} | {safe(r.artist)} - {safe(r.title)} | {safe(r.listing_status)}" for _,r in listings.iterrows()]
-    pick=st.selectbox('Review listing',labels,key='listing_review_pick')
-    pid=int(pick.split('|')[0].strip())
-    row=listings[listings['id']==pid].iloc[0]
-    seller_id=int(row.get('seller_id') or 0)
-    if seller_id:
-        st.markdown('#### Seller trust context')
-        render_seller_trust_badges(seller_id,'admin')
-    primary_image=listing_primary_image(row)
-    gallery=listing_gallery_images(pid)
-    has_seller_photos=bool(is_local_uploaded_image(primary_image) or (not gallery.empty and gallery['image_url'].fillna('').apply(is_local_uploaded_image).any()))
-    listing_preview_card(row.get('category'),row.get('artist'),row.get('title'),row.get('format'),row.get('label'),row.get('release_year'),row.get('genre'),row.get('media_grade'),row.get('sleeve_grade'),float(row.get('price') or 0),int(row.get('quantity') or 1),float(row.get('shipping_price') or 0),primary_image,row.get('description'),has_seller_photos,'','admin')
-    render_listing_photo_gallery(pid,primary_image,'admin')
-    notes=st.text_area('Reviewer notes',value=safe(row.get('reviewer_notes')),key='listing_review_notes')
-    st.caption('Reviewer guidance: approve if the listing is clear and trustworthy. Check exact item photos, condition photos, sleeve/case/media details, and seller profile completeness. Mark Needs Changes if important info or photos are missing. Reject if it looks unsafe, fake, misleading, or inappropriate.')
+    view=sellers.copy()
+    view['seller_status']=view['status'].apply(normalize_seller_status)
+    if 'rules_accepted' in view.columns:
+        view['rules_accepted_display']=view['rules_accepted'].apply(lambda v: 'Yes' if safe(v).strip().lower() in ['yes','true','1','accepted'] else 'No')
+    cols=[c for c in ['id','store_name','email','seller_status','rules_accepted_display','rules_accepted_at','created_at'] if c in view.columns]
+    st.dataframe(view[cols],width='stretch')
+    labels=[f"{int(r.id)} | {safe(r.store_name)} | {normalize_seller_status(r.status)}" for _,r in sellers.iterrows()]
+    pick=st.selectbox('Select seller account',labels,key='seller_approval_pick')
+    sid=int(pick.split('|')[0].strip())
+    seller=get_seller(sid)
+    status=normalize_seller_status(seller.get('status') if seller is not None else '')
+    st.write(f"**Current seller status:** {status}")
+    admin_seller_status_badge(status)
+    rules_yes=seller_rules_accepted(seller)
+    st.write(f"**Rules accepted:** {'Yes' if rules_yes else 'No'}")
+    if rules_yes:
+        status_badge('Rules accepted','success')
+        st.caption('Accepted date: '+safe(seller.get('rules_accepted_at'),'date not recorded'))
+    else:
+        status_badge('Rules not accepted','warning')
     c1,c2,c3=st.columns(3)
-    if c1.button('Approve listing',key='approve_listing_review'):
-        core_update('products',{'listing_status':'Approved','reviewer_notes':notes,'updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Approved',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.success('Listing approved.'); st.rerun()
-    if c2.button('Mark Needs Changes',key='needs_changes_listing_review'):
-        core_update('products',{'listing_status':'Needs Changes','reviewer_notes':notes,'updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Needs Changes',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.warning('Listing marked Needs Changes.'); st.rerun()
-    if c3.button('Reject listing',key='reject_listing_review'):
-        core_update('products',{'listing_status':'Rejected','reviewer_notes':notes,'updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Rejected',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),pid)); st.error('Listing rejected.'); st.rerun()
+    if c1.button('Approve Seller',key=f'approve_seller_{sid}'):
+        core_update('sellers',{'status':'Approved Seller'},{'id':sid},"UPDATE sellers SET status='Approved Seller' WHERE id=?",(sid,))
+        update_app_user_seller_status_for_seller(sid,'Approved Seller')
+        st.success('Seller approved. This seller can publish listings directly to their store.')
+        st.rerun()
+    if c2.button('Suspend Seller',key=f'suspend_seller_{sid}'):
+        core_update('sellers',{'status':'Suspended Seller'},{'id':sid},"UPDATE sellers SET status='Suspended Seller' WHERE id=?",(sid,))
+        update_app_user_seller_status_for_seller(sid,'Suspended Seller')
+        st.warning('Seller suspended. They cannot publish new listings.')
+        st.rerun()
+    if c3.button('Set Pending',key=f'pending_seller_{sid}'):
+        core_update('sellers',{'status':'Pending Seller Approval'},{'id':sid},"UPDATE sellers SET status='Pending Seller Approval' WHERE id=?",(sid,))
+        update_app_user_seller_status_for_seller(sid,'Pending Seller Approval')
+        st.info('Seller set to pending approval.')
+        st.rerun()
+
+def listing_review_queue():
+    admin_context('House Of Wax Admin → Moderation Center')
+    st.subheader('Moderation Center')
+    st.info('House Of Wax approves sellers, not every normal listing. Use this center to review reports, moderate listings, and manage seller approval.')
+    seller_approval_area()
+    st.divider()
+    st.markdown('#### Reports / Complaints')
+    reports=table('listing_reports')
+    if reports.empty:
+        st.info('No listing or seller reports yet.')
+        return
+    enriched=reports.copy()
+    for idx,row in enriched.iterrows():
+        listing_id=int(row.get('listing_id') or 0)
+        seller_id=int(row.get('seller_id') or 0)
+        listing=hosted_select('products',{'id':listing_id},limit=1) if hosted_enabled() and listing_id else (df('SELECT * FROM products WHERE id=?',(listing_id,)) if listing_id else pd.DataFrame())
+        seller=get_seller(seller_id) if seller_id else None
+        if not listing.empty:
+            enriched.at[idx,'listing_title']=' - '.join([safe(listing.iloc[0].get('artist')),safe(listing.iloc[0].get('title'))]).strip(' - ')
+            enriched.at[idx,'listing_status']=safe(listing.iloc[0].get('listing_status'))
+        if seller is not None:
+            enriched.at[idx,'store_name']=safe(seller.get('store_name'))
+            enriched.at[idx,'seller_status']=normalize_seller_status(seller.get('status'))
+    cols=[c for c in ['id','listing_id','listing_title','seller_id','store_name','reason','details','status','listing_status','seller_status','created_at','updated_at'] if c in enriched.columns]
+    st.dataframe(enriched[cols],width='stretch')
+    labels=[f"{int(r.get('id'))} | Listing {int(r.get('listing_id') or 0)} | Seller {int(r.get('seller_id') or 0)} | {safe(r.get('reason'))} | {safe(r.get('status'))}" for _,r in reports.iterrows()]
+    pick=st.selectbox('Open report',labels,key='moderation_report_pick')
+    rid=int(pick.split('|')[0].strip())
+    report=reports[reports['id']==rid].iloc[0]
+    listing_id=int(report.get('listing_id') or 0)
+    seller_id=int(report.get('seller_id') or 0)
+    listing=hosted_select('products',{'id':listing_id},limit=1) if hosted_enabled() and listing_id else (df('SELECT * FROM products WHERE id=?',(listing_id,)) if listing_id else pd.DataFrame())
+    seller=get_seller(seller_id) if seller_id else None
+    with st.container(border=True):
+        st.write(f"**Reason:** {safe(report.get('reason'))}")
+        st.write(f"**Details:** {safe(report.get('details'))}")
+        st.caption(f"Reporter: {safe(report.get('reporter_name'),'Anonymous')} • {safe(report.get('reporter_contact'),'No contact provided')}")
+        st.caption(f"Report status: {safe(report.get('status'))}")
+    if not listing.empty:
+        row=listing.iloc[0]
+        st.write('**Listing operational status:**')
+        listing_status_badge(safe(row.get('listing_status')))
+        primary_image=listing_primary_image(row)
+        listing_preview_card(row.get('category'),row.get('artist'),row.get('title'),row.get('format'),row.get('label'),row.get('release_year'),row.get('genre'),row.get('media_grade'),row.get('sleeve_grade'),float(row.get('price') or 0),int(row.get('quantity') or 1),float(row.get('shipping_price') or 0),primary_image,row.get('description'),has_listing_photos(listing_id),'','admin')
+    notes=st.text_area('Moderation notes',value=safe(report.get('details')),key='moderation_notes')
+    c1,c2,c3,c4=st.columns(4)
+    if c1.button('Mark Report Reviewed',key=f'report_reviewed_{rid}'):
+        core_update('listing_reports',{'status':'Reviewed','updated_at':now()},{'id':rid},"UPDATE listing_reports SET status='Reviewed',updated_at=? WHERE id=?",(now(),rid))
+        st.success('Report marked reviewed.')
+        st.rerun()
+    if listing_id and c2.button('Put Listing Under Review',key=f'listing_under_review_{rid}'):
+        core_update('products',{'listing_status':'Under Review','reviewer_notes':notes,'updated_at':now()},{'id':listing_id},"UPDATE products SET listing_status='Under Review',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),listing_id))
+        core_update('listing_reports',{'status':'Under Review','updated_at':now()},{'id':rid},"UPDATE listing_reports SET status='Under Review',updated_at=? WHERE id=?",(now(),rid))
+        st.warning('Listing placed under review.')
+        st.rerun()
+    if listing_id and c3.button('Hide Listing',key=f'hide_listing_{rid}'):
+        core_update('products',{'listing_status':'Hidden','reviewer_notes':notes,'updated_at':now()},{'id':listing_id},"UPDATE products SET listing_status='Hidden',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),listing_id))
+        st.warning('Listing hidden from Marketplace.')
+        st.rerun()
+    if listing_id and c4.button('Remove Listing',key=f'remove_listing_{rid}'):
+        core_update('products',{'listing_status':'Removed by House Of Wax','reviewer_notes':notes,'updated_at':now()},{'id':listing_id},"UPDATE products SET listing_status='Removed by House Of Wax',reviewer_notes=?,updated_at=? WHERE id=?",(notes,now(),listing_id))
+        core_update('listing_reports',{'status':'Resolved','updated_at':now()},{'id':rid},"UPDATE listing_reports SET status='Resolved',updated_at=? WHERE id=?",(now(),rid))
+        st.error('Listing removed by House Of Wax.')
+        st.rerun()
+    if seller is not None:
+        c5,c6=st.columns(2)
+        if c5.button('Suspend Seller',key=f'moderation_suspend_seller_{rid}_{seller_id}'):
+            core_update('sellers',{'status':'Suspended Seller'},{'id':seller_id},"UPDATE sellers SET status='Suspended Seller' WHERE id=?",(seller_id,))
+            st.warning('Seller suspended.')
+            st.rerun()
+        if c6.button('Reinstate Seller',key=f'moderation_reinstate_seller_{rid}_{seller_id}'):
+            core_update('sellers',{'status':'Approved Seller'},{'id':seller_id},"UPDATE sellers SET status='Approved Seller' WHERE id=?",(seller_id,))
+            st.success('Seller reinstated as approved.')
+            st.rerun()
 
 def redact_export_table(table_name):
     data=table(table_name)
@@ -3915,10 +5722,122 @@ def hosted_database_prep_section():
         st.write(f'- {item}')
     st.caption('This is a prep/checklist step, not a full migration. No Supabase package, Postgres driver, secret, or new dependency is required for V25.28.')
 
+def supabase_diag_payload(table_name, marker):
+    base_time=now()
+    payloads={
+        'buyers':({'name':marker,'email':f'{marker.lower()}@example.com','bio':marker,'status':'Diagnostic','created_at':base_time,'updated_at':base_time},'email',f'{marker.lower()}@example.com',{'bio':marker+' updated'},'bio'),
+        'sellers':({'store_name':marker,'owner_name':'Diagnostic','email':f'{marker.lower()}@example.com','store_bio':marker,'status':'Approved','seller_level':'Diagnostic','access_code':marker,'created_at':base_time,'updated_at':base_time},'email',f'{marker.lower()}@example.com',{'store_bio':marker+' updated'},'store_bio'),
+        'products':({'artist':'Diagnostic','title':marker,'category':'Vinyl Records','price':1,'condition_notes':marker,'description':marker,'listing_status':'Draft','created_at':base_time,'updated_at':base_time},'title',marker,{'listing_status':'Live','description':marker+' updated','updated_at':now()},'description'),
+        'listing_inquiries':({'buyer_name':marker,'buyer_contact':f'{marker.lower()}@example.com','preferred_contact_method':'Email','message':marker,'status':'New','created_at':base_time,'updated_at':base_time},'buyer_name',marker,{'status':'Closed','updated_at':now()},'status'),
+        'purchase_requests':({'buyer_name':marker,'buyer_contact':f'{marker.lower()}@example.com','preferred_contact_method':'Email','fulfillment_preference':'Shipping','offer_price':1,'buyer_message':marker,'status':'New','created_at':base_time,'updated_at':base_time},'buyer_name',marker,{'status':'Closed','updated_at':now()},'status'),
+        'tester_feedback':({'tester_name':marker,'tester_type':'Other','page_flow':marker,'worked_well':marker,'confusing':'','felt_broken':'','missing':'','ease_rating':5,'would_use_again':'Maybe','open_notes':marker,'status':'New','created_at':base_time},'page_flow',marker,{'status':'Closed'},'status'),
+        'listing_reports':({'listing_id':0,'seller_id':0,'reporter_name':marker,'reporter_contact':f'{marker.lower()}@example.com','reason':'Other','details':marker,'status':'Open','created_at':base_time,'updated_at':base_time},'reporter_name',marker,{'status':'Reviewed','updated_at':now()},'status')
+    }
+    return payloads[table_name]
+
+def supabase_roundtrip_one(table_name, marker):
+    if not hosted_enabled():
+        return {'table':table_name,'passed':False,'stage':'config','status_code':0,'message':'Supabase settings are missing.'}
+    data,marker_col,marker_value,update_data,update_col=supabase_diag_payload(table_name,marker)
+    inserted,detail=hosted_request('post',table_name,data=data)
+    if not detail.get('ok') or not inserted:
+        return {'table':table_name,'passed':False,'stage':'insert','status_code':detail.get('status_code'),'message':detail.get('message')}
+    inserted_id=inserted[0].get('id')
+    read,detail=hosted_request('get',table_name,params={'select':'*',marker_col:f'eq.{marker_value}'},prefer='')
+    if not detail.get('ok') or not read or safe(read[0].get(marker_col))!=safe(marker_value):
+        return {'table':table_name,'passed':False,'stage':'read_after_insert','status_code':detail.get('status_code'),'message':detail.get('message') or 'Inserted row was not read back by marker.'}
+    updated,detail=hosted_request('patch',table_name,params={'id':f'eq.{inserted_id}'},data=update_data)
+    if not detail.get('ok'):
+        return {'table':table_name,'passed':False,'stage':'update','status_code':detail.get('status_code'),'message':detail.get('message')}
+    read2,detail=hosted_request('get',table_name,params={'select':'*','id':f'eq.{inserted_id}'},prefer='')
+    expected=safe(update_data.get(update_col))
+    actual=safe(read2[0].get(update_col)) if read2 else ''
+    if not detail.get('ok') or not read2 or actual!=expected:
+        return {'table':table_name,'passed':False,'stage':'read_after_update','status_code':detail.get('status_code'),'message':detail.get('message') or f'Update not verified. Expected {expected}, got {actual}.'}
+    deleted,detail=hosted_request('delete',table_name,params={'id':f'eq.{inserted_id}'},prefer='')
+    if not detail.get('ok'):
+        return {'table':table_name,'passed':False,'stage':'delete','status_code':detail.get('status_code'),'message':detail.get('message')}
+    read3,detail=hosted_request('get',table_name,params={'select':'id','id':f'eq.{inserted_id}'},prefer='')
+    if not detail.get('ok'):
+        return {'table':table_name,'passed':False,'stage':'confirm_delete','status_code':detail.get('status_code'),'message':detail.get('message')}
+    if read3:
+        return {'table':table_name,'passed':False,'stage':'confirm_delete','status_code':detail.get('status_code'),'message':'Deleted diagnostic row was still readable.'}
+    return {'table':table_name,'passed':True,'stage':'complete','status_code':detail.get('status_code'),'message':'Insert/read/update/delete round trip passed.'}
+
+def run_supabase_roundtrip_diagnostics():
+    marker='DIAG-'+uuid4().hex[:10]+'-'+datetime.now().strftime('%Y%m%d%H%M%S')
+    results=[]
+    for table_name in ['buyers','sellers','products','listing_inquiries','purchase_requests','tester_feedback','listing_reports']:
+        results.append(supabase_roundtrip_one(table_name,marker))
+    return pd.DataFrame(results)
+
+def admin_system_diagnostics():
+    st.subheader('System Diagnostics')
+    url,key=supabase_config()
+    mode=database_mode()
+    st.write('Backend mode currently active: **'+safe(mode.get('storage_mode'))+'**')
+    c1,c2,c3=st.columns(3)
+    c1.metric('SUPABASE_URL detected','Yes' if bool(url) else 'No')
+    c2.metric('SUPABASE_ANON_KEY detected','Yes' if bool(key) else 'No')
+    c3.metric('Key type',supabase_key_type())
+    st.caption('Normalized Supabase base URL: '+safe(url,'Not configured'))
+    st.caption('Last Supabase read result: '+safe(SUPABASE_STATUS.get('last_read')))
+    st.caption('Last Supabase write result: '+safe(SUPABASE_STATUS.get('last_write')))
+    if safe(SUPABASE_STATUS.get('last_error')):
+        st.error('Last Supabase error: '+safe(SUPABASE_STATUS.get('last_error')))
+    if not hosted_enabled():
+        st.error('Running on local SQLite fallback. Data may not persist between Streamlit restarts/redeploys.')
+    st.warning('No error thrown is not evidence of persistence. Use the round-trip test below and confirm every core table passes.')
+    if st.button('Run Supabase round-trip test',key='run_supabase_roundtrip_test'):
+        st.session_state['supabase_roundtrip_results']=run_supabase_roundtrip_diagnostics()
+    results=st.session_state.get('supabase_roundtrip_results')
+    if results is not None:
+        st.dataframe(results,width='stretch')
+        if not results.empty and bool(results['passed'].all()):
+            st.success('Supabase round-trip persistence passed for every tested core table.')
+        else:
+            st.error('Supabase is configured but read/write failed, or Supabase is missing. Tester data may not persist.')
+    auth_diagnostics_section()
+    real_profile_flow_check()
+
+def real_profile_flow_check():
+    st.markdown('### Real Profile Flow Check')
+    st.caption('This checks the real app profile/listing data, not synthetic DIAG rows.')
+    buyers=table('buyers')
+    sellers=table('sellers')
+    products=table('products')
+    c1,c2,c3,c4,c5=st.columns(5)
+    c1.metric('Active storage',active_storage_label())
+    c2.metric('Active buyer id',safe(st.session_state.get('buyer_id'),'None'))
+    c3.metric('Active seller id',safe(st.session_state.get('seller_tool_seller_id'),'None'))
+    c4.metric('Buyer profiles',len(buyers))
+    c5.metric('Seller stores',len(sellers))
+    if buyers.empty:
+        st.warning('No buyer profiles found in the active storage mode.')
+    else:
+        st.success('Buyer profiles are visible in the active storage mode.')
+        latest_buyers=buyers.sort_values('id',ascending=False).head(5)
+        st.dataframe(latest_buyers[[c for c in ['id','name','email','status','created_at'] if c in latest_buyers.columns]],width='stretch')
+    if sellers.empty:
+        st.warning('No seller stores found in the active storage mode.')
+    else:
+        st.success('Seller stores are visible in the active storage mode.')
+        latest_sellers=sellers.sort_values('id',ascending=False).head(5)
+        st.dataframe(latest_sellers[[c for c in ['id','store_name','email','status','created_at'] if c in latest_sellers.columns]],width='stretch')
+    if products.empty:
+        st.warning('No listings found in the active storage mode.')
+    else:
+        st.success('Listings are visible in the active storage mode.')
+        latest_products=products.sort_values('id',ascending=False).head(5)
+        st.dataframe(latest_products[[c for c in ['id','seller_id','artist','title','listing_status','created_at'] if c in latest_products.columns]],width='stretch')
+
 def admin_database_status():
+    admin_context('House Of Wax Admin → Database Status')
     st.subheader('Database Status / Data Health')
+    admin_system_diagnostics()
+    st.divider()
     if hosted_enabled():
-        st.success('Hosted persistence connected for core marketplace data.')
+        st.info('Supabase settings are detected. Run the System Diagnostics round-trip test above to prove hosted persistence is working.')
     else:
         st.warning('Hosted persistence is not connected. Local prototype database is being used.')
     st.info('Local SQLite is for development only and may not persist on Streamlit Cloud after redeploy, reboot, sleep, or container replacement. For real tester data persistence, connect Supabase before collecting tester data.')
@@ -3930,13 +5849,16 @@ def admin_database_status():
     c3.metric('Local database file','Found' if DB.exists() else 'Will be created')
     st.caption('Active database engine: '+safe(mode.get('engine')))
     st.caption('Local SQLite path: '+safe(mode.get('path')))
-    st.caption('Hosted database is not active yet. This keeps Streamlit deployment working without new secrets.')
+    if hosted_enabled():
+        st.caption('Hosted database settings are active, but persistence is only proven after the round-trip diagnostics pass.')
+    else:
+        st.caption('Hosted database is not active yet. This keeps Streamlit deployment working without new secrets.')
     tables=df("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
     st.write(f"**Tables detected:** {len(tables)}")
     if not tables.empty:
         st.dataframe(tables,width='stretch')
     counts=[]
-    labels={'products':'Listings','sellers':'Seller profiles','buyers':'Buyer profiles','listing_inquiries':'Buyer inquiries','purchase_requests':'Purchase requests','product_gallery':'Photo records','tester_feedback':'Tester feedback'}
+    labels={'products':'Listings','sellers':'Seller profiles','buyers':'Buyer profiles','listing_inquiries':'Buyer inquiries','purchase_requests':'Purchase requests','product_gallery':'Photo records','tester_feedback':'Tester feedback','listing_reports':'Listing/seller reports'}
     for t,label in labels.items():
         try:
             counts.append({'Area':label,'Table':t,'Records':len(table(t))})
@@ -3951,14 +5873,13 @@ def admin_database_status():
     if hosted_enabled():
         missing=[]
         for t in CORE_HOSTED_TABLES:
-            try:
-                hosted_select(t,limit=1)
-            except Exception:
-                missing.append(t)
+            payload,detail=hosted_request('get',t,params={'select':'id','limit':'1'},prefer='')
+            if not detail.get('ok'):
+                missing.append(f"{t}: HTTP {detail.get('status_code')} {safe(detail.get('message'))[:160]}")
         if missing:
-            st.warning('Supabase settings were detected, but these core tables may be missing or blocked by permissions: '+', '.join(missing))
+            st.error('Supabase settings were detected, but these core tables may be missing or blocked by permissions: '+', '.join(missing))
         else:
-            st.success('Core table checks completed. If a table has zero rows, it may still be ready.')
+            st.success('Core table read checks completed. Run the round-trip diagnostics above to prove writes and deletes.')
     st.warning('Admin-only export area. Buyer/seller contact data can be sensitive. The quick exports below remove obvious email, phone, contact, and access-code columns.')
     export_choice=st.selectbox('Export safe data table',KEY_DATA_TABLES,format_func=lambda x: labels.get(x,x),key='database_status_export_table')
     export_data=redact_export_table(export_choice)
@@ -3971,10 +5892,171 @@ def admin_database_status():
     st.warning('Backup reminder: export important local data before any future migration. Production launch should use hosted database storage, real auth, cloud image storage, and tested permissions.')
     hosted_database_prep_section()
 
+def update_app_user_seller_status_for_seller(sid, status):
+    seller=get_seller(int(sid))
+    if seller is None:
+        return False
+    email=safe(seller.get('email')).strip().lower()
+    data={'seller_id':int(sid),'seller_application_status':normalize_seller_status(status),'account_type':'Buyer/Seller','updated_at':now()}
+    if hosted_enabled():
+        target=hosted_select('app_users',{'seller_id':int(sid)},limit=1)
+        if target.empty and email:
+            target=hosted_select('app_users',{'email':email},limit=1)
+        if target.empty:
+            return False
+        return core_update('app_users',data,{'id':int(target.iloc[0]['id'])})
+    target=df('SELECT * FROM app_users WHERE seller_id=? LIMIT 1',(int(sid),))
+    if target.empty and email:
+        target=df('SELECT * FROM app_users WHERE lower(email)=lower(?) LIMIT 1',(email,))
+    if target.empty:
+        return False
+    run('UPDATE app_users SET seller_id=?,seller_application_status=?,account_type=?,updated_at=? WHERE id=?',(int(sid),normalize_seller_status(status),'Buyer/Seller',now(),int(target.iloc[0]['id'])))
+    return True
+
+def user_directory_dataframe():
+    users=table('app_users')
+    buyers=table('buyers')
+    sellers=table('sellers')
+    rows=[]
+    if not users.empty:
+        for _,u in users.iterrows():
+            bid=int(u.get('buyer_id') or 0)
+            sid=int(u.get('seller_id') or 0)
+            buyer=buyers[buyers['id']==bid].iloc[0].to_dict() if bid and not buyers.empty and 'id' in buyers.columns and not buyers[buyers['id']==bid].empty else {}
+            seller=sellers[sellers['id']==sid].iloc[0].to_dict() if sid and not sellers.empty and 'id' in sellers.columns and not sellers[sellers['id']==sid].empty else {}
+            seller_status=safe(u.get('seller_application_status')) or (normalize_seller_status(seller.get('status')) if seller else 'Not Applied')
+            warning=[] 
+            if not safe(u.get('auth_user_id')): warning.append('missing auth_user_id')
+            if not bid: warning.append('missing buyer link')
+            if bid and not buyer: warning.append('buyer row missing')
+            if sid and not seller: warning.append('seller row missing')
+            rows.append({
+                'display_name':safe(u.get('display_name')) or safe(buyer.get('name')) or safe(seller.get('owner_name')),
+                'email':safe(u.get('email')) or safe(buyer.get('email')) or safe(seller.get('email')),
+                'auth_user_id_masked':mask_identifier(u.get('auth_user_id')),
+                'auth_account_found':'Unknown without secure Auth Admin API' if hosted_enabled() else 'Local fallback',
+                'app_users_row_found':'Yes',
+                'buyer_profile_linked':'Yes' if bid and buyer else 'No',
+                'seller_profile_linked':'Yes' if sid and seller else 'No',
+                'seller_application_status':seller_status,
+                'account_status':account_status(u),
+                'created_at':safe(u.get('created_at')),
+                'updated_at':safe(u.get('updated_at')),
+                'store_name':safe(seller.get('store_name')),
+                'warning':', '.join(warning) if warning else ''
+            })
+    known_emails={safe(r.get('email')).lower() for r in rows}
+    for _,b in buyers.iterrows() if not buyers.empty else []:
+        email=safe(b.get('email')).lower()
+        if email and email not in known_emails:
+            rows.append({'display_name':safe(b.get('name')),'email':email,'auth_user_id_masked':'None','auth_account_found':'Unknown without secure Auth Admin API','app_users_row_found':'No','buyer_profile_linked':'Yes','seller_profile_linked':'No','seller_application_status':'Not Applied','account_status':safe(b.get('status'),'Active'),'created_at':safe(b.get('created_at')),'updated_at':'','store_name':'','warning':'buyer profile exists without app_users mapping'})
+    known_emails={safe(r.get('email')).lower() for r in rows}
+    for _,s in sellers.iterrows() if not sellers.empty else []:
+        email=safe(s.get('email')).lower()
+        if email and email not in known_emails:
+            rows.append({'display_name':safe(s.get('owner_name')) or safe(s.get('store_name')),'email':email,'auth_user_id_masked':'None','auth_account_found':'Unknown without secure Auth Admin API','app_users_row_found':'No','buyer_profile_linked':'No','seller_profile_linked':'Yes','seller_application_status':normalize_seller_status(s.get('status')),'account_status':normalize_seller_status(s.get('status')),'created_at':safe(s.get('created_at')),'updated_at':'','store_name':safe(s.get('store_name')),'warning':'seller profile exists without app_users mapping'})
+    return pd.DataFrame(rows)
+
+def admin_user_directory():
+    st.subheader('User Directory')
+    st.info('Every app_users row, linked buyer profile, and linked seller profile found by the app is shown here. Search by display name, email, or store name.')
+    q=st.text_input('Search users',placeholder='Try LDizzle, pattihanson29715@gmail.com, or a store name',key='user_directory_search')
+    data=user_directory_dataframe()
+    if data.empty:
+        st.warning('No mapped users, buyers, or sellers were found in the active storage mode.')
+    else:
+        view=data.copy()
+        if safe(q):
+            needle=safe(q).lower()
+            mask=view.apply(lambda row: needle in ' '.join(safe(v).lower() for v in row.values),axis=1)
+            view=view[mask]
+        st.dataframe(view,width='stretch')
+        st.download_button('Download User Directory CSV',view.to_csv(index=False),file_name='house_of_wax_user_directory.csv',mime='text/csv',key='download_user_directory_csv')
+    st.markdown('#### Reconcile Auth Users')
+    if hosted_enabled():
+        st.warning('This Streamlit app uses the Supabase anon/authenticated client. It cannot securely list all Supabase Auth users without a protected server-side service role. Do not expose service_role in Streamlit public code.')
+        st.caption('If LDizzle or pattihanson29715@gmail.com exist only in Supabase Auth, they will not appear here until a secure admin reconciliation process creates/links their app_users row.')
+    else:
+        st.info('Local fallback mode can only reconcile local app_users/buyers/sellers rows.')
+    with st.form('manual_user_reconcile_form'):
+        email=st.text_input('Repair by exact email',key='manual_reconcile_email')
+        display=st.text_input('Display name if app_users row is missing',key='manual_reconcile_display')
+        auth_uid=st.text_input('Auth user ID if known optional',key='manual_reconcile_auth_uid')
+        sub=st.form_submit_button('Create/link app_users + buyer profile')
+    if sub:
+        clean=safe(email).strip().lower()
+        if not clean:
+            st.error('Enter an exact email.')
+        else:
+            name=safe(display) or clean.split('@')[0]
+            bid=create_or_get_buyer_for_auth(clean,name)
+            uid=safe(auth_uid) or 'manual-'+hashlib.sha256(clean.encode('utf-8')).hexdigest()[:24]
+            app_id=upsert_app_user(uid,clean,name,'Buyer',bid,0,'','No','Not Applied','Active')
+            if app_id and bid:
+                st.success('Mapping repaired/created. The user is now visible in User Directory.')
+                st.rerun()
+            else:
+                st.error('Mapping repair failed. Check Supabase errors and exact email.')
+
+def admin_seller_applications():
+    st.subheader('Seller Applications')
+    st.info('Use this page to approve seller privileges for people who already have one House Of Wax account.')
+    sellers=table('sellers')
+    if sellers.empty:
+        st.warning('No seller applications or seller profiles found.')
+        return
+    users=table('app_users')
+    rows=[]
+    for _,s in sellers.iterrows():
+        sid=int(s.get('id') or 0)
+        email=safe(s.get('email')).lower()
+        user_match=users[(users['seller_id']==sid)] if not users.empty and 'seller_id' in users.columns else pd.DataFrame()
+        if user_match.empty and email and not users.empty and 'email' in users.columns:
+            user_match=users[users['email'].fillna('').str.lower()==email]
+        app_user=user_match.iloc[0].to_dict() if not user_match.empty else {}
+        rows.append({
+            'seller_id':sid,
+            'app_user_email':safe(app_user.get('email')) or email,
+            'app_user_found':'Yes' if app_user else 'No',
+            'app_user_display_name':safe(app_user.get('display_name')),
+            'store_name':safe(s.get('store_name')),
+            'seller_status':normalize_seller_status(s.get('status')),
+            'rules_accepted':'Yes' if seller_rules_accepted(s) else 'No',
+            'created_at':safe(s.get('created_at')),
+            'profile_warning':'' if app_user else 'seller profile is not linked to app_users'
+        })
+    data=pd.DataFrame(rows)
+    pending=data[data['seller_status']=='Pending Seller Approval']
+    other=data[data['seller_status']!='Pending Seller Approval']
+    st.dataframe(pd.concat([pending,other],ignore_index=True),width='stretch')
+    labels=[f"{int(r['seller_id'])} | {safe(r['store_name'])} | {safe(r['app_user_email'])} | {safe(r['seller_status'])}" for _,r in data.iterrows()]
+    pick=st.selectbox('Select seller application',labels,key='seller_applications_pick')
+    sid=int(pick.split('|')[0].strip())
+    seller=get_seller(sid)
+    status=normalize_seller_status(seller.get('status') if seller is not None else '')
+    st.write('**Current seller status:** '+status)
+    st.write('**Rules accepted:** '+('Yes' if seller_rules_accepted(seller) else 'No'))
+    c1,c2,c3=st.columns(3)
+    if c1.button('Approve Seller',key=f'seller_app_approve_{sid}'):
+        core_update('sellers',{'status':'Approved Seller'},{'id':sid},"UPDATE sellers SET status='Approved Seller' WHERE id=?",(sid,))
+        update_app_user_seller_status_for_seller(sid,'Approved Seller')
+        st.success('Seller approved. Buyer capability is preserved on the same account.')
+        st.rerun()
+    if c2.button('Needs Information / Pending',key=f'seller_app_pending_{sid}'):
+        core_update('sellers',{'status':'Pending Seller Approval'},{'id':sid},"UPDATE sellers SET status='Pending Seller Approval' WHERE id=?",(sid,))
+        update_app_user_seller_status_for_seller(sid,'Pending Seller Approval')
+        st.warning('Seller application set to pending / needs information.')
+        st.rerun()
+    if c3.button('Suspend Seller',key=f'seller_app_suspend_{sid}'):
+        core_update('sellers',{'status':'Suspended Seller'},{'id':sid},"UPDATE sellers SET status='Suspended Seller' WHERE id=?",(sid,))
+        update_app_user_seller_status_for_seller(sid,'Suspended Seller')
+        st.error('Seller suspended. Buyer capability remains on the account.')
+        st.rerun()
+
 def admin():
-    header(); st.header('Admin')
+    header(); admin_context('House Of Wax Admin'); st.header('House Of Wax Admin')
     if not is_admin_unlocked():
-        st.error('Admin tools are locked. Switch to Admin role or turn on Testing mode to open prototype admin tools.')
+        st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode to open prototype admin tools.')
         return
     admin_access_warning()
     prototype_role_notice()
@@ -3983,28 +6065,41 @@ def admin():
         if not st.button('Enter admin'): return
         if pwd!=ADMIN_PASSWORD: st.error('Wrong password.'); return
     else: st.info('No admin password set. Testing build allows admin access.')
-    tabs=st.tabs(['Overview','Listing Review','Inquiries','Purchase Requests','Tester Feedback','Database Status','Sellers','Buyers','Community tools','Reports','Cleanup'])
+    tabs=st.tabs(['Overview','User Directory','Seller Applications','Moderation Center','Inquiries','Purchase Requests','Tester Feedback','Database Status','Sellers','Buyers','Community tools','Reports','Cleanup'])
     with tabs[0]:
         if st.button('Create/repair House Of Wax Official seller'):
             sid=ensure_house_of_wax_official(); st.success(f'House Of Wax Official seller ready. Seller ID {sid}')
         c1,c2,c3,c4=st.columns(4); c1.metric('Buyers',len(table('buyers'))); c2.metric('Sellers',len(table('sellers'))); c3.metric('Products',len(table('products'))); c4.metric('Orders',len(table('orders')))
-    with tabs[1]: listing_review_queue()
-    with tabs[2]: admin_inquiry_view()
-    with tabs[3]: admin_purchase_request_view()
-    with tabs[4]: admin_tester_feedback_view()
-    with tabs[5]: admin_database_status()
-    with tabs[6]: st.dataframe(table('sellers'),width='stretch')
-    with tabs[7]: st.dataframe(table('buyers'),width='stretch')
-    with tabs[8]:
+        with st.expander('Music Data Sources Roadmap',expanded=False):
+            st.write('Future source/partner work should support both new and old music without making House Of Wax dependent on one outside source.')
+            for item in [
+                'MusicBrainz + Cover Art Archive for open music metadata and cover art.',
+                'Discogs for collector/release marketplace reference where allowed by API terms.',
+                'Last.fm or similar sources for popularity, tag, and discovery context where allowed.',
+                'Future partnerships with local record stores, collectors, DJs, labels, and distributors.',
+                'Cache metadata responsibly where allowed.',
+                'Respect each API’s terms, rate limits, and attribution requirements.'
+            ]:
+                st.write(f'- {item}')
+    with tabs[1]: admin_user_directory()
+    with tabs[2]: admin_seller_applications()
+    with tabs[3]: listing_review_queue()
+    with tabs[4]: admin_inquiry_view()
+    with tabs[5]: admin_purchase_request_view()
+    with tabs[6]: admin_tester_feedback_view()
+    with tabs[7]: admin_database_status()
+    with tabs[8]: st.dataframe(table('sellers'),width='stretch')
+    with tabs[9]: st.dataframe(table('buyers'),width='stretch')
+    with tabs[10]:
         sid=seller_pick('adminseller'); badge=st.text_input('Badge',placeholder='Soul Specialist, Jazz Dealer, Verified Seller'); typ=st.selectbox('Badge type',['Community','Specialty','Performance','Verified'])
-        if st.button('Add badge'): run("INSERT INTO seller_badges(seller_id,badge_name,badge_type,active,created_at) VALUES(?,?,?,'Yes',?)",(sid,badge,typ,now())); st.success('Badge added.')
+        if st.button('Add badge'): run("INSERT INTO seller_badges(seller_id,badge_name,badge_type,active,created_at) VALUES(?,?,?,'Yes',?)",(sid,badge,typ,now())); warn_if_local_only('Seller badge'); st.success('Badge added.')
         if st.button('Create seller spotlight culture post'):
             s=get_seller(sid); run("INSERT INTO culture_posts(title,category,author,body,image_url,status,created_at) VALUES(?,'Seller Spotlight','House Of Wax',?,?,'Published',?)",(f"Seller Spotlight: {safe(s['store_name'])}",safe(s['seller_story'],safe(s['store_bio'])),safe(s['banner_url']) or safe(s['logo_url']),now())); st.success('Spotlight created.')
         st.subheader('Messages'); st.dataframe(table('messages'),width='stretch'); st.subheader('Feedback'); st.dataframe(table('feedback'),width='stretch')
-    with tabs[9]:
-        rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(rep); st.dataframe(data,width='stretch'); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
-    with tabs[10]:
-        t=st.selectbox('Table',['buyers','sellers','products','product_gallery','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(t); st.dataframe(data,width='stretch')
+    with tabs[11]:
+        rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','listing_reports','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(rep); st.dataframe(data,width='stretch'); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
+    with tabs[12]:
+        t=st.selectbox('Table',['buyers','sellers','products','product_gallery','listing_reports','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(t); st.dataframe(data,width='stretch')
         if not data.empty:
             rid=st.selectbox('Row ID',data['id'].tolist()); confirm=st.checkbox('Confirm delete')
             if st.button('Delete row') and confirm: run(f'DELETE FROM {t} WHERE id=?',(int(rid),)); st.success('Deleted.')
@@ -4014,6 +6109,7 @@ def admin():
 # ---------- V23 Launch Prep + Public Pages ----------
 def about_house_of_wax():
     header()
+    marketplace_context('House Of Wax Marketplace → About')
     st.header('About House Of Wax')
     st.write('House Of Wax is a music marketplace and culture platform built for collectors, sellers, and people who want to understand music culture the right way.')
     st.markdown("""
@@ -4034,6 +6130,7 @@ def about_house_of_wax():
 
 def trust_safety():
     header()
+    marketplace_context('House Of Wax Marketplace → Rules & Policies')
     st.header('Trust & Safety')
     st.write('House Of Wax is designed to make marketplace trust visible and easier to understand.')
     st.markdown('### What House Of Wax believes')
@@ -4051,6 +6148,7 @@ def seller_standards():
     st.header('Seller Standards')
     st.write('Sellers on House Of Wax should help build a trusted marketplace and music culture community.')
     st.markdown('### Sellers are expected to')
+    st.info('Approved sellers can manage and publish listings in their own stores. Sellers are responsible for the accuracy, legality, condition, pricing, images, and descriptions of the items they post.')
     st.write('- Describe items honestly.')
     st.write('- Use clear condition notes.')
     st.write('- Add barcode, catalog, matrix/runout, label, format, and release details when available.')
@@ -4059,6 +6157,7 @@ def seller_standards():
     st.write('- Respond to buyers professionally.')
     st.write('- Ship items safely and on time.')
     st.write('- Respect House Of Wax trust standards.')
+    st.write('- Do not knowingly post counterfeit, stolen, misleading, illegal, hateful, violent, or prohibited items.')
     st.markdown('### House Of Wax Official')
     st.write('House Of Wax can also sell branded merchandise, official drops, curated goods, and platform items through the House Of Wax Official seller account.')
 
@@ -4081,9 +6180,15 @@ def policy_draft_notice():
 
 def legal_policies():
     header()
+    marketplace_context('House Of Wax Marketplace → Rules & Policies')
     st.header('Legal / Policies')
     st.info('These draft sections help organize House Of Wax marketplace rules, privacy expectations, seller expectations, and buyer expectations before launch.')
     st.warning('These are not final attorney-approved legal documents and should not be treated as production terms.')
+
+    st.markdown('### House Of Wax Marketplace Publishing Policy')
+    st.info('House Of Wax allows approved sellers to manage and publish listings in their own stores. Sellers are responsible for the accuracy, legality, condition, pricing, images, and descriptions of the items they post. House Of Wax does not pre-approve every listing. Listings and sellers may be reported by buyers, sellers, rights owners, or community members. House Of Wax may investigate reports and may hide, remove, or restrict listings or sellers that violate platform rules.')
+    st.write('Sellers agree not to knowingly post counterfeit, stolen, misleading, illegal, hateful, violent, or prohibited items. Sellers must describe items honestly and respond to buyer questions in good faith.')
+    st.write('Buyers should review the listing details, condition notes, seller information, and photos or cover art before requesting to buy. Buyers can report listings or sellers that appear misleading or against platform rules.')
 
     st.markdown('### Privacy Policy Draft')
     policy_draft_notice()
@@ -4092,12 +6197,12 @@ def legal_policies():
 
     st.markdown('### Terms of Use Draft')
     policy_draft_notice()
-    for item in ['Use accurate information.','Do not misuse the platform.','Do not submit fake, stolen, unsafe, counterfeit, or misleading listings.','House Of Wax may review, moderate, hide, reject, or remove listings.','This prototype is not the final production marketplace.']:
+    for item in ['Use accurate information.','Do not misuse the platform.','Do not submit fake, stolen, unsafe, counterfeit, or misleading listings.','House Of Wax may investigate reports and may hide, restrict, or remove listings or sellers that violate platform rules.','This prototype is not the final production marketplace.']:
         st.write(f'- {item}')
 
     st.markdown('### Seller Agreement Draft')
     policy_draft_notice()
-    for item in ['Provide accurate item details.','Use real item photos when required or preferred.','Describe condition honestly, including damage or missing parts.','Respond to buyer inquiries professionally.','Do not list prohibited, counterfeit, stolen, unsafe, or misleading items.','Understand listings may require House Of Wax review or approval before appearing publicly.','Understand fees, commissions, payment rules, and seller payouts are not finalized unless separately agreed.']:
+    for item in ['Provide accurate item details.','Use real item photos when required or preferred.','Describe condition honestly, including damage or missing parts.','Respond to buyer inquiries professionally.','Do not list prohibited, counterfeit, stolen, unsafe, or misleading items.','Understand approved sellers can publish directly, but reported listings may be moderated by House Of Wax.','Understand fees, commissions, payment rules, and seller payouts are not finalized unless separately agreed.']:
         st.write(f'- {item}')
 
     st.markdown('### Buyer Guidelines Draft')
@@ -4107,7 +6212,7 @@ def legal_policies():
 
     st.markdown('### Marketplace Rules Draft')
     policy_draft_notice()
-    for item in ['Approved/public listings can appear in Marketplace.','Draft, Submitted for Review, Needs Changes, Rejected, inactive, or non-public listings should not be treated as public listings.','Pending and sold status should be clear to buyers.','House Of Wax may use quality review, trust indicators, seller profile context, and moderation tools.','Seller trust indicators are platform signals, not outside verification.','House Of Wax may remove or hide listings that are unsafe, misleading, inappropriate, prohibited, or incomplete.']:
+    for item in ['Live listings from approved sellers can appear in Marketplace.','Draft, Hidden, Under Review, Removed by House Of Wax, inactive, or non-public listings should not be treated as public listings.','Pending and sold status should be clear to buyers.','House Of Wax may use trust indicators, seller profile context, reports, and moderation tools.','Seller trust indicators are platform signals, not outside verification.','House Of Wax may remove or hide listings that are unsafe, misleading, inappropriate, prohibited, or incomplete.']:
         st.write(f'- {item}')
 
     st.markdown('### Prohibited Items / Unsafe Listings Draft')
@@ -4138,6 +6243,7 @@ def legal_policies():
 
 def payment_checkout_prep():
     header()
+    marketplace_context('House Of Wax Marketplace → Payment / Checkout Prep')
     st.header('Payment / Checkout Prep')
     st.info('House Of Wax currently supports Request to Buy. Real checkout and payment processing are not live yet.')
     st.warning('Do not collect payment without clear terms, seller agreements, refund/dispute rules, real authentication, hosted storage, and a trusted payment processor.')
@@ -4200,6 +6306,7 @@ def payment_checkout_prep():
 
 def contact_newsletter():
     header()
+    marketplace_context('House Of Wax Marketplace → Contact / Newsletter')
     st.header('Contact / Newsletter')
     st.write('Join the House Of Wax list for collecting tips, culture stories, Knowledge Hub updates, marketplace announcements, and future drops.')
     with st.form('public_newsletter_signup'):
@@ -4211,6 +6318,7 @@ def contact_newsletter():
             if email:
                 try:
                     run("INSERT INTO newsletter_signups(name,email,interest,created_at) VALUES(?,?,?,?)",(name,email,interest,now()))
+                    warn_if_local_only('Newsletter signup')
                     st.success('You are on the House Of Wax list.')
                 except Exception as e:
                     st.error(f'Newsletter signup table is not ready yet: {e}')
@@ -4221,6 +6329,7 @@ def contact_newsletter():
 
 def seller_onboarding():
     header()
+    marketplace_context('House Of Wax Marketplace → Seller Onboarding')
     st.header('Seller Onboarding')
     st.info('Use this guide to onboard early House Of Wax sellers, partners, and testers without adding risky production features.')
 
@@ -4237,9 +6346,9 @@ def seller_onboarding():
         'Add condition and seller details',
         'Add real item photos',
         'Preview listing',
-        'Check quality score',
-        'Save as Draft or Submit for Review',
-        'Wait for approval',
+        'Review listing readiness',
+        'Save as Draft or Publish to My Store',
+        'Confirm seller account is approved',
         'Respond to inquiries',
         'Manage purchase requests',
         'Mark Pending or Sold'
@@ -4259,6 +6368,7 @@ def seller_onboarding():
 
 def launch_checklist():
     header()
+    marketplace_context('House Of Wax Marketplace → Marketplace Launch Checklist')
     st.header('Marketplace Launch Checklist')
     st.write('Use this checklist to prepare House Of Wax for early sellers, partners, testers, and future public launch planning.')
 
@@ -4266,7 +6376,7 @@ def launch_checklist():
     prototype_ready=[
         'Marketplace works',
         'Seller upload works',
-        'Review queue works',
+        'Moderation Center works',
         'Buyer inquiries work',
         'Request to Buy works',
         'Seller profiles/trust badges work',
@@ -4298,7 +6408,7 @@ def launch_checklist():
         'Create 10 to 25 sample listings',
         'Test inquiries',
         'Test request to buy',
-        'Test approval workflow',
+        'Test seller publishing and report/moderation workflow',
         'Collect feedback'
     ]
     for i,item in enumerate(seller_plan,1):
@@ -4320,6 +6430,7 @@ def launch_checklist():
 
 def business_plan_funding_roadmap():
     header()
+    marketplace_context('House Of Wax Marketplace → Business Plan / Funding Roadmap')
     st.header('Business Plan / Funding Roadmap')
     st.info('Use this section for lenders, grant reviewers, investors, partners, early sellers, and demo conversations. It is planning support, not a new production marketplace feature.')
 
@@ -4346,17 +6457,17 @@ def business_plan_funding_roadmap():
         ('Executive Summary','House Of Wax is a marketplace and culture platform for records, music collectibles, merch, memorabilia, clothing, and other culture goods. The prototype shows a safer way for buyers to browse, ask questions, and request to buy while sellers get guided listing tools, review support, trust signals, and education around condition and authenticity.'),
         ('Company Concept','House Of Wax is built as both a marketplace and a knowledge hub. It can support independent sellers, local collectors, record shops, culture brands, and a House Of Wax Official seller account for curated drops, branded items, and platform-owned goods.'),
         ('Problem','Used music and culture goods are hard to evaluate online. Buyers often face weak photos, unclear condition notes, missing release details, and uncertain seller trust. Sellers often need help creating complete listings and explaining condition in a way buyers can understand.'),
-        ('Solution','House Of Wax combines approved marketplace listings, Smart Search, listing previews, seller-uploaded photos, listing quality scores, buyer inquiries, purchase requests, seller profiles, trust badges, review queues, and Knowledge Hub education.'),
+        ('Solution','House Of Wax combines seller-published live listings, Smart Search, listing previews, seller-uploaded photos, listing readiness, buyer inquiries, purchase requests, seller profiles, trust badges, reports/moderation, and Knowledge Hub education.'),
         ('Launch Wedge','Start with vinyl records and music collectibles because buyers are passionate, condition/trust matters, and the category matches the House Of Wax culture story. Expand later only after seller and buyer behavior is proven.'),
         ('Target Market','The first market is collectors, music fans, local sellers, record stores, merch sellers, memorabilia sellers, and culture goods buyers who care about trust, story, condition, and authenticity.'),
         ('Buyer Segments','Collectors, casual music fans, gift buyers, local pickup buyers, genre fans, merch buyers, memorabilia buyers, and people learning how to buy physical music or culture goods with confidence.'),
         ('Seller Segments','Independent record sellers, collectors thinning collections, local shops, merch sellers, culture brands, vintage clothing sellers, memorabilia sellers, event sellers, and House Of Wax Official.'),
         ('Revenue Model','Planning assumptions include seller/listing fees, marketplace commission, featured listings, promoted seller profiles, House Of Wax official merch/items, events/pop-ups later, and subscriptions for power sellers later. These are not guaranteed results and need real testing.'),
-        ('Product / Platform Features','Marketplace browsing, listing detail pages, Contact Seller / Ask About This Item, Request to Buy, guided seller upload, drafts, review queue, listing quality score, seller profiles, trust badges, photo handling, database status/export, and education content.'),
+        ('Product / Platform Features','Marketplace browsing, listing detail pages, Contact Seller / Ask About This Item, Request to Buy, guided seller upload, drafts, direct seller publishing, moderation center, listing readiness, seller profiles, trust badges, photo handling, database status/export, and education content.'),
         ('Competitive Positioning','Discogs is strong for release data, eBay is broad resale, Reverb is gear-focused, Whatnot is live commerce, and StockX is relevant where authenticated culture goods matter. House Of Wax should compete by being guided, culture-first, review-oriented, and easier for trusted sellers to list well.'),
         ('Competitive Advantage','House Of Wax is not just a listing board. It adds guided seller listings, trust/quality review, seller onboarding, admin quality controls, music culture education, and platform-owned content that can help buyers understand what they are buying.'),
         ('Go-To-Market Strategy','Start with trusted sellers and clearly reviewed listings. Use founder-led demos, local seller outreach, collector communities, social content, Knowledge Hub education, early buyer testing, and seller onboarding to build credibility.'),
-        ('Operations Plan','Keep early operations simple: approve listings before public display, monitor inquiries and purchase requests, coach sellers on photos and condition, track buyer confusion, and keep marketplace rules clear.'),
+        ('Operations Plan','Keep early operations simple: approve sellers before they publish, monitor inquiries and purchase requests, coach sellers on photos and condition, investigate reports, and keep marketplace rules clear.'),
         ('Technology Plan','Current prototype uses Streamlit and SQLite. Production should move to real login/authentication, hosted database storage, permanent image storage, locked admin permissions, and a clear payment/checkout decision.'),
         ('Launch Roadmap','Demo readiness first, then early seller beta, then production beta with hosted infrastructure and legal review, then public launch/growth after real traction and operations are proven.'),
         ('Funding Need','Funding should support the move from working prototype to safer beta and then public launch. Need depends on build path, legal support, hosting, design, marketing, and seller acquisition.'),
@@ -4382,8 +6493,8 @@ def business_plan_funding_roadmap():
     st.markdown('### User Testing Script')
     testing_scripts=[
         ('Buyer Test',['Browse Marketplace.','Open item detail.','Evaluate photos and condition notes.','Contact Seller / Ask About This Item.','Request to Buy.','Explain what felt confusing, risky, missing, or trustworthy.']),
-        ('Seller Test',['Create or update seller profile.','Upload a listing.','Add condition details.','Add photos.','Preview listing.','Check quality score.','Save as Draft.','Submit for Review.','Explain what almost stopped you from finishing.']),
-        ('Admin Test',['Review submitted listing.','Add reviewer notes.','Approve, Needs Changes, or Reject.','Check inquiries.','Check purchase requests.','Check database/export.'])
+        ('Seller Test',['Create or update seller profile.','Upload a listing.','Add condition details.','Add photos.','Preview listing.','Review listing readiness.','Save as Draft.','Publish to My Store if approved.','Explain what almost stopped you from finishing.']),
+        ('Admin Test',['Review seller approval.','Review a listing/seller report.','Add moderation notes.','Hide/remove a reported listing or suspend/reinstate a seller.','Check inquiries.','Check purchase requests.','Check database/export.'])
     ]
     for title,steps in testing_scripts:
         with st.expander(title,expanded=True):
@@ -4396,7 +6507,7 @@ def business_plan_funding_roadmap():
         'What almost stopped you from finishing your listing?',
         'If this item was also on eBay/Discogs/Reverb, what would make you buy it here?',
         'What makes you trust or not trust that the seller will ship what is pictured?',
-        'Did the quality score or trust badges change your mind? Did you notice them?',
+        'Did the listing readiness or trust badges change your mind? Did you notice them?',
         'When you searched, did you find what you expected?',
         'What did you expect Request to Buy to do?',
         'What information do you wish the listing had?',
@@ -4410,14 +6521,14 @@ def business_plan_funding_roadmap():
     validation_metrics=[
         ('Number of sellers tested','Target: 3 to 5 trusted sellers.'),
         ('Number of listings created','Target: 10 to 25 listings.'),
-        ('Time to create listing','Track how long a seller needs from start to draft or review submission.'),
-        ('Listings submitted for review','Shows whether sellers reach the review step.'),
-        ('Listings approved','Shows quality and review readiness.'),
+        ('Time to create listing','Track how long a seller needs from start to draft or live publishing.'),
+        ('Listings published live','Shows whether approved sellers reach the publish step.'),
+        ('Seller accounts approved','Shows whether House Of Wax has approved who can sell.'),
         ('Buyer inquiries submitted','Target: 5 to 10 buyer inquiries.'),
         ('Purchase requests submitted','Target: 3 to 5 request-to-buy attempts.'),
         ('Seller response rate','Shows whether sellers will keep up with buyer interest.'),
         ('Buyer confusion points','Track unclear photos, condition, price, trust, inquiry, and request-to-buy moments.'),
-        ('Seller confusion points','Track upload, search, condition, photos, quality score, and review friction.'),
+        ('Seller confusion points','Track upload, search, condition, photos, readiness, seller approval, and publish friction.'),
         ('Categories with strongest interest','Compare vinyl records, CDs, cassettes, merch, memorabilia, clothing, and culture goods.')
     ]
     st.dataframe(pd.DataFrame(validation_metrics,columns=['Metric','Early target / use']),width='stretch')
@@ -4493,7 +6604,7 @@ def business_plan_funding_roadmap():
         ('Marketing / seller acquisition','20%','Seller outreach, buyer testing, launch content, community campaigns.'),
         ('Legal / compliance','15%','Privacy, terms, seller agreement, marketplace rules, payment/checkout review.'),
         ('Hosting / software / tools','10%','Hosting, database, image storage, email, analytics, operations tools.'),
-        ('Operations / admin','10%','Review queue operations, support, admin work, bookkeeping, moderation.'),
+        ('Operations / admin','10%','Seller approval, moderation, support, admin work, bookkeeping, and reports.'),
         ('Testing / contingency','10%','Beta incentives, usability tests, unexpected costs, polish.')
     ]
     st.dataframe(pd.DataFrame(use_rows,columns=['Use','Sample share','Purpose']),width='stretch')
@@ -4528,8 +6639,8 @@ def business_plan_funding_roadmap():
     risk_rows=[
         ('Two-sided marketplace cold start','Start narrow with trusted sellers and a focused vinyl/music collectibles wedge before broad categories.'),
         ('Seller acquisition','Use founder-led onboarding, quality coaching, and early seller feedback instead of relying on self-serve growth too early.'),
-        ('Buyer trust','Show exact photos, seller profiles, trust badges, quality scores, review status, and clear inquiry/request-to-buy flows.'),
-        ('Counterfeit or stolen goods','Use review queue, seller standards, admin notes, flags, and clear prohibited-item rules before scale.'),
+        ('Buyer trust','Show exact photos, seller profiles, trust badges, listing readiness, live status, and clear inquiry/request-to-buy flows.'),
+        ('Counterfeit or stolen goods','Use seller standards, reports, moderation notes, seller suspension, and clear prohibited-item rules before scale.'),
         ('Condition disputes','Require better condition notes, photos, sleeve/media condition for music, and seller education.'),
         ('Payment/refund disputes','Keep Request to Buy until legal, checkout, refund, and dispute rules are ready.'),
         ('Photo/storage reliability','Move from prototype local storage to cloud image storage before launch.'),
@@ -4544,9 +6655,9 @@ def business_plan_funding_roadmap():
 Executive Summary: House Of Wax is a marketplace and culture platform for records, music collectibles, merch, memorabilia, clothing, and culture goods.
 Company Concept: Marketplace plus Knowledge Hub, trust layer, seller tools, and House Of Wax-owned culture content.
 Problem: Buyers need better trust, photos, condition notes, seller context, and education. Sellers need guided listing tools.
-Solution: Approved listings, Smart Search, seller profiles, trust badges, quality scores, inquiries, purchase requests, review queue, and Knowledge Hub education.
+Solution: Approved sellers, live listings, Smart Search, seller profiles, trust badges, listing readiness, inquiries, purchase requests, moderation, and Knowledge Hub education.
 Launch Wedge: Start with vinyl records and music collectibles first, then expand into merch, memorabilia, broader culture goods, and events/pop-ups after validation.
-Testing Script: Buyer tests Marketplace, item detail, photos/condition, Contact Seller, and Request to Buy. Seller tests profile, upload, condition, photos, preview, quality score, draft, and review submission. Admin tests review queue, notes, approvals, inquiries, purchase requests, and export.
+Testing Script: Buyer tests Marketplace, item detail, photos/condition, Contact Seller, and Request to Buy. Seller tests profile, upload, condition, photos, preview, readiness, draft, and publish. Admin tests seller approval, moderation reports, notes, inquiries, purchase requests, and export.
 Revenue Model: Planning assumptions include listing/seller fees, marketplace commission, featured listings, promoted seller profiles, official merch/items, events/pop-ups, and future power-seller subscriptions.
 Startup Cost Phases: Phase 1 $5,000-$15,000 demo/beta readiness; Phase 2 $25,000-$75,000 production beta; Phase 3 $100,000-$250,000+ public launch/growth.
 Funding Roadmap: founder/self-funded, friends/family, small business loans, SBA Microloan, SBA 7(a), CDFI/community lenders, Charlotte/NC programs, grants, pitch competitions, angels, strategic partners.
@@ -4572,7 +6683,7 @@ def demo_guide():
     with c1:
         st.subheader('Buyer flow')
         st.write('1. Open Marketplace.')
-        st.write('2. Open an Approved, Active, or Public listing.')
+        st.write('2. Open a Live listing.')
         st.write('3. Use Contact Seller / Ask About This Item for questions.')
         st.write('4. Use Request to Buy when the buyer is ready. Checkout is not live yet; this sends a purchase request.')
         st.caption('Pending and Sold listings can appear as unavailable, but buyer action buttons stay hidden.')
@@ -4583,15 +6694,15 @@ def demo_guide():
         st.write('3. Click Add Inventory / Upload Product.')
         st.write('4. Search or enter item details.')
         st.write('5. Add seller details, photos, and condition notes.')
-        st.write('6. Review the listing preview and quality score.')
-        st.write('7. Save as Draft or Submit for Review.')
+        st.write('6. Review the listing preview and readiness checklist.')
+        st.write('7. Save as Draft or Publish to My Store.')
         st.write('8. Check My Listings / Inventory.')
     with c3:
         st.subheader('Admin flow')
         st.write('1. Switch to Admin role or enable Testing mode.')
         st.write('2. Open My House of Wax, then Admin.')
-        st.write('3. Review submitted listings and reviewer notes.')
-        st.write('4. Approve, mark Needs Changes, or Reject.')
+        st.write('3. Review seller approval and listing/seller reports.')
+        st.write('4. Hide/remove listings or suspend/reinstate sellers when platform rules require it.')
         st.write('5. Review inquiries, purchase requests, and Database Status.')
     st.markdown('### Where to go')
     st.write('- Marketplace: public buyer browsing and listing details.')
@@ -4599,7 +6710,7 @@ def demo_guide():
     st.write('- Tester Feedback: quick feedback form for buyers, sellers, reviewers, advisors, and early testers.')
     st.write('- Seller Tools: upload products, manage listings, profile, inquiries, and purchase requests.')
     st.write('- Knowledge Center / Education Hub: buyer education, seller listing guidance, condition, photos, trust standards, FAQs, and marketplace rules.')
-    st.write('- Admin Tools: review queue, reports, inquiries, purchase requests, and database health.')
+    st.write('- Admin Tools: moderation center, seller approval, reports, inquiries, purchase requests, and database health.')
     st.write('- Seller Onboarding: early seller walkthrough, listing quality tips, and trust tips.')
     st.write('- Marketplace Launch Checklist: prototype readiness, public-launch needs, and early seller/buyer test plans.')
     st.write('- Business Plan / Funding Roadmap: final demo test plan, business foundation, funding stages, and use-of-funds priorities.')
@@ -4618,7 +6729,7 @@ def pitch_demo_package():
     header()
     st.header('Pitch / Demo Package')
     st.info('House Of Wax is a marketplace and culture platform for records, music collectibles, merch, memorabilia, and culture goods.')
-    st.write('The prototype shows how House Of Wax can help people discover items, help sellers create better listings, and help the platform protect trust before listings go public.')
+    st.write('The prototype shows how House Of Wax can help people discover items, help approved sellers publish directly, and help the platform protect trust through reports and moderation.')
 
     c1,c2=st.columns(2)
     with c1:
@@ -4628,10 +6739,10 @@ def pitch_demo_package():
     with c2:
         st.subheader('Problem it solves')
         st.write('Music and culture marketplaces can be hard to trust. Listings may be incomplete, photos may be weak, condition details may be unclear, and buyers often need to contact sellers before committing.')
-        st.write('House Of Wax makes the listing process more guided and gives the platform tools to review quality before items appear publicly.')
+        st.write('House Of Wax makes the listing process more guided and gives the platform tools to approve sellers, receive reports, and moderate problem listings after publishing.')
 
     st.markdown('### Marketplace concept')
-    st.write('Buyers browse approved/public listings, view item details, ask sellers questions, and request to buy. Sellers build richer listings with search data, photos, condition notes, quality scores, profile context, and trust badges. Admin/review tools help House Of Wax approve listings, track inquiries, track purchase requests, and watch database health.')
+    st.write('Buyers browse live listings, view item details, ask sellers questions, and request to buy. Approved sellers build richer listings with search data, photos, condition notes, listing readiness, profile context, and trust badges. Admin/moderation tools help House Of Wax approve sellers, review reports, track inquiries, track purchase requests, and watch database health.')
     st.caption('Checkout is not live yet. Request to Buy is the current purchase-intent workflow while payment decisions are prepared.')
     st.caption('The Knowledge Center / Education Hub supports the pitch by showing how House Of Wax teaches buyers, sellers, and early testers before the marketplace scales.')
 
@@ -4639,7 +6750,7 @@ def pitch_demo_package():
     with c3:
         st.subheader('Buyer flow')
         st.write('- Browse Marketplace.')
-        st.write('- View an approved listing.')
+        st.write('- View a live listing.')
         st.write('- Contact Seller / Ask About This Item.')
         st.write('- Request to Buy.')
         st.write('- Follow inquiry and purchase request history.')
@@ -4648,39 +6759,39 @@ def pitch_demo_package():
         st.write('- Open Seller Tools.')
         st.write('- Search item data or enter it manually.')
         st.write('- Add seller details, photos, price, and condition.')
-        st.write('- Review the listing preview and quality score.')
-        st.write('- Save as Draft or Submit for Review.')
+        st.write('- Review the listing preview and readiness checklist.')
+        st.write('- Save as Draft or Publish to My Store.')
     with c5:
         st.subheader('Admin flow')
-        st.write('- Review submitted listings.')
-        st.write('- Add reviewer notes.')
-        st.write('- Approve, request changes, or reject.')
+        st.write('- Review seller approval and reports.')
+        st.write('- Add moderation notes.')
+        st.write('- Hide/remove listings or suspend/reinstate sellers.')
         st.write('- Review inquiries and purchase requests.')
         st.write('- Check database status and safe exports.')
 
     st.markdown('### Why trust tools matter')
-    st.write('Trust badges, listing quality scores, and review queues help make the marketplace feel curated instead of random. They also give House Of Wax a practical way to coach sellers, improve listing quality, and protect buyers before scaling.')
+    st.write('Trust badges, listing readiness, seller approval, and moderation reports help make the marketplace feel intentional instead of random. They also give House Of Wax a practical way to coach sellers, improve listing quality, and protect buyers before scaling.')
     st.caption('For early seller walkthroughs, open Seller Onboarding. For demo readiness, funding conversations, and beta testing, open Business Plan / Funding Roadmap and Marketplace Launch Checklist.')
 
     st.markdown('### Demo walkthrough')
     walkthrough=[
         'Step 1: Open Marketplace',
-        'Step 2: View an approved listing',
+        'Step 2: View a live listing',
         'Step 3: Contact seller',
         'Step 4: Request to buy',
         'Step 5: Switch to Seller role',
         'Step 6: Upload a listing',
-        'Step 7: Submit for review',
+        'Step 7: Publish to My Store',
         'Step 8: Switch to Admin role',
-        'Step 9: Approve or request changes',
+        'Step 9: Review reports or seller approval',
         'Step 10: Check Database Status/export'
     ]
     for step in walkthrough:
         st.write(f'- {step}')
-    st.caption('What to show someone: start with the Marketplace, then show the guided seller upload, then show the Admin review queue. That tells the whole story quickly.')
+    st.caption('What to show someone: start with the Marketplace, then show the guided seller upload, then show the Admin Moderation Center. That tells the whole story quickly.')
 
     st.markdown('### What Works Now')
-    for item in ['Marketplace','Seller upload flow','Smart search','Drafts and review queue','Listing quality score','Seller profiles','Trust badges','Buyer inquiries','Request to buy','Pending/Sold inventory status','Role separation prototype','Photo upload prototype','Database status/export']:
+    for item in ['Marketplace','Seller upload flow','Smart search','Drafts and direct publishing','Listing readiness','Seller profiles','Trust badges','Buyer inquiries','Request to buy','Pending/Sold inventory status','Role separation prototype','Photo upload prototype','Database status/export','Moderation Center']:
         st.write(f'- {item}')
 
     st.markdown('### What Comes Next for Production')
@@ -4701,9 +6812,9 @@ def production_readiness_roadmap():
 
     st.markdown('### What is working now')
     working_now=[
-        ('Marketplace browsing','Approved/public listings can appear with images, status, seller information, inquiry, and request-to-buy actions.','Medium'),
-        ('Seller upload flow','Sellers can create guided listings with search data, details, photos, preview, quality score, draft, and review submission.','Medium'),
-        ('Review queue','Admin can review submitted listings, add notes, approve, mark Needs Changes, or reject.','Medium'),
+        ('Marketplace browsing','Live/public listings can appear with images, status, seller information, inquiry, and request-to-buy actions.','Medium'),
+        ('Seller upload flow','Approved sellers can create guided listings with search data, details, photos, preview, readiness, draft, and direct publishing.','Medium'),
+        ('Moderation Center','Admin can approve sellers, review reports, add notes, hide/remove listings, and suspend/reinstate sellers.','Medium'),
         ('Buyer inquiries and purchase requests','Buyers can ask about items and request to buy through controlled House Of Wax forms.','Medium'),
         ('Seller profiles and trust badges','Seller profile details, platform indicators, and listing quality signals are visible.','Low'),
         ('Database health/export','Admin can view local database status and safe export options for key tables.','Low')
@@ -4732,7 +6843,7 @@ def production_readiness_roadmap():
         ('Payment or checkout decision','Decide whether House Of Wax handles payments directly or routes seller-managed transactions.','Medium'),
         ('Shipping/pickup rules','Define shipping, pickup, local handoff, cancellation, and inventory status rules.','Medium'),
         ('Legal pages and seller agreement','Add privacy policy, buyer terms, seller terms, marketplace rules, and content policies.','High'),
-        ('Beta testing with real sellers','Test listing quality, review queue, buyer messages, and status workflows with trusted sellers.','Medium')
+        ('Beta testing with real sellers','Test listing readiness, seller publishing, buyer messages, report/moderation, and status workflows with trusted sellers.','Medium')
     ]
     for name,desc,risk in launch_upgrades:
         st.write(f'- **{name}** — {desc} Risk level: {risk}.')
@@ -4763,7 +6874,7 @@ def production_readiness_roadmap():
     st.write('Open Payment / Checkout Prep to compare request-to-buy, seller-managed payment, House Of Wax-managed checkout, local pickup, shipping, and hybrid purchase models.')
     st.write('Recommended path: keep Request to Buy first, add admin-tracked pending/sold status next, then consider Stripe checkout only after real auth, hosted database, permanent image storage, legal terms, seller agreement, and refund/dispute policy are ready.')
     st.markdown('### Seller onboarding and launch checklist now')
-    st.write('Open Seller Onboarding to walk early sellers through profile setup, listing creation, photos, quality score, review, inquiries, purchase requests, and pending/sold status management.')
+    st.write('Open Seller Onboarding to walk early sellers through profile setup, listing creation, photos, readiness, publishing, inquiries, purchase requests, and pending/sold status management.')
     st.write('Open Marketplace Launch Checklist to track prototype-ready items, public launch blockers, early seller testing, and buyer testing.')
     st.markdown('### Business plan and funding roadmap now')
     st.write('Open Business Plan / Funding Roadmap to review the final demo test plan, business foundation, early seller launch plan, funding stages, use-of-funds priorities, and beta metrics.')
@@ -4780,7 +6891,7 @@ def auth_roles_plan():
     roles=[
         ('Buyer',['Marketplace','Listing details','Contact seller','Request to buy','Their own inquiries','Their own purchase requests','Saved/favorite items if added later']),
         ('Seller',['Seller dashboard','Upload/listing tools','Their own listings','Listing statuses and reviewer notes','Their seller profile','Their own buyer inquiries','Their own purchase requests']),
-        ('Admin',['Review queue','Seller/listing moderation','Inquiry monitoring','Purchase request monitoring','Data health/export','User/seller controls when added later']),
+        ('Admin',['Moderation Center','Seller/listing moderation','Inquiry monitoring','Purchase request monitoring','Data health/export','User/seller controls when added later']),
         ('House Of Wax Official',['Official listings','Branded merch/listings','Official inventory tools','Same safe protections as seller tools, plus admin approval if needed'])
     ]
     for role,items in roles:
@@ -4813,7 +6924,7 @@ def auth_roles_plan():
 def auth_login_prep():
     header()
     st.header('Auth / Login Prep')
-    st.info('The current role selector is prototype-only and is not secure login. This page prepares the real authentication plan without adding fake production security.')
+    st.info('V25.43 adds the real login and role-access foundation. Local fallback auth is still prototype/testing support, not production security.')
     st.warning('Production launch requires real authentication. Admin tools, buyer/seller private data, purchase requests, and contact information must be protected by real login and permission checks.')
 
     st.markdown('### Future login flow')
@@ -4845,7 +6956,7 @@ def auth_login_prep():
     role_permissions=[
         ('Buyer','Can access Marketplace, listing details, Contact Seller, Request to Buy, their own inquiries, their own purchase requests, and future saved/favorite items.','Cannot access seller dashboards, other buyers private data, seller private tools, or admin tools.'),
         ('Seller','Can access Seller dashboard, upload/listing tools, their own listings, listing statuses, reviewer notes, seller profile, their buyer inquiries, and their purchase requests.','Cannot access other sellers private data, admin moderation tools, or buyer-only private account areas.'),
-        ('Admin','Can access review queue, seller/listing moderation, inquiry monitoring, purchase request monitoring, data health/export, and future user/seller controls.','Should not be available without real admin login and audit-friendly permission checks.'),
+        ('Admin','Can access Moderation Center, seller/listing moderation, inquiry monitoring, purchase request monitoring, data health/export, and future user/seller controls.','Should not be available without real admin login and audit-friendly permission checks.'),
         ('House Of Wax Official','Can manage official listings, branded merch/listings, official inventory tools, and seller-like workflows with platform oversight.','Should still follow safe seller protections and admin approval rules if needed.')
     ]
     for role,can,cannot in role_permissions:
@@ -4856,15 +6967,15 @@ def auth_login_prep():
     st.markdown('### Environment / secret readiness')
     config=auth_config_status()
     if config['auth_configured']:
-        st.success('Future auth settings detected. Values are masked and no production login is enabled by this prototype check.')
+        st.success('Auth settings detected. Values are masked.')
     else:
-        st.info('Auth not connected yet. Prototype role selector is active.')
+        st.info('Auth not connected yet. Local prototype login fallback is active.')
     st.caption('Configuration checked: AUTH_PROVIDER, SUPABASE_URL, SUPABASE_ANON_KEY, ADMIN_EMAILS.')
     st.dataframe(pd.DataFrame(config['rows']),width='stretch')
 
     st.markdown('### Security warnings')
     warnings=[
-        'Prototype role selector is for demo/testing only.',
+        'Local fallback login is for demo/testing only.',
         'Production launch requires real authentication.',
         'Admin tools must be protected by real login.',
         'Buyer and seller private data must be permission-protected.',
@@ -4878,7 +6989,7 @@ def auth_login_prep():
     st.write('- **Supabase Auth** — recommended if House Of Wax moves the hosted database to Supabase/Postgres.')
     st.write('- **Streamlit auth package** — useful for a faster beta login layer, but still needs careful permissions.')
     st.write('- **Custom backend auth later** — gives more control, but requires more security, maintenance, and testing.')
-    st.caption('No new auth dependencies, credentials, or secrets are required for V25.29.')
+    st.caption('No new auth dependencies, credentials, or secrets are required for V25.43.')
 
 
 
@@ -4930,109 +7041,163 @@ def barcode_diagnostics_page():
                 st.write(f"**{i}. {safe(m.get('artist'))} - {safe(m.get('title'))}**")
                 st.caption(f"{safe(m.get('source'))} • {safe(m.get('format'))} • {safe(m.get('release_year'))} • score {safe(m.get('_match_score'))}")
                 if safe(m.get('image_url')):
-                    st.image(safe(m.get('image_url')),width=160)
+                    safe_image(safe(m.get('image_url')),width=160,fallback_text='Match image unavailable.')
                 st.write(safe(m.get('external_url')))
 
 
 def my_house_of_wax():
     header()
+    marketplace_context('House Of Wax Marketplace → My House of Wax')
     st.header('My House of Wax')
+    pending_workspace=st.session_state.pop('pending_my_house_workspace',None)
     role=current_account_role()
-    st.write('Your branded account area for buying, selling, messages, feedback, content tools, admin tools, and testing tools.')
+    st.write('This is your buyer/seller area for using the marketplace.')
     prototype_role_notice()
     st.caption(f'Current role: {role}')
-    if is_admin_unlocked():
-        admin_access_warning()
     if role=='Buyer':
-        st.info('Buyer area: Marketplace, listing details, seller questions, purchase requests, and buyer account activity.')
-        workspace_options=['Tester Start Here','Demo Guide','Tester Feedback','Knowledge Center / Education Hub','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Buyer Account']
+        st.info('Buyer path: manage your buyer profile, browse Marketplace, and check inquiries or requests.')
+        st.info('Browse and search listings from all approved sellers.')
+        workspace_options=['Buyer Profile','Browse Marketplace','My Inquiries / Requests','Tester Feedback']
     elif role=='Seller':
-        st.info('Seller area: Seller Tools, upload product, seller profile, inquiries, purchase requests, listing status, and reviewer notes.')
-        workspace_options=['Tester Start Here','Demo Guide','Tester Feedback','Knowledge Center / Education Hub','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Seller Tools']
+        st.info('Seller path: start with Seller Dashboard, then add inventory or check My Inventory.')
+        workspace_options=['Seller Dashboard','Add Inventory','My Inventory','My Store Profile','Buyer Requests','Seller Messages/Inquiries','Tester Feedback']
     else:
-        st.info('Admin area: review queue, inquiry review, purchase request review, listing approvals, reports, and demo tools.')
-        workspace_options=['Tester Start Here','Demo Guide','Tester Feedback','Knowledge Center / Education Hub','Pitch / Demo Package','Business Plan / Funding Roadmap','Seller Onboarding','Marketplace Launch Checklist','Production Readiness / Launch Roadmap','Auth + Roles Plan','Auth / Login Prep','Legal / Policies','Payment / Checkout Prep','Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
-    if testing_mode and role!='Admin':
-        workspace_options += ['Admin','Content Admin','Test Setup','Auctions','Seller Stores','Release Database','Barcode Diagnostics','Launch Checklist']
+        st.info('My House of Wax is the Marketplace buyer/seller area. Use the separate House Of Wax Admin section in the sidebar for seller approval, moderation, tester feedback review, diagnostics, and database status.')
+        workspace_options=['Browse Marketplace','Tester Feedback']
+    if pending_workspace in workspace_options:
+        st.session_state['my_house_workspace']=pending_workspace
     section=st.radio('Choose your workspace',workspace_options,key='my_house_workspace')
 
-    if section=='Tester Start Here':
-        tester_start_here('my_house')
-    elif section=='Demo Guide':
-        demo_guide()
-    elif section=='Tester Feedback':
+    if section=='Tester Feedback':
         tester_feedback_form('my_house')
-    elif section=='Knowledge Center / Education Hub':
-        knowledge_hub()
-    elif section=='Pitch / Demo Package':
-        pitch_demo_package()
-    elif section=='Business Plan / Funding Roadmap':
-        business_plan_funding_roadmap()
-    elif section=='Seller Onboarding':
-        seller_onboarding()
-    elif section=='Marketplace Launch Checklist':
-        launch_checklist()
-    elif section=='Production Readiness / Launch Roadmap':
-        production_readiness_roadmap()
-    elif section=='Auth + Roles Plan':
-        auth_roles_plan()
-    elif section=='Auth / Login Prep':
-        auth_login_prep()
-    elif section=='Legal / Policies':
-        legal_policies()
-    elif section=='Payment / Checkout Prep':
-        payment_checkout_prep()
-    elif section=='Buyer Account':
+    elif section=='Buyer Profile':
         buyer_dashboard()
-    elif section=='Seller Tools':
+    elif section=='Browse Marketplace':
+        marketplace()
+    elif section=='My Inquiries / Requests':
+        buyer_dashboard()
+    elif section=='Seller Dashboard':
         seller_dashboard()
-    elif section=='Content Admin':
-        content_admin()
-    elif section=='Admin':
-        admin()
-    elif section=='Test Setup':
-        test_setup()
-    elif section=='Auctions':
-        auctions()
-    elif section=='Seller Stores':
-        seller_stores()
-    elif section=='Release Database':
-        release_database_admin()
-    elif section=='Barcode Diagnostics':
-        barcode_diagnostics_page()
-    elif section=='Launch Checklist':
-        launch_checklist()
+    elif section=='Add Inventory':
+        st.session_state['pending_seller_tools_primary_section']='Add Inventory'
+        seller_dashboard()
+    elif section=='My Inventory':
+        st.session_state['pending_seller_tools_primary_section']='My Inventory'
+        seller_dashboard()
+    elif section=='My Store Profile':
+        st.session_state['pending_seller_tools_primary_section']='My Store Profile'
+        seller_dashboard()
+    elif section=='Buyer Requests':
+        st.session_state['pending_seller_tools_primary_section']='Buyer Requests'
+        seller_dashboard()
+    elif section=='Seller Messages/Inquiries':
+        st.session_state['pending_seller_tools_primary_section']='Seller Messages/Inquiries'
+        seller_dashboard()
 
 
 
 def app_mode():
-    # Public mode cleans the main site; testing mode exposes internal prototype tools.
-    role=st.sidebar.selectbox('Prototype account role',ACCOUNT_ROLES,index=ACCOUNT_ROLES.index(st.session_state.get('account_role','Buyer')),key='account_role')
-    st.sidebar.caption('Prototype role control only. Production launch will require real login and permission checks.')
-    testing=st.sidebar.toggle('Testing mode', value=False, help='Turn on to show prototype/admin/testing tools inside My House of Wax.',key='testing_mode_enabled')
-    if role=='Admin' or testing:
-        st.sidebar.warning('Admin tools are visible because Testing mode/Admin mode is enabled.')
+    role=current_account_role()
+    st.sidebar.caption('Account role: '+safe(role,'Public'))
+    if is_authenticated():
+        st.sidebar.caption('Signed in: '+auth_user_email())
+    else:
+        st.sidebar.caption('Public browsing mode. Sign in from Account.')
+    testing=st.sidebar.toggle('Testing mode', value=False, help='Unauthenticated prototype testing only. Signed-in normal users cannot unlock Admin with this toggle.',key='testing_mode_enabled')
+    if is_admin_unlocked():
+        st.sidebar.warning('House Of Wax Admin is visible because Admin access or unauthenticated Testing mode is enabled.')
+    elif testing and is_authenticated():
+        st.sidebar.info('Testing mode cannot grant Admin access to a signed-in non-admin user.')
     return testing
 
 
 testing_mode=app_mode()
-st.sidebar.caption('Public: Home, Marketplace, Knowledge Hub / Education Hub, Sell on House Of Wax, Seller Onboarding, Marketplace Launch Checklist, Business Plan / Funding Roadmap, Demo Guide, Pitch / Demo Package, Production Roadmap, Auth Plan, Auth / Login Prep, Legal / Policies, Payment / Checkout Prep, and account tools: My House of Wax.')
-menu=st.sidebar.radio('House Of Wax',['Home','Marketplace','Knowledge Hub','Sell on House Of Wax','Seller Onboarding','Marketplace Launch Checklist','Business Plan / Funding Roadmap','About','Trust & Safety','Legal / Policies','Payment / Checkout Prep','Contact / Newsletter','My House of Wax'])
-if menu=='Marketplace' and ('seller_id' in st.session_state or 'product_id' in st.session_state):
-    if st.sidebar.button('Main Marketplace',key='main_marketplace_reset'):
+area_options=['House Of Wax Marketplace']
+if is_admin_unlocked():
+    area_options.append('House Of Wax Admin')
+area=st.sidebar.radio('Choose area',area_options,key='house_of_wax_area')
+if area=='House Of Wax Marketplace':
+    st.sidebar.markdown('### House Of Wax Marketplace')
+    st.sidebar.caption('Simple buyer path: Home, Search Music, Seller Stores, and My Account.')
+    marketplace_menu=['Home','Search Music','Seller Stores','My Account']
+    if has_seller_capability() or is_admin_unlocked():
+        marketplace_menu.append('Seller Dashboard')
+    apply_pending_marketplace_navigation(marketplace_menu)
+    if st.session_state.get('marketplace_navigation') not in marketplace_menu:
+        st.session_state['marketplace_navigation']='Search Music' if st.session_state.get('marketplace_navigation')=='Marketplace' else 'Home'
+    menu=st.sidebar.radio('Marketplace navigation',marketplace_menu,key='marketplace_navigation')
+else:
+    st.sidebar.markdown('### House Of Wax Admin')
+    st.sidebar.caption('Platform management: seller approval, moderation, reports, tester feedback, database status, Supabase diagnostics, and testing.')
+    menu=st.sidebar.radio('Admin navigation',['Admin Dashboard','User Directory','Seller Applications','Seller Approval','Moderation Center','Tester Feedback','Database Status / Diagnostics','Test Setup'],key='admin_navigation')
+if area=='House Of Wax Marketplace':
+    mobile_navigation_bar()
+if area=='House Of Wax Marketplace' and menu=='Search Music' and ('seller_id' in st.session_state or 'product_id' in st.session_state):
+    if st.sidebar.button('Main Search Music',key='main_marketplace_reset'):
         st.session_state.pop('seller_id',None)
         st.session_state.pop('product_id',None)
         st.rerun()
-if menu=='Home': home()
-elif menu=='Marketplace': marketplace()
-elif menu=='Knowledge Hub': knowledge_hub()
-elif menu=='Sell on House Of Wax': register()
-elif menu=='Seller Onboarding': seller_onboarding()
-elif menu=='Marketplace Launch Checklist': launch_checklist()
-elif menu=='Business Plan / Funding Roadmap': business_plan_funding_roadmap()
-elif menu=='About': about_house_of_wax()
-elif menu=='Trust & Safety': trust_safety()
-elif menu=='Legal / Policies': legal_policies()
-elif menu=='Payment / Checkout Prep': payment_checkout_prep()
-elif menu=='Contact / Newsletter': contact_newsletter()
-elif menu=='My House of Wax': my_house_of_wax()
+if area=='House Of Wax Marketplace':
+    if menu=='Home': home()
+    elif menu=='Search Music': marketplace()
+    elif menu=='Seller Stores': seller_stores()
+    elif menu=='My Account':
+        account_page()
+    elif menu=='Seller Dashboard': seller_dashboard()
+    elif menu=='Knowledge Hub': knowledge_hub()
+    elif menu=='Account': account_page()
+    elif menu=='Sell on House Of Wax': register()
+    elif menu=='Seller Onboarding': seller_onboarding()
+    elif menu=='Marketplace Launch Checklist': launch_checklist()
+    elif menu=='Business Plan / Funding Roadmap': business_plan_funding_roadmap()
+    elif menu=='About': about_house_of_wax()
+    elif menu=='Trust & Safety': trust_safety()
+    elif menu=='Legal / Policies': legal_policies()
+    elif menu=='Payment / Checkout Prep': payment_checkout_prep()
+    elif menu=='Contact / Newsletter': contact_newsletter()
+    elif menu=='My House of Wax': my_house_of_wax()
+else:
+    if menu=='Admin Dashboard':
+        admin()
+    elif menu=='User Directory':
+        header()
+        admin_context('House Of Wax Admin -> User Directory')
+        if is_admin_unlocked():
+            admin_user_directory()
+        else:
+            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+    elif menu=='Seller Applications':
+        header()
+        admin_context('House Of Wax Admin -> Seller Applications')
+        if is_admin_unlocked():
+            admin_seller_applications()
+        else:
+            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+    elif menu=='Seller Approval':
+        header()
+        admin_context('House Of Wax Admin → Seller Approval')
+        if is_admin_unlocked():
+            seller_approval_area()
+        else:
+            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+    elif menu=='Moderation Center':
+        header()
+        if is_admin_unlocked():
+            listing_review_queue()
+        else:
+            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+    elif menu=='Tester Feedback':
+        header()
+        admin_context('House Of Wax Admin → Tester Feedback')
+        if is_admin_unlocked():
+            admin_tester_feedback_view()
+        else:
+            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+    elif menu=='Database Status / Diagnostics':
+        header()
+        if is_admin_unlocked():
+            admin_database_status()
+        else:
+            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+    elif menu=='Test Setup':
+        test_setup()

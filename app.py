@@ -3,6 +3,7 @@
 import sqlite3
 import re
 import os
+import html
 import hashlib
 import secrets
 from uuid import uuid4
@@ -15,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.11 AUTH MODE DIAGNOSTIC'
+APP_VERSION='V25.43.12 SECURITY HARDENING PASS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -774,7 +775,7 @@ def seller_public_trust_label(seller):
 def status_badge(label, kind='neutral'):
     classes={'success':'how-status-success','live':'how-status-success','danger':'how-status-danger','disabled':'how-status-danger','warning':'how-status-warning','pending':'how-status-warning','admin':'how-status-admin','neutral':'how-status-neutral'}
     css_class=classes.get(kind,'how-status-neutral')
-    st.markdown(f'<span class="how-status {css_class}">{safe(label)}</span>',unsafe_allow_html=True)
+    st.markdown(f'<span class="how-status {css_class}">{html.escape(safe(label))}</span>',unsafe_allow_html=True)
 
 def listing_status_badge(status):
     label=safe(status,'Draft')
@@ -984,7 +985,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.11 auth mode diagnostic active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.12 security hardening pass active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1028,8 +1029,9 @@ def setup():
     old_v25_43_8_announcement='V25.43.8'+' signin email validation active'
     old_v25_43_9_announcement='V25.43.9'+' diagnostic recording fix active'
     old_v25_43_10_announcement='V25.43.10'+' unconfirmed email message active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement]:
-        set_setting('announcement','V25.43.11 auth mode diagnostic active')
+    old_v25_43_11_announcement='V25.43.11'+' auth mode diagnostic active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement]:
+        set_setting('announcement','V25.43.12 security hardening pass active')
 setup()
 restore_session_from_query_params()
 
@@ -1486,8 +1488,8 @@ def section_header(title, subtitle='', kicker='House Of Wax'):
     """, unsafe_allow_html=True)
 
 def brand_badges(labels):
-    html=''.join([f'<span class="how-badge">{safe(label)}</span>' for label in labels])
-    st.markdown(html, unsafe_allow_html=True)
+    badges_html=''.join([f'<span class="how-badge">{html.escape(safe(label))}</span>' for label in labels])
+    st.markdown(badges_html, unsafe_allow_html=True)
 
 
 # ---------- Data helpers ----------
@@ -5456,7 +5458,7 @@ def seller_dashboard():
         st.session_state['seller_tool_seller_id']=sid
     else:
         email=st.text_input('Seller email',value='seller@test.com')
-        code=st.text_input('Access code',value='test123',type='password')
+        code=st.text_input('Access code',type='password')
         if st.button('Open saved seller profile',key='open_saved_seller_profile'):
             r=hosted_select('sellers',{'email':email.strip().lower(),'access_code':code},limit=1) if hosted_enabled() else df('SELECT * FROM sellers WHERE lower(email)=lower(?) AND access_code=?',(email.strip(),code))
             if r.empty:
@@ -5528,15 +5530,22 @@ def seller_dashboard():
             data=pd.read_csv(csv); st.dataframe(data,width='stretch')
             if st.button('Import CSV products'):
                 n=0
+                corrected=0
                 imported_seller=get_seller(int(sid))
                 imported_status='Live' if seller_can_publish_live(imported_seller) else 'Draft'
-                for _,r in data.iterrows(): run('''INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(sid,safe(r.get('sku')),safe(r.get('barcode')),safe(r.get('catalog_number')),safe(r.get('matrix_runout')),safe(r.get('category'),'Vinyl Records'),safe(r.get('artist')),safe(r.get('title')),safe(r.get('format'),'Vinyl'),safe(r.get('label')),safe(r.get('release_year')),safe(r.get('genre')),safe(r.get('media_grade')),safe(r.get('sleeve_grade')),safe(r.get('condition_notes')),safe(r.get('description')),float(r.get('price',0) or 0),int(r.get('quantity',1) or 1),float(r.get('shipping_price',0) or 0),safe(r.get('image_url')),safe(r.get('video_url')),safe(r.get('audio_url')),safe(r.get('external_release_url')),imported_status,'Fixed Price',now(),now())); n+=1
+                for _,r in data.iterrows():
+                    price,price_err=parse_money_input(r.get('price',0),'Price')
+                    shipping_price,shipping_err=parse_money_input(r.get('shipping_price',0),'Shipping price')
+                    quantity,qty_err=parse_quantity_input(r.get('quantity',1))
+                    if price_err or shipping_err or qty_err: corrected+=1
+                    run('''INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(sid,safe(r.get('sku')),safe(r.get('barcode')),safe(r.get('catalog_number')),safe(r.get('matrix_runout')),safe(r.get('category'),'Vinyl Records'),safe(r.get('artist')),safe(r.get('title')),safe(r.get('format'),'Vinyl'),safe(r.get('label')),safe(r.get('release_year')),safe(r.get('genre')),safe(r.get('media_grade')),safe(r.get('sleeve_grade')),safe(r.get('condition_notes')),safe(r.get('description')),price,quantity,shipping_price,safe(r.get('image_url')),safe(r.get('video_url')),safe(r.get('audio_url')),safe(r.get('external_release_url')),imported_status,'Fixed Price',now(),now())); n+=1
+                corrected_note=f' {corrected} row(s) had an invalid price/quantity and were imported with a corrected value (0 or 1) -- review before publishing.' if corrected else ''
                 if imported_status=='Live':
-                    st.success(f'Imported {n}. Published imported items as Live.')
+                    st.success(f'Imported {n}. Published imported items as Live.'+corrected_note)
                 elif seller_can_publish(imported_seller) and not seller_rules_accepted(imported_seller):
-                    st.warning(f'Imported {n} as Draft. Accept seller rules before publishing imported listings live.')
+                    st.warning(f'Imported {n} as Draft. Accept seller rules before publishing imported listings live.'+corrected_note)
                 else:
-                    st.warning(f'Imported {n} as Draft. Seller approval is required before publishing live.')
+                    st.warning(f'Imported {n} as Draft. Seller approval is required before publishing live.'+corrected_note)
     with tabs[5]:
         prods=df('SELECT * FROM products WHERE seller_id=?',(sid,)); st.dataframe(prods,width='stretch')
         if not prods.empty:

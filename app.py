@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.16 PASSWORD RESET'
+APP_VERSION='V25.43.17 PERSISTENT UPLOAD STORAGE'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -703,11 +703,40 @@ def addcol(t,c,typ):
         info=df(f'PRAGMA table_info({t})')
         if c not in info['name'].tolist(): run(f'ALTER TABLE {t} ADD COLUMN {c} {typ}')
     except Exception: pass
+SUPABASE_STORAGE_BUCKET='house-of-wax-uploads'
+def upload_to_supabase_storage(file_bytes, folder, filename, content_type='application/octet-stream'):
+    url,anon=supabase_config()
+    if not (url and anon):
+        return ''
+    token=auth_access_token() or anon
+    object_path=f'{folder}/{filename}'
+    try:
+        r=requests.post(
+            f'{url}/storage/v1/object/{SUPABASE_STORAGE_BUCKET}/{object_path}',
+            headers={'apikey':anon,'Authorization':f'Bearer {token}','Content-Type':content_type},
+            data=file_bytes,
+            timeout=20,
+        )
+        if r.status_code>=400:
+            SUPABASE_STATUS['last_error']=f'Storage upload failed: HTTP {r.status_code} {safe(r.text)[:300]}'
+            return ''
+        return f'{url}/storage/v1/object/public/{SUPABASE_STORAGE_BUCKET}/{object_path}'
+    except Exception as e:
+        SUPABASE_STATUS['last_error']=f'Storage upload error: {type(e).__name__}: {e}'
+        return ''
 def save_file(up,folder):
     if up is None: return ''
-    f=UPLOAD/folder; f.mkdir(parents=True,exist_ok=True)
     clean=re.sub(r'[^A-Za-z0-9._-]+','_',Path(up.name).name).strip('._') or 'upload'
-    p=f/(datetime.now().strftime('%Y%m%d%H%M%S%f')+'_'+uuid4().hex[:8]+'_'+clean)
+    filename=datetime.now().strftime('%Y%m%d%H%M%S%f')+'_'+uuid4().hex[:8]+'_'+clean
+    if hosted_enabled():
+        # Upload to persistent Supabase Storage so photos survive a redeploy.
+        # Falls through to local disk (the old behavior) if the bucket isn't
+        # set up yet, rather than losing the seller's upload entirely.
+        hosted_url=upload_to_supabase_storage(up.getvalue(),folder,filename,safe(up.type) or 'application/octet-stream')
+        if hosted_url:
+            return hosted_url
+    f=UPLOAD/folder; f.mkdir(parents=True,exist_ok=True)
+    p=f/filename
     p.write_bytes(up.getbuffer()); return str(p)
 def save_files(uploads,folder):
     if not uploads: return []
@@ -1072,7 +1101,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.16 password reset active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.17 persistent upload storage active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1121,8 +1150,9 @@ def setup():
     old_v25_43_13_announcement='V25.43.13'+' content admin and video embeds active'
     old_v25_43_14_announcement='V25.43.14'+' legacy access code login removed'
     old_v25_43_15_announcement='V25.43.15'+' dead content admin tabs removed'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement]:
-        set_setting('announcement','V25.43.16 password reset active')
+    old_v25_43_16_announcement='V25.43.16'+' password reset active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement]:
+        set_setting('announcement','V25.43.17 persistent upload storage active')
 setup()
 restore_session_from_query_params()
 recovery_token_bridge()

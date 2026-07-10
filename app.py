@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.13 CONTENT ADMIN + VIDEO EMBEDS'
+APP_VERSION='V25.43.14 REMOVE LEGACY ACCESS CODE LOGIN'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -445,8 +445,7 @@ def create_or_get_seller_for_auth(email, name):
     if not existing.empty:
         return int(existing.iloc[0]['id'])
     store=safe(name) or clean.split('@')[0]
-    code=uuid4().hex[:8]
-    data={'store_name':store,'owner_name':safe(name),'email':clean,'phone':'','city':'','state':'','website':'','instagram':'','store_bio':'','seller_story':'','specialties':'','logo_url':'','banner_url':'','status':'Pending Seller Approval','seller_level':'Verified Seller','rating':100,'completed_sales':0,'disputes':0,'strikes':0,'auction_override':'Yes','access_code':code,'rules_accepted':'No','rules_accepted_at':'','created_at':now()}
+    data={'store_name':store,'owner_name':safe(name),'email':clean,'phone':'','city':'','state':'','website':'','instagram':'','store_bio':'','seller_story':'','specialties':'','logo_url':'','banner_url':'','status':'Pending Seller Approval','seller_level':'Verified Seller','rating':100,'completed_sales':0,'disputes':0,'strikes':0,'auction_override':'Yes','access_code':'','rules_accepted':'No','rules_accepted_at':'','created_at':now()}
     keys=['store_name','owner_name','email','phone','city','state','website','instagram','store_bio','seller_story','specialties','logo_url','banner_url','status','seller_level','rating','completed_sales','disputes','strikes','auction_override','access_code','rules_accepted','rules_accepted_at','created_at']
     return core_insert('sellers',data,'''INSERT INTO sellers(store_name,owner_name,email,phone,city,state,website,instagram,store_bio,seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,disputes,strikes,auction_override,access_code,rules_accepted,rules_accepted_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in keys))
 def upsert_app_user(auth_uid,email,display_name,account_type='Buyer',buyer_id=0,seller_id=0,password_hash='',admin_access='No',seller_status='Not Applied',account_status_value='Active'):
@@ -985,7 +984,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.13 content admin and video embeds active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.14 legacy access code login removed','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1031,8 +1030,9 @@ def setup():
     old_v25_43_10_announcement='V25.43.10'+' unconfirmed email message active'
     old_v25_43_11_announcement='V25.43.11'+' auth mode diagnostic active'
     old_v25_43_12_announcement='V25.43.12'+' security hardening pass active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement]:
-        set_setting('announcement','V25.43.13 content admin and video embeds active')
+    old_v25_43_13_announcement='V25.43.13'+' content admin and video embeds active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement]:
+        set_setting('announcement','V25.43.14 legacy access code login removed')
 setup()
 restore_session_from_query_params()
 
@@ -1515,7 +1515,7 @@ def ensure_buyer():
 def ensure_seller():
     s=table('sellers')
     if not s.empty: return int(s.iloc[0]['id'])
-    data={'store_name':'Demo Wax Seller','owner_name':'Demo Owner','email':'seller@test.com','phone':'1234567890','city':'Charlotte','state':'NC','website':'https://example.com','instagram':'@demowax','store_bio':'A demo seller for testing.','seller_story':'We collect records, culture goods, vintage music pieces, and community stories.','specialties':'Soul, jazz, hip-hop, Carolina music, vintage tees','logo_url':'','banner_url':'','status':'Approved Seller','seller_level':'Verified Seller','rating':100,'completed_sales':12,'disputes':0,'strikes':0,'auction_override':'Yes','access_code':'test123','created_at':now()}
+    data={'store_name':'Demo Wax Seller','owner_name':'Demo Owner','email':'seller@test.com','phone':'1234567890','city':'Charlotte','state':'NC','website':'https://example.com','instagram':'@demowax','store_bio':'A demo seller for testing.','seller_story':'We collect records, culture goods, vintage music pieces, and community stories.','specialties':'Soul, jazz, hip-hop, Carolina music, vintage tees','logo_url':'','banner_url':'','status':'Approved Seller','seller_level':'Verified Seller','rating':100,'completed_sales':12,'disputes':0,'strikes':0,'auction_override':'Yes','access_code':'','created_at':now()}
     keys=['store_name','owner_name','email','phone','city','state','website','instagram','store_bio','seller_story','specialties','logo_url','banner_url','status','seller_level','rating','completed_sales','disputes','strikes','auction_override','access_code','created_at']
     core_insert('sellers',data,'''INSERT INTO sellers(store_name,owner_name,email,phone,city,state,website,instagram,store_bio,seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,disputes,strikes,auction_override,access_code,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in keys))
     return int(table('sellers').iloc[0]['id'])
@@ -1526,7 +1526,7 @@ def ensure_house_of_wax_official():
         sid=int(rows.iloc[0]['id'])
     else:
         run("""INSERT INTO sellers(store_name,owner_name,email,phone,city,state,website,instagram,store_bio,seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,disputes,strikes,auction_override,access_code,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            ('House Of Wax Official','House Of Wax','official@houseofwax.com','','Charlotte','NC','','@houseofwax','The official House Of Wax seller account for branded merchandise, official drops, curated goods, and platform items.','House Of Wax is the platform voice for music culture, collecting education, marketplace trust, and official brand drops.','House Of Wax branded merchandise, slipmats, culture goods, official drops, curated records','','','Approved Seller','Platform Official',100,0,0,0,'Yes','official123',now()))
+            ('House Of Wax Official','House Of Wax','official@houseofwax.com','','Charlotte','NC','','@houseofwax','The official House Of Wax seller account for branded merchandise, official drops, curated goods, and platform items.','House Of Wax is the platform voice for music culture, collecting education, marketplace trust, and official brand drops.','House Of Wax branded merchandise, slipmats, culture goods, official drops, curated records','','','Approved Seller','Platform Official',100,0,0,0,'Yes','',now()))
         sid=int(df("SELECT id FROM sellers WHERE lower(email)=lower('official@houseofwax.com')").iloc[0]['id'])
     badge=df("SELECT id FROM seller_badges WHERE seller_id=? AND badge_name='Official House Of Wax'",(sid,))
     if badge.empty:
@@ -3151,101 +3151,8 @@ def homepage_editor():
 def test_setup():
     header(); admin_context('House Of Wax Admin → Test Setup'); st.header('Test setup')
     if st.button('Create/repair demo buyer, seller, and product'): st.success(f'Demo ready: buyer/seller/product IDs {seed_all()}')
-    st.code('Buyer: buyer@test.com\nSeller: seller@test.com\nSeller access code: test123')
+    st.code('Buyer: buyer@test.com\nSeller: seller@test.com')
     st.subheader('Buyers'); st.dataframe(table('buyers'),width='stretch'); st.subheader('Sellers'); st.dataframe(table('sellers'),width='stretch'); st.subheader('Products'); st.dataframe(table('products'),width='stretch')
-def register():
-    header(); marketplace_context('House Of Wax Marketplace → Sell on House Of Wax'); st.header('Sell on House Of Wax / Create Accounts')
-    st.info('House Of Wax is the platform. Independent sellers list their own inventory. House Of Wax can also sell through its official seller account for branded merch, official drops, curated goods, and platform items. Seller tools now live under My House of Wax. Before public launch, sellers should review Seller Standards and House Of Wax trust expectations.'); btab,stab=st.tabs(['Buyer','Seller store'])
-    with btab:
-        buyers=table('buyers')
-        if buyers.empty:
-            st.warning('No buyer profile found yet. Create one here.')
-        else:
-            latest=buyers.sort_values('id',ascending=False).head(5)
-            st.success('Saved buyer profiles found.')
-            st.dataframe(latest[[c for c in ['id','name','email','status','created_at'] if c in latest.columns]],width='stretch')
-        with st.form('buyerform'):
-            name=st.text_input('Buyer name'); email=st.text_input('Buyer email'); phone=st.text_input('Phone'); city=st.text_input('City'); state=st.text_input('State'); bio=st.text_area('Buyer bio'); sub=st.form_submit_button('Create buyer')
-        if sub:
-            clean_email=email.strip().lower()
-            existing=hosted_select('buyers',{'email':clean_email},limit=1) if hosted_enabled() else df('SELECT id FROM buyers WHERE lower(email)=lower(?)',(clean_email,))
-            if not existing.empty:
-                bid=int(existing.iloc[0]['id'])
-                st.session_state['buyer_id']=bid
-                st.session_state['pending_my_house_workspace']='Buyer Profile'
-                st.warning('Buyer already exists. It is now the active buyer profile.')
-            else:
-                data={'name':name,'email':clean_email,'phone':phone,'city':city,'state':state,'bio':bio,'status':'Trusted Buyer','rating':100,'completed_purchases':0,'unpaid_orders':0,'disputes':0,'strikes':0,'created_at':now()}
-                bid=core_insert('buyers',data,'''INSERT INTO buyers(name,email,phone,city,state,bio,status,rating,completed_purchases,unpaid_orders,disputes,strikes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['name','email','phone','city','state','bio','status','rating','completed_purchases','unpaid_orders','disputes','strikes','created_at']))
-                if not bid:
-                    reread=hosted_select('buyers',{'email':clean_email},limit=1) if hosted_enabled() else df('SELECT id FROM buyers WHERE lower(email)=lower(?)',(clean_email,))
-                    bid=int(reread.iloc[0]['id']) if not reread.empty else 0
-                if bid:
-                    st.session_state['buyer_id']=bid
-                    st.session_state['pending_my_house_workspace']='Buyer Profile'
-                    st.success('Buyer created and saved. This is now the active buyer profile.')
-                else:
-                    st.error('Buyer profile was not saved. Check System Diagnostics for Supabase read/write errors.')
-            if st.session_state.get('buyer_id'):
-                b=get_buyer(int(st.session_state['buyer_id']))
-                if b is not None:
-                    st.write(f"**Active buyer profile:** {safe(b.get('name'))} | {safe(b.get('email'))}")
-        if st.session_state.get('buyer_id'):
-            b=get_buyer(int(st.session_state['buyer_id']))
-            if b is not None:
-                with st.container(border=True):
-                    st.write(f"**Active buyer profile:** {safe(b.get('name'))} | {safe(b.get('email'))}")
-                    st.caption('Open My House of Wax with Buyer role, then Buyer Profile, to view or edit this saved profile.')
-                    if st.button('Open Buyer Profile now',key='open_buyer_account_after_create'):
-                        st.session_state['pending_my_house_workspace']='Buyer Profile'
-                        st.rerun()
-    with stab:
-        sellers=table('sellers')
-        if sellers.empty:
-            st.warning('No seller store/profile found yet. Create one here.')
-        else:
-            latest=sellers.sort_values('id',ascending=False).head(5)
-            st.success('Saved seller stores found.')
-            st.dataframe(latest[[c for c in ['id','store_name','email','status','created_at'] if c in latest.columns]],width='stretch')
-        with st.form('sellerform'):
-            store=st.text_input('Store name'); owner=st.text_input('Owner'); email=st.text_input('Seller email'); code=st.text_input('Access code',type='password'); bio=st.text_area('Store bio'); story=st.text_area('Seller story'); spec=st.text_area('Specialties'); logo=st.file_uploader('Logo',type=['png','jpg','jpeg','webp']); banner=st.file_uploader('Banner',type=['png','jpg','jpeg','webp']); sub=st.form_submit_button('Create active seller store')
-        if sub:
-            clean_email=email.strip().lower()
-            existing=hosted_select('sellers',{'email':clean_email},limit=1) if hosted_enabled() else df('SELECT id FROM sellers WHERE lower(email)=lower(?)',(clean_email,))
-            if not existing.empty:
-                sid=int(existing.iloc[0]['id'])
-                st.session_state['seller_tool_seller_id']=sid
-                st.session_state['pending_my_house_workspace']='Seller Dashboard'
-                st.session_state['pending_seller_tools_primary_section']='My Store Profile'
-                st.warning('Seller already exists. It is now the active seller store.')
-            else:
-                data={'store_name':store,'owner_name':owner,'email':clean_email,'phone':'','city':'','state':'','website':'','instagram':'','store_bio':bio,'seller_story':story,'specialties':spec,'logo_url':save_file(logo,'seller_logos'),'banner_url':save_file(banner,'seller_banners'),'status':'Pending Seller Approval','seller_level':'Verified Seller','rating':100,'completed_sales':0,'disputes':0,'strikes':0,'auction_override':'Yes','access_code':code,'created_at':now()}
-                keys=['store_name','owner_name','email','phone','city','state','website','instagram','store_bio','seller_story','specialties','logo_url','banner_url','status','seller_level','rating','completed_sales','disputes','strikes','auction_override','access_code','created_at']
-                sid=core_insert('sellers',data,'''INSERT INTO sellers(store_name,owner_name,email,phone,city,state,website,instagram,store_bio,seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,disputes,strikes,auction_override,access_code,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in keys))
-                if not sid:
-                    reread=hosted_select('sellers',{'email':clean_email},limit=1) if hosted_enabled() else df('SELECT id FROM sellers WHERE lower(email)=lower(?)',(clean_email,))
-                    sid=int(reread.iloc[0]['id']) if not reread.empty else 0
-                if sid:
-                    st.session_state['seller_tool_seller_id']=sid
-                    st.session_state['pending_my_house_workspace']='Seller Dashboard'
-                    st.session_state['pending_seller_tools_primary_section']='My Store Profile'
-                    st.success('Seller store saved. This is now the active seller store. You can save drafts while House Of Wax reviews seller approval.')
-                else:
-                    st.error('Seller store was not saved. Check System Diagnostics for Supabase read/write errors.')
-            if st.session_state.get('seller_tool_seller_id'):
-                s=get_seller(int(st.session_state['seller_tool_seller_id']))
-                if s is not None:
-                    st.write(f"**Active seller store:** {safe(s.get('store_name'))} | {safe(s.get('email'))}")
-        if st.session_state.get('seller_tool_seller_id'):
-            s=get_seller(int(st.session_state['seller_tool_seller_id']))
-            if s is not None:
-                with st.container(border=True):
-                    st.write(f"**Active seller store:** {safe(s.get('store_name'))} | {safe(s.get('email'))}")
-                    st.caption('Open My House of Wax with Seller role, then Seller Dashboard, to view My Store Profile, My Inventory, and Add Inventory.')
-                    if st.button('Open Seller Dashboard / My Store now',key='open_seller_tools_after_create'):
-                        st.session_state['pending_my_house_workspace']='Seller Dashboard'
-                        st.session_state['pending_seller_tools_primary_section']='My Store Profile'
-                        st.rerun()
 def marketplace():
     header(); marketplace_context('House Of Wax Marketplace → Search Music'); st.header('Search Music')
     st.write('Type an artist or album name to search all sellers.')
@@ -5471,25 +5378,12 @@ def seller_dashboard():
             active=get_seller(int(active_id))
             if active is not None:
                 st.info(f"Currently active seller store: {safe(active.get('store_name'))} | {safe(active.get('email'))}")
-    mode=st.radio('Open seller by',['Choose existing seller','Email + access code'],horizontal=True)
     preferred_seller=st.session_state.get('seller_tool_seller_id')
-    if mode=='Choose existing seller':
-        sid=seller_pick('sellerdb',preferred_id=preferred_seller)
-        st.session_state['seller_tool_seller_id']=sid
-    else:
-        email=st.text_input('Seller email',value='seller@test.com')
-        code=st.text_input('Access code',type='password')
-        if st.button('Open saved seller profile',key='open_saved_seller_profile'):
-            r=hosted_select('sellers',{'email':email.strip().lower(),'access_code':code},limit=1) if hosted_enabled() else df('SELECT * FROM sellers WHERE lower(email)=lower(?) AND access_code=?',(email.strip(),code))
-            if r.empty:
-                st.warning('No saved seller profile matched that email and access code. Create it under Sell on House Of Wax, or choose it from the existing seller list.')
-            else:
-                st.session_state['seller_tool_seller_id']=int(r.iloc[0]['id'])
-                st.success('Seller profile opened from the database and set as active.')
-        sid=st.session_state.get('seller_tool_seller_id')
-        if not sid:
-            st.info('Enter your seller email/access code and click Open saved seller profile, or switch to Choose existing seller.')
-            return
+    sid=seller_pick('sellerdb',preferred_id=preferred_seller)
+    st.session_state['seller_tool_seller_id']=sid
+    if not sid:
+        st.info('Choose an existing seller above, or create a seller store first.')
+        return
     s=get_seller(sid)
     if s is None:
         st.warning('The selected seller profile was not found in the database. Choose an existing seller or create a seller store first.')
@@ -7206,7 +7100,6 @@ if area=='House Of Wax Marketplace':
     elif menu=='Seller Dashboard': seller_dashboard()
     elif menu=='Knowledge Hub': knowledge_hub()
     elif menu=='Account': account_page()
-    elif menu=='Sell on House Of Wax': register()
     elif menu=='Seller Onboarding': seller_onboarding()
     elif menu=='Marketplace Launch Checklist': launch_checklist()
     elif menu=='Business Plan / Funding Roadmap': business_plan_funding_roadmap()

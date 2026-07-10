@@ -55,7 +55,10 @@ with check (auth_user_id = auth.uid());
 drop policy if exists "buyers read own profile" on public."buyers";
 create policy "buyers read own profile"
 on buyers for select to authenticated
-using (id in (select buyer_id from app_users where auth_user_id = auth.uid()));
+using (
+  id in (select buyer_id from app_users where auth_user_id = auth.uid())
+  or lower(email) = lower(auth.email())
+);
 
 drop policy if exists "buyers update own profile" on public."buyers";
 create policy "buyers update own profile"
@@ -72,6 +75,14 @@ drop policy if exists "public read approved seller stores" on public."sellers";
 create policy "public read approved seller stores"
 on sellers for select to anon, authenticated
 using (status in ('Approved Seller','Approved','Active','Verified'));
+
+drop policy if exists "sellers read own store" on public."sellers";
+create policy "sellers read own store"
+on sellers for select to authenticated
+using (
+  id in (select seller_id from app_users where auth_user_id = auth.uid())
+  or lower(email) = lower(auth.email())
+);
 
 drop policy if exists "sellers update own store" on public."sellers";
 create policy "sellers update own store"

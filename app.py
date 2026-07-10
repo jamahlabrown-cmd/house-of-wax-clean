@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.18 FIX SESSION RESTORE CRASH'
+APP_VERSION='V25.43.19 PURCHASE REQUEST STATUS FIX'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1101,7 +1101,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.18 session restore crash fixed','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.19 purchase request status fix active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1152,8 +1152,9 @@ def setup():
     old_v25_43_15_announcement='V25.43.15'+' dead content admin tabs removed'
     old_v25_43_16_announcement='V25.43.16'+' password reset active'
     old_v25_43_17_announcement='V25.43.17'+' persistent upload storage active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement]:
-        set_setting('announcement','V25.43.18 session restore crash fixed')
+    old_v25_43_18_announcement='V25.43.18'+' session restore crash fixed'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement]:
+        set_setting('announcement','V25.43.19 purchase request status fix active')
 setup()
 recovery_token_bridge()
 
@@ -5259,6 +5260,19 @@ def update_purchase_request_status(request_id, status, seller_id=None):
             core_update('products',{'listing_status':'Pending Pickup/Payment','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Pending Pickup/Payment',updated_at=? WHERE id=?",(now(),pid))
         elif status=='Sold':
             core_update('products',{'listing_status':'Sold','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Sold',updated_at=? WHERE id=?",(now(),pid))
+        elif status in ('Seller Declined','Closed'):
+            # A deal that fell through used to leave the listing stuck at
+            # Pending Pickup/Payment forever, permanently hiding it from
+            # buyers even though nothing was ever sold. Return it to Live,
+            # but only if no *other* purchase request for the same listing
+            # is still actively in progress (handles quantity>1 / multiple
+            # concurrent offers correctly).
+            prod=hosted_select('products',{'id':pid},limit=1) if hosted_enabled() else df('SELECT listing_status FROM products WHERE id=?',(pid,))
+            if not prod.empty and safe(prod.iloc[0].get('listing_status'))=='Pending Pickup/Payment':
+                siblings=hosted_select('purchase_requests',{'product_id':pid}) if hosted_enabled() else df('SELECT id,status FROM purchase_requests WHERE product_id=?',(pid,))
+                still_active=siblings[siblings['status'].isin(['Pending Pickup/Payment','Seller Accepted']) & (siblings['id'].astype(int)!=int(request_id))] if not siblings.empty else siblings
+                if still_active.empty:
+                    core_update('products',{'listing_status':'Live','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Live',updated_at=? WHERE id=?",(now(),pid))
 
 def seller_purchase_request_view(sid):
     st.subheader('Purchase requests')
@@ -6351,16 +6365,16 @@ def payment_checkout_prep():
 
     st.markdown('### Recommended phased approach')
     phases=[
-        ('Phase 1','Request to Buy + seller communication. Keep current buyer request flow as the live buying action.'),
-        ('Phase 2','Admin-tracked Pending/Sold status. Use seller/admin tools to track accepted requests, pending pickup/payment, sold, cancelled, or closed status.'),
-        ('Phase 3','Optional Stripe checkout after authentication, hosted database, permanent image storage, legal terms, seller agreement, refund/dispute policy, and admin controls are ready.')
+        ('Phase 1 -- Live','Request to Buy + seller communication. Keep current buyer request flow as the live buying action.'),
+        ('Phase 2 -- Live','Admin/seller-tracked Pending/Sold status, with listings now automatically returning to Live if a request is declined or closed instead of staying stuck as Pending.'),
+        ('Phase 3 -- Not started','Real Stripe checkout. Blocked on attorney-reviewed legal terms and a formal refund/dispute policy -- authentication, hosted database, and permanent image storage are already in place.')
     ]
     for phase,desc in phases:
         st.write(f'- **{phase}:** {desc}')
 
     st.markdown('### Before real payments')
-    for item in ['Real login/authentication','Hosted database','Permanent image storage','Attorney-reviewed legal terms','Seller agreement','Refund and dispute policy']:
-        st.write(f'- {item}')
+    for item,ready in [('Real login/authentication',True),('Hosted database',True),('Permanent image storage',True),('Attorney-reviewed legal terms',False),('Seller agreement',False),('Refund and dispute policy',False)]:
+        st.write(('- ✅ ' if ready else '- ⬜ ')+item)
 
     st.markdown('### Future checkout/order data model')
     st.caption('Future checkout/order fields: order_id, listing_id, buyer_id, seller_id, amount, status, payment_provider, pickup_or_shipping, shipping_address, created_at, updated_at.')

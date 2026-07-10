@@ -168,3 +168,20 @@ with check (true);
 
 -- Admin management should be handled by secure server/service tooling or custom claims.
 -- Do not expose service_role keys in Streamlit.
+
+-- products.reviewer_notes is internal admin moderation commentary, never
+-- meant to be public. RLS is row-level only, so the "public read live
+-- products" policy above (which grants anon full-row SELECT on live
+-- listings) was exposing it to any unauthenticated request via
+-- select=* on the REST API. Restrict anon's column-level access instead
+-- of touching the row policy, so this doesn't affect Testing Mode admin
+-- access (which runs as anon/authenticated too, with no real elevated
+-- Postgres role) -- any genuinely signed-in user keeps full access.
+revoke select on public.products from anon;
+grant select (
+  id, seller_id, sku, barcode, catalog_number, matrix_runout, category,
+  artist, title, format, label, release_year, genre, media_grade,
+  sleeve_grade, condition_notes, description, price, quantity,
+  shipping_price, image_url, video_url, audio_url, external_release_url,
+  listing_status, listing_type, created_at, updated_at
+) on public.products to anon;

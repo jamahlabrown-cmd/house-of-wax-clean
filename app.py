@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.12 SECURITY HARDENING PASS'
+APP_VERSION='V25.43.13 CONTENT ADMIN + VIDEO EMBEDS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -893,11 +893,11 @@ def setup():
     cur.execute('''CREATE TABLE IF NOT EXISTS bids(id INTEGER PRIMARY KEY AUTOINCREMENT,auction_id INTEGER,buyer_id INTEGER,bid_amount REAL,bid_time TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS listing_flags(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,reason TEXT,details TEXT,status TEXT DEFAULT 'Open',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS culture_posts(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT,category TEXT,author TEXT,body TEXT,image_url TEXT,status TEXT DEFAULT 'Published',created_at TEXT)''')
-    cur.execute("""CREATE TABLE IF NOT EXISTS knowledge_posts(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT,category TEXT,audience TEXT,level TEXT,summary TEXT,body TEXT,house_tip TEXT,image_url TEXT,status TEXT DEFAULT 'Draft',featured TEXT DEFAULT 'No',created_at TEXT,updated_at TEXT)""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS knowledge_posts(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT,category TEXT,audience TEXT,level TEXT,summary TEXT,body TEXT,house_tip TEXT,image_url TEXT,video_url TEXT,status TEXT DEFAULT 'Draft',featured TEXT DEFAULT 'No',created_at TEXT,updated_at TEXT)""")
     cur.execute("""CREATE TABLE IF NOT EXISTS glossary_terms(id INTEGER PRIMARY KEY AUTOINCREMENT,term TEXT UNIQUE,category TEXT,plain_definition TEXT,why_it_matters TEXT,example TEXT,status TEXT DEFAULT 'Published',created_at TEXT,updated_at TEXT)""")
     cur.execute("""CREATE TABLE IF NOT EXISTS content_drafts(id INTEGER PRIMARY KEY AUTOINCREMENT,source_type TEXT,source_id INTEGER,title TEXT,platform TEXT,caption TEXT,script TEXT,hashtags TEXT,cta TEXT,status TEXT DEFAULT 'Draft',created_at TEXT,updated_at TEXT)""")
     cur.execute("""CREATE TABLE IF NOT EXISTS content_calendar(id INTEGER PRIMARY KEY AUTOINCREMENT,content_type TEXT,topic TEXT,platform TEXT,planned_date TEXT,status TEXT DEFAULT 'Planned',notes TEXT,created_at TEXT,updated_at TEXT)""")
-    cur.execute("""CREATE TABLE IF NOT EXISTS homepage_blocks(id INTEGER PRIMARY KEY AUTOINCREMENT,block_name TEXT,title TEXT,subtitle TEXT,body TEXT,button_text TEXT,button_target TEXT,image_url TEXT,status TEXT DEFAULT 'Active',sort_order INTEGER DEFAULT 0,created_at TEXT,updated_at TEXT)""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS homepage_blocks(id INTEGER PRIMARY KEY AUTOINCREMENT,block_name TEXT,title TEXT,subtitle TEXT,body TEXT,button_text TEXT,button_target TEXT,image_url TEXT,video_url TEXT,status TEXT DEFAULT 'Active',sort_order INTEGER DEFAULT 0,created_at TEXT,updated_at TEXT)""")
     cur.execute("""CREATE TABLE IF NOT EXISTS quick_tips(id INTEGER PRIMARY KEY AUTOINCREMENT,tip_text TEXT,category TEXT,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)""")
     cur.execute("""CREATE TABLE IF NOT EXISTS did_you_know(id INTEGER PRIMARY KEY AUTOINCREMENT,fact_text TEXT,category TEXT,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)""")
     cur.execute("""CREATE TABLE IF NOT EXISTS newsletter_signups(id INTEGER PRIMARY KEY AUTOINCREMENT,email TEXT,name TEXT,source TEXT,created_at TEXT)""")
@@ -976,7 +976,7 @@ def setup():
         created_at TEXT
     )""")
     c.commit(); c.close()
-    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'}}
+    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'knowledge_posts':{'video_url':'TEXT'},'homepage_blocks':{'video_url':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
     try:
@@ -985,7 +985,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.12 security hardening pass active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.13 content admin and video embeds active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1030,8 +1030,9 @@ def setup():
     old_v25_43_9_announcement='V25.43.9'+' diagnostic recording fix active'
     old_v25_43_10_announcement='V25.43.10'+' unconfirmed email message active'
     old_v25_43_11_announcement='V25.43.11'+' auth mode diagnostic active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement]:
-        set_setting('announcement','V25.43.12 security hardening pass active')
+    old_v25_43_12_announcement='V25.43.12'+' security hardening pass active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement]:
+        set_setting('announcement','V25.43.13 content admin and video embeds active')
 setup()
 restore_session_from_query_params()
 
@@ -2426,6 +2427,12 @@ def product_detail(pid):
                 st.caption('Checkout is not live yet. Request to Buy sends a purchase request, not a payment.')
             if st.button('View seller public profile'): st.session_state['seller_id']=int(s['id']); st.session_state.pop('product_id',None); st.rerun()
     st.subheader('Description'); st.write(safe(p['description'],'No description.'))
+    if safe(p.get('video_url')):
+        st.subheader('Video')
+        try:
+            st.video(safe(p.get('video_url')))
+        except Exception:
+            st.caption('Video could not be loaded from the link the seller provided.')
     st.info('This listing was published by the seller. Report concerns to House Of Wax.')
     with st.expander('Report Listing',expanded=False):
         report_listing_form(p,s,f'listing_{pid}')
@@ -2785,6 +2792,11 @@ def knowledge_hub():
         st.title(safe(post['title']))
         st.caption(f"{safe(post['category'])} • {safe(post['level'])} • For {safe(post['audience'])}")
         if safe(post['image_url']): safe_image(safe(post['image_url']),width='stretch',fallback_text='Post image unavailable.')
+        if safe(post.get('video_url')):
+            try:
+                st.video(safe(post.get('video_url')))
+            except Exception:
+                st.caption('Video could not be loaded from the link provided.')
         st.markdown('### Quick answer')
         st.write(safe(post['summary']))
         st.markdown('### Full guide')
@@ -2883,13 +2895,14 @@ def content_admin():
             tip=st.text_area('House Of Wax tip')
             img_file=st.file_uploader('Optional image',type=['png','jpg','jpeg','webp'])
             img_url=st.text_input('Or image URL')
+            video_url=st.text_input('Optional video URL (YouTube or other video link)')
             status=st.selectbox('Status',['Draft','Published'])
             featured=st.selectbox('Featured',['No','Yes'])
             submitted=st.form_submit_button('Save education article')
         if submitted:
-            img=save(img_file,'knowledge_images') or img_url
-            run("""INSERT INTO knowledge_posts(title,category,audience,level,summary,body,house_tip,image_url,status,featured,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (title,category,audience,level,summary,body,tip,img,status,featured,now(),now()))
+            img=save_file(img_file,'knowledge_images') or img_url
+            run("""INSERT INTO knowledge_posts(title,category,audience,level,summary,body,house_tip,image_url,video_url,status,featured,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (title,category,audience,level,summary,body,tip,img,safe(video_url).strip(),status,featured,now(),now()))
             st.success('Knowledge article saved.')
         st.dataframe(table('knowledge_posts'),width='stretch')
     with tabs[1]:
@@ -2984,11 +2997,16 @@ def home_block(name):
     r=df("SELECT * FROM homepage_blocks WHERE block_name=? AND status='Active' ORDER BY sort_order,id LIMIT 1",(name,))
     return {} if r.empty else r.iloc[0].to_dict()
 
-def mini_card(title,subtitle,body):
+def mini_card(title,subtitle,body,video_url=''):
     with st.container(border=True):
         st.caption(safe(subtitle))
         st.subheader(safe(title))
         st.write(safe(body))
+        if safe(video_url):
+            try:
+                st.video(safe(video_url))
+            except Exception:
+                st.caption('Video could not be loaded from the link provided.')
 
 def home():
     seed_homepage_editorial()
@@ -3006,9 +3024,9 @@ def home():
     </div>
     ''', unsafe_allow_html=True)
     a,b,c=st.columns(3)
-    if a.button('Explore Marketplace'): st.info('Use the sidebar to open Marketplace.')
-    if b.button('Visit Knowledge Hub'): st.info('Use the sidebar to open Knowledge Hub.')
-    if c.button("Read This Week's Feature"): st.info('Use the sidebar to open Knowledge Hub.')
+    if a.button('Explore Marketplace'): request_marketplace_navigation('Search Music'); st.rerun()
+    if b.button('Visit Knowledge Hub'): request_marketplace_navigation('Knowledge Hub'); st.rerun()
+    if c.button("Read This Week's Feature"): request_marketplace_navigation('Knowledge Hub'); st.rerun()
     with st.expander('Tester Start Here',expanded=True):
         tester_start_here('home')
     st.info('Looking for music? Open Search Music and type an artist or album name.')
@@ -3020,9 +3038,9 @@ def home():
     st.markdown('---')
     l,r=st.columns(2)
     with l:
-        x=home_block('featured_story'); mini_card(x.get('title','What Does VG+ Really Mean?'),x.get('subtitle','Featured Story'),x.get('body','Learn grading before you buy.'))
+        x=home_block('featured_story'); mini_card(x.get('title','What Does VG+ Really Mean?'),x.get('subtitle','Featured Story'),x.get('body','Learn grading before you buy.'),x.get('video_url',''))
     with r:
-        x=home_block('weekly_focus'); mini_card(x.get('title','This Week at House Of Wax'),x.get('subtitle','Matrix / Runout'),x.get('body','Runout markings can reveal pressing details.'))
+        x=home_block('weekly_focus'); mini_card(x.get('title','This Week at House Of Wax'),x.get('subtitle','Matrix / Runout'),x.get('body','Runout markings can reveal pressing details.'),x.get('video_url',''))
     st.markdown('---')
     st.markdown('---')
     c1,c2,c3=st.columns(3)
@@ -3066,9 +3084,9 @@ def home():
     st.markdown('---')
     s,p=st.columns(2)
     with s:
-        x=home_block('genre_spotlight'); mini_card(x.get('title','Southern Soul Essentials'),x.get('subtitle','Genre / Era Spotlight'),x.get('body','Explore the sound, labels, artists, and culture.'))
+        x=home_block('genre_spotlight'); mini_card(x.get('title','Southern Soul Essentials'),x.get('subtitle','Genre / Era Spotlight'),x.get('body','Explore the sound, labels, artists, and culture.'),x.get('video_url',''))
     with p:
-        x=home_block('editorial_pick'); mini_card(x.get('title','Format Focus: Why Cassettes Still Matter'),x.get('subtitle','House Of Wax Editorial Pick'),x.get('body','Cassettes connect music to memory and mixtape culture.'))
+        x=home_block('editorial_pick'); mini_card(x.get('title','Format Focus: Why Cassettes Still Matter'),x.get('subtitle','House Of Wax Editorial Pick'),x.get('body','Cassettes connect music to memory and mixtape culture.'),x.get('video_url',''))
     st.markdown('---')
     section_header('Latest From the Knowledge Hub','House Of Wax education, culture, and collecting guides.','Read + Learn')
     posts=df("SELECT * FROM knowledge_posts WHERE status='Published' ORDER BY updated_at DESC LIMIT 6")
@@ -3099,10 +3117,11 @@ def homepage_editor():
             bn=st.selectbox('Block',['hero','featured_story','weekly_focus','genre_spotlight','editorial_pick','newsletter'])
             title=st.text_input('Title'); sub=st.text_input('Subtitle'); body=st.text_area('Body')
             btn=st.text_input('Button text'); target=st.text_input('Button target')
+            video_url=st.text_input('Optional video URL (YouTube or other video link)')
             status=st.selectbox('Status',['Active','Draft','Hidden'])
             order=st.number_input('Sort order',min_value=0,value=1)
             if st.form_submit_button('Save homepage block'):
-                run("INSERT INTO homepage_blocks(block_name,title,subtitle,body,button_text,button_target,status,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",(bn,title,sub,body,btn,target,status,int(order),now(),now()))
+                run("INSERT INTO homepage_blocks(block_name,title,subtitle,body,button_text,button_target,video_url,status,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",(bn,title,sub,body,btn,target,safe(video_url).strip(),status,int(order),now(),now()))
                 warn_if_local_only('Homepage block')
                 st.success('Homepage block saved.')
     with tabs[1]:
@@ -4983,6 +5002,7 @@ def upload_product(sid,key):
         main_img=st.file_uploader('Your own main photo - optional for music',type=['png','jpg','jpeg','webp'],key=f'main_photo_{key}')
         supporting_imgs=st.file_uploader('Extra photos - optional',type=['png','jpg','jpeg','webp'],accept_multiple_files=True,key=f'supporting_photos_{key}')
         condition_imgs=st.file_uploader('Condition photos - optional',type=['png','jpg','jpeg','webp'],accept_multiple_files=True,key=f'condition_photos_{key}')
+        video_url_input=st.text_input('Video URL - optional (YouTube link or other video link)',value=defaults.get('video_url',''),help='Shows a playable video on your listing, e.g. a needle-drop or item walkthrough.',key=f'video_url_{key}')
         uploaded_previews=[]
         if main_img is not None:
             uploaded_previews.append(('Main listing photo',main_img))
@@ -5050,7 +5070,7 @@ def upload_product(sid,key):
         listing_status='Live' if publish_listing else 'Draft'
         has_saved_seller_photos=bool(saved_main or saved_supporting or saved_condition)
         score,quality_label,_=listing_quality_assessment(category,artist,title,price,description,mg,sg,image,has_saved_seller_photos,smart_confidence)
-        product_data={'seller_id':int(sid),'sku':sku,'barcode':barcode,'catalog_number':catalog,'matrix_runout':matrix,'category':category,'artist':artist,'title':title,'format':fmt,'label':label,'release_year':year,'genre':genre,'media_grade':mg,'sleeve_grade':sg,'condition_notes':notes,'description':description,'price':float(price),'quantity':int(qty),'shipping_price':float(ship),'image_url':image,'video_url':'','audio_url':'','external_release_url':external_release_url,'listing_status':listing_status,'listing_type':'Fixed Price','created_at':now(),'updated_at':now()}
+        product_data={'seller_id':int(sid),'sku':sku,'barcode':barcode,'catalog_number':catalog,'matrix_runout':matrix,'category':category,'artist':artist,'title':title,'format':fmt,'label':label,'release_year':year,'genre':genre,'media_grade':mg,'sleeve_grade':sg,'condition_notes':notes,'description':description,'price':float(price),'quantity':int(qty),'shipping_price':float(ship),'image_url':image,'video_url':safe(video_url_input).strip(),'audio_url':'','external_release_url':external_release_url,'listing_status':listing_status,'listing_type':'Fixed Price','created_at':now(),'updated_at':now()}
         product_keys=['seller_id','sku','barcode','catalog_number','matrix_runout','category','artist','title','format','label','release_year','genre','media_grade','sleeve_grade','condition_notes','description','price','quantity','shipping_price','image_url','video_url','audio_url','external_release_url','listing_status','listing_type','created_at','updated_at']
         pid=core_insert('products',product_data,"""INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",tuple(product_data[k] for k in product_keys))
         if saved_main:
@@ -7159,7 +7179,7 @@ area=st.sidebar.radio('Choose area',area_options,key='house_of_wax_area')
 if area=='House Of Wax Marketplace':
     st.sidebar.markdown('### House Of Wax Marketplace')
     st.sidebar.caption('Simple buyer path: Home, Search Music, Seller Stores, and My Account.')
-    marketplace_menu=['Home','Search Music','Seller Stores','My Account']
+    marketplace_menu=['Home','Search Music','Knowledge Hub','Seller Stores','My Account']
     if has_seller_capability() or is_admin_unlocked():
         marketplace_menu.append('Seller Dashboard')
     apply_pending_marketplace_navigation(marketplace_menu)
@@ -7169,7 +7189,7 @@ if area=='House Of Wax Marketplace':
 else:
     st.sidebar.markdown('### House Of Wax Admin')
     st.sidebar.caption('Platform management: seller approval, moderation, reports, tester feedback, database status, Supabase diagnostics, and testing.')
-    menu=st.sidebar.radio('Admin navigation',['Admin Dashboard','User Directory','Seller Applications','Seller Approval','Moderation Center','Tester Feedback','Database Status / Diagnostics','Test Setup'],key='admin_navigation')
+    menu=st.sidebar.radio('Admin navigation',['Admin Dashboard','User Directory','Seller Applications','Seller Approval','Moderation Center','Content Admin','Homepage Editor','Tester Feedback','Database Status / Diagnostics','Test Setup'],key='admin_navigation')
 if area=='House Of Wax Marketplace':
     mobile_navigation_bar()
 if area=='House Of Wax Marketplace' and menu=='Search Music' and ('seller_id' in st.session_state or 'product_id' in st.session_state):
@@ -7224,6 +7244,19 @@ else:
         header()
         if is_admin_unlocked():
             listing_review_queue()
+        else:
+            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+    elif menu=='Content Admin':
+        if is_admin_unlocked():
+            content_admin()
+        else:
+            header()
+            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+    elif menu=='Homepage Editor':
+        header()
+        admin_context('House Of Wax Admin → Homepage Editor')
+        if is_admin_unlocked():
+            homepage_editor()
         else:
             st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
     elif menu=='Tester Feedback':

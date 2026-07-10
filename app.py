@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.15 REMOVE DEAD CONTENT ADMIN TABS'
+APP_VERSION='V25.43.16 PASSWORD RESET'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -597,6 +597,94 @@ def auth_sign_in(email,password):
     sign_in_session(safe(row.iloc[0].get('auth_user_id')),clean)
     reconcile_authenticated_profile()
     return True,'Signed in.'
+def request_password_reset_email(email):
+    clean=safe(email).strip().lower()
+    if not is_valid_email(clean):
+        return False,'Enter a valid email address.'
+    if not hosted_enabled():
+        return False,'Password reset requires Supabase Hosted to be configured.'
+    payload,detail=supabase_auth_request('recover',{'email':clean})
+    if not detail.get('ok'):
+        AUTH_STATUS['last_error']=detail.get('message')
+        return False,'Could not send the reset email right now. Check Auth Diagnostics or try again shortly.'
+    # Supabase returns success here regardless of whether the email has an
+    # account, by design, to avoid letting this form be used to check which
+    # emails are registered. Keep the message generic to match that.
+    return True,'If that email has a House Of Wax account, a password reset link has been sent.'
+def complete_password_reset(recovery_token, new_password):
+    if len(safe(new_password))<8:
+        return False,'Password must be at least 8 characters.'
+    if not hosted_enabled():
+        return False,'Password reset requires Supabase Hosted to be configured.'
+    _,anon=supabase_config()
+    try:
+        r=requests.put(
+            supabase_auth_url('user'),
+            headers={'apikey':anon,'Authorization':f'Bearer {safe(recovery_token)}','Content-Type':'application/json'},
+            json={'password':new_password},
+            timeout=12,
+        )
+        if r.status_code>=400:
+            AUTH_STATUS['last_error']=f'HTTP {r.status_code}: '+(safe(r.text) or '(empty response body)')
+            return False,'Could not set the new password. The reset link may have expired -- request a new one.'
+        return True,'Password updated. You can sign in with your new password now.'
+    except Exception as e:
+        AUTH_STATUS['last_error']=f'{type(e).__name__}: '+(safe(e) or '(no exception detail)')
+        return False,'Could not set the new password. Try again.'
+def recovery_token_bridge():
+    # Supabase's password-reset email links carry the access token in the URL
+    # fragment (after #), which browsers never send to the server -- Streamlit's
+    # Python side has no way to read it directly. This runs a tiny bit of JS in
+    # every page load that, only when it detects a recovery link, moves the
+    # token into a normal query param and reloads, which Python *can* read via
+    # st.query_params. No-ops on every other page load.
+    if safe(st.query_params.get('recovery_token')):
+        return
+    st.iframe("""
+    <script>
+    (function() {
+      try {
+        var hash = window.top.location.hash;
+        if (hash && hash.indexOf('type=recovery') !== -1) {
+          var params = new URLSearchParams(hash.substring(1));
+          var token = params.get('access_token');
+          if (token) {
+            var url = new URL(window.top.location.href);
+            url.hash = '';
+            url.searchParams.set('recovery_token', token);
+            window.top.location.replace(url.toString());
+          }
+        }
+      } catch (e) {}
+    })();
+    </script>
+    """, height=1)
+def password_reset_completion_screen():
+    header()
+    st.header('Set a new password')
+    token=safe(st.query_params.get('recovery_token'))
+    if not token:
+        st.error('This password reset link is invalid or has already been used.')
+        return
+    st.caption('This link was opened from a House Of Wax password reset email.')
+    with st.form('recovery_form'):
+        new_password=st.text_input('New password',type='password')
+        confirm_password=st.text_input('Confirm new password',type='password')
+        submitted=st.form_submit_button('Set new password')
+    if submitted:
+        if new_password!=confirm_password:
+            st.error('Passwords do not match.')
+        else:
+            ok,msg=complete_password_reset(token,new_password)
+            if ok:
+                try:
+                    del st.query_params['recovery_token']
+                except Exception:
+                    pass
+                st.success(msg+' Reloading to sign in...')
+                st.rerun()
+            else:
+                st.error(msg)
 def conn(): return sqlite3.connect(DB)
 def run(sql,p=()):
     c=conn(); c.execute(sql,p); c.commit(); c.close()
@@ -984,7 +1072,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.15 dead content admin tabs removed','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.16 password reset active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1032,10 +1120,12 @@ def setup():
     old_v25_43_12_announcement='V25.43.12'+' security hardening pass active'
     old_v25_43_13_announcement='V25.43.13'+' content admin and video embeds active'
     old_v25_43_14_announcement='V25.43.14'+' legacy access code login removed'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement]:
-        set_setting('announcement','V25.43.15 dead content admin tabs removed')
+    old_v25_43_15_announcement='V25.43.15'+' dead content admin tabs removed'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement]:
+        set_setting('announcement','V25.43.16 password reset active')
 setup()
 restore_session_from_query_params()
+recovery_token_bridge()
 
 
 # ---------- V21 Visual Identity ----------
@@ -1839,7 +1929,15 @@ def account_page():
                 st.rerun()
             else:
                 st.error(msg)
-        st.caption('Use the same account to buy and apply to sell. Forgot password recovery should be handled through Supabase Auth when configured.')
+        st.caption('Use the same account to buy and apply to sell.')
+        with st.expander('Forgot password?'):
+            if not hosted_enabled():
+                st.info('Password reset requires Supabase Hosted to be configured.')
+            else:
+                reset_email=st.text_input('Email',key='forgot_password_email')
+                if st.button('Send reset link',key='forgot_password_submit'):
+                    ok,msg=request_password_reset_email(reset_email)
+                    (st.success if ok else st.error)(msg)
     with tabs[1]:
         st.info('Create one House Of Wax account. Every registered account can buy. Apply to sell later from My Account.')
         with st.form('create_account_form'):
@@ -7066,6 +7164,9 @@ def app_mode():
     return testing
 
 
+if safe(st.query_params.get('recovery_token')):
+    password_reset_completion_screen()
+    st.stop()
 testing_mode=app_mode()
 area_options=['House Of Wax Marketplace']
 if is_admin_unlocked():

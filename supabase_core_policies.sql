@@ -203,6 +203,79 @@ on glossary_terms for all to authenticated
 using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
 with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
 
+-- ---------- Admin bypass policies ----------
+-- The app has no elevated Postgres role (no service_role key is used
+-- anywhere in the Streamlit app), so every "admin" action in the UI runs
+-- under the same authenticated role as a normal user and is just as
+-- subject to RLS as anyone else. Without a bypass policy per table, admin
+-- screens for seller approval, moderation, and support silently show
+-- empty/partial data instead of erroring. Same pattern as the
+-- knowledge_posts/glossary_terms admin policies above.
+
+drop policy if exists "admin manage sellers" on public."sellers";
+create policy "admin manage sellers"
+on sellers for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+drop policy if exists "admin manage products" on public."products";
+create policy "admin manage products"
+on products for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+drop policy if exists "admin manage buyers" on public."buyers";
+create policy "admin manage buyers"
+on buyers for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+drop policy if exists "admin manage app users" on public."app_users";
+create policy "admin manage app users"
+on app_users for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+drop policy if exists "admin manage listing inquiries" on public."listing_inquiries";
+create policy "admin manage listing inquiries"
+on listing_inquiries for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+drop policy if exists "admin manage purchase requests" on public."purchase_requests";
+create policy "admin manage purchase requests"
+on purchase_requests for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+drop policy if exists "admin manage listing reports" on public."listing_reports";
+create policy "admin manage listing reports"
+on listing_reports for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+drop policy if exists "admin manage tester feedback" on public."tester_feedback";
+create policy "admin manage tester feedback"
+on tester_feedback for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+-- listing_reports and tester_feedback previously only allowed inserts from
+-- the authenticated role, but the report-a-listing and tester-feedback
+-- forms in the app have no sign-in gate and are reachable while signed
+-- out. Extending the same insert-only, no-read-back policy to anon
+-- matches how those forms actually behave today, instead of silently
+-- failing for a signed-out visitor.
+drop policy if exists "anon submit listing reports" on public."listing_reports";
+create policy "anon submit listing reports"
+on listing_reports for insert to anon
+with check (true);
+
+drop policy if exists "anon submit tester feedback" on public."tester_feedback";
+create policy "anon submit tester feedback"
+on tester_feedback for insert to anon
+with check (true);
+
 -- Admin management should be handled by secure server/service tooling or custom claims.
 -- Do not expose service_role keys in Streamlit.
 -- Note: the ADMIN_EMAILS allowlist (app-layer only) is not enforceable in RLS;

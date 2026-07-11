@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.29 SHIPPING GUIDANCE FOR SELLERS'
+APP_VERSION='V25.43.30 ADMIN PERMISSIONS HARDENING'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1095,7 +1095,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.29 shipping guidance active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.30 admin permissions hardened active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1157,8 +1157,9 @@ def setup():
     old_v25_43_26_announcement='V25.43.26'+' grading scale and make an offer active'
     old_v25_43_27_announcement='V25.43.27'+' admin screens consolidated active'
     old_v25_43_28_announcement='V25.43.28'+' homepage and seller tools consolidated active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement]:
-        set_setting('announcement','V25.43.29 shipping guidance active')
+    old_v25_43_29_announcement='V25.43.29'+' shipping guidance active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement]:
+        set_setting('announcement','V25.43.30 admin permissions hardened active')
 setup()
 recovery_token_bridge()
 
@@ -3003,6 +3004,7 @@ def knowledge_center_education_hub():
             ('Mint / Near Mint','Unused or almost flawless. Use carefully; most used items are not truly Mint.'),
             ('Very Good Plus','Played but strong. May have light marks or sleeve scuffs, but should not have major playback problems.'),
             ('Very Good','Noticeable wear. May have surface noise, marks, shelf wear, or visible use, but still collectible if described honestly.'),
+            ('Good+','Well used but playable. More wear than Very Good -- expect consistent surface noise or handling marks -- but not yet heavy damage.'),
             ('Good','Heavy wear. Buyers should expect clear flaws, noise, or cosmetic issues. Detailed notes matter.'),
             ('Fair / Poor','Major flaws, damage, missing parts, warps, skips, tears, stains, or heavy wear. Sell only with clear photos and direct notes.')
         ]
@@ -5445,7 +5447,7 @@ def update_purchase_request_status(request_id, status, seller_id=None):
             prod=hosted_select('products',{'id':pid},limit=1) if hosted_enabled() else df('SELECT listing_status FROM products WHERE id=?',(pid,))
             if not prod.empty and safe(prod.iloc[0].get('listing_status'))=='Pending Pickup/Payment':
                 siblings=hosted_select('purchase_requests',{'product_id':pid}) if hosted_enabled() else df('SELECT id,status FROM purchase_requests WHERE product_id=?',(pid,))
-                still_active=siblings[siblings['status'].isin(['Pending Pickup/Payment','Seller Accepted']) & (siblings['id'].astype(int)!=int(request_id))] if not siblings.empty else siblings
+                still_active=siblings[siblings['status'].isin(['Pending Pickup/Payment','Seller Accepted','Offer Pending','Seller Countered']) & (siblings['id'].astype(int)!=int(request_id))] if not siblings.empty else siblings
                 if still_active.empty:
                     core_update('products',{'listing_status':'Live','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Live',updated_at=? WHERE id=?",(now(),pid))
 

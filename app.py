@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.22 REFERENCE IMAGE LABELING AND SELLER PHOTO BADGE'
+APP_VERSION='V25.43.23 VISUAL IDENTITY REFRESH: SERIF TYPE AND WAX ACCENT'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1101,7 +1101,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.22 reference image labeling active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.23 visual identity refresh active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1156,8 +1156,9 @@ def setup():
     old_v25_43_19_announcement='V25.43.19'+' purchase request status fix active'
     old_v25_43_20_announcement='V25.43.20'+' knowledge hub persistence fix active'
     old_v25_43_21_announcement='V25.43.21'+' knowledge hub auto-seed fix active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement]:
-        set_setting('announcement','V25.43.22 reference image labeling active')
+    old_v25_43_22_announcement='V25.43.22'+' reference image labeling active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement]:
+        set_setting('announcement','V25.43.23 visual identity refresh active')
 setup()
 recovery_token_bridge()
 
@@ -1166,6 +1167,7 @@ recovery_token_bridge()
 def apply_brand_style():
     st.markdown("""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap');
     :root {
         --how-black: #0b0b0b;
         --how-charcoal: #171717;
@@ -1174,9 +1176,11 @@ def apply_brand_style():
         --how-bone: #fbf7ef;
         --how-gold: #c9a45c;
         --how-oxblood: #6f1d1b;
+        --how-oxblood-bright: #a8342f;
         --how-muted: #9b8f80;
         --how-card: #151515;
         --how-line: rgba(201,164,92,.35);
+        --how-display: 'Fraunces', Georgia, 'Iowan Old Style', serif;
     }
 
     .stApp {
@@ -1199,6 +1203,8 @@ def apply_brand_style():
     h1, h2, h3 {
         letter-spacing: 0;
         color: var(--how-cream) !important;
+        font-family: var(--how-display) !important;
+        font-weight: 600 !important;
     }
 
     p, li, label, span {
@@ -1376,14 +1382,31 @@ def apply_brand_style():
     }
 
     .how-hero {
+        position: relative;
         border: 1px solid rgba(201,164,92,.35);
         border-radius: 28px;
         padding: 34px;
         background:
+            radial-gradient(circle at 50% 0%, rgba(201,164,92,.16), transparent 55%),
             linear-gradient(135deg, rgba(11,11,11,.92), rgba(34,20,16,.86)),
-            radial-gradient(circle at bottom right, rgba(201,164,92,.2), transparent 34%);
+            radial-gradient(circle at bottom right, rgba(111,29,27,.22), transparent 34%);
         box-shadow: 0 24px 70px rgba(0,0,0,.35);
         margin-bottom: 22px;
+        overflow: hidden;
+    }
+
+    .how-hero::before {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: -220px;
+        width: 460px;
+        height: 460px;
+        border-radius: 50%;
+        border: 1px solid rgba(201,164,92,.16);
+        box-shadow: 0 0 0 40px rgba(201,164,92,.05), 0 0 0 80px rgba(201,164,92,.03);
+        transform: translateX(-50%);
+        pointer-events: none;
     }
 
     .how-kicker {
@@ -1396,12 +1419,19 @@ def apply_brand_style():
     }
 
     .how-title {
+        position: relative;
         color: var(--how-cream);
+        font-family: var(--how-display);
         font-size: clamp(2.5rem, 6vw, 5.2rem);
-        line-height: .9;
+        line-height: .95;
         letter-spacing: 0;
-        font-weight: 950;
+        font-weight: 600;
         margin-bottom: .6rem;
+    }
+
+    .how-title em {
+        font-style: normal;
+        color: var(--how-gold);
     }
 
     .how-subtitle {
@@ -1431,8 +1461,9 @@ def apply_brand_style():
 
     .how-section-title {
         color: var(--how-cream);
+        font-family: var(--how-display);
         font-size: 2rem;
-        font-weight: 900;
+        font-weight: 600;
         letter-spacing: 0;
         margin-bottom: .2rem;
     }
@@ -2415,9 +2446,9 @@ def product_card(p):
         if image: safe_image(image,width='stretch',fallback_text='Listing image unavailable.')
         else: st.info('No listing image yet.')
         if has_listing_photos(int(p['id'])):
-            st.caption('📷 Seller photos included')
+            status_badge('📷 Seller photos included','success')
         elif image:
-            st.caption('Reference image — official release art, not the seller\'s exact copy.')
+            status_badge('Reference image','warning')
         st.subheader(safe(p.get('title'),'Untitled listing'))
         st.write('**Artist:** '+safe(p.get('artist'),'Unknown artist'))
         st.caption(f"Format: {safe(p.get('format')) or 'Not listed'}")
@@ -2538,9 +2569,11 @@ def product_detail(pid):
         if primary_image: safe_image(primary_image,width='stretch',fallback_text='Listing image unavailable.')
         else: st.markdown('## 🎵')
         if has_listing_photos(int(pid)):
-            st.success('📷 This listing includes real photos of the seller\'s exact copy.')
+            status_badge('📷 Seller photos included','success')
+            st.caption('This listing includes real photos of the seller\'s exact copy.')
         elif primary_image:
-            st.caption('This is a reference image (official release art) and not a photo of the seller\'s exact copy. Ask the seller for condition photos if you want to see the real item before buying.')
+            status_badge('Reference image','warning')
+            st.caption('This is official release art, not a photo of the seller\'s exact copy. Ask the seller for condition photos if you want to see the real item before buying.')
         render_listing_photo_gallery(pid,primary_image,'public')
     with rcol:
         st.title(f"{safe(p['artist'])} — {safe(p['title'])}"); st.write('**Price:** '+money(p['price'])); st.write('**Shipping:** '+money(p['shipping_price']))

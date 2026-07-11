@@ -160,6 +160,12 @@ on purchase_requests for update to authenticated
 using (seller_id in (select seller_id from app_users where auth_user_id = auth.uid()))
 with check (seller_id in (select seller_id from app_users where auth_user_id = auth.uid()));
 
+drop policy if exists "buyer update own purchase requests" on public."purchase_requests";
+create policy "buyer update own purchase requests"
+on purchase_requests for update to authenticated
+using (buyer_id in (select buyer_id from app_users where auth_user_id = auth.uid()))
+with check (buyer_id in (select buyer_id from app_users where auth_user_id = auth.uid()));
+
 drop policy if exists "authenticated submit listing reports" on public."listing_reports";
 create policy "authenticated submit listing reports"
 on listing_reports for insert to authenticated

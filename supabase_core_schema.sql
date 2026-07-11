@@ -147,6 +147,8 @@ create table if not exists purchase_requests (
     offer_price numeric default 0,
     buyer_message text,
     status text default 'New',
+    counter_price numeric,
+    counter_message text,
     created_at text,
     updated_at text
 );

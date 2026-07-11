@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.25 TAB ACCENT AND IMAGE FRAMING POLISH'
+APP_VERSION='V25.43.26 GRADING SCALE, BUY RELABEL, AND MAKE AN OFFER'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -77,6 +77,7 @@ def supabase_config():
     anon=safe(config_value('SUPABASE_ANON_KEY'))
     return url,anon
 CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms']
+GRADE_SCALE=['Mint','Near Mint','VG+','VG','Good+','Good','Fair','Poor']
 SUPABASE_STATUS={'last_read':'Not run','last_write':'Not run','last_error':''}
 AUTH_STATUS={'last_error':'','last_buyer_save_error':'','last_seller_save_error':'','last_link_error':''}
 def supabase_key_type():
@@ -360,6 +361,8 @@ def restore_pending_action():
         st.session_state[f'open_inquiry_{pid}']=True
     elif action.get('action_type')=='Request to Buy':
         st.session_state[f'open_purchase_{pid}']=True
+    elif action.get('action_type')=='Make Offer':
+        st.session_state[f'open_offer_{pid}']=True
     return True
 def clear_pending_action():
     st.session_state.pop('pending_action',None)
@@ -790,7 +793,7 @@ SELLER_STATUSES=['Pending Seller Approval','Approved Seller','Suspended Seller']
 LISTING_STATUSES=['Draft','Live','Hidden','Sold','Reported','Under Review','Removed by House Of Wax']
 PUBLIC_LISTING_STATUSES=['Live','Active','Approved','Public']
 INQUIRY_STATUSES=['New','Seller Responded','Closed']
-PURCHASE_REQUEST_STATUSES=['New','Seller Accepted','Seller Declined','Pending Pickup/Payment','Sold','Closed']
+PURCHASE_REQUEST_STATUSES=['New','Offer Pending','Seller Countered','Seller Accepted','Seller Declined','Pending Pickup/Payment','Sold','Closed']
 UNAVAILABLE_LISTING_STATUSES=['Pending Pickup/Payment','Pending','Sold']
 ACCOUNT_ROLES=['Buyer','Seller','Admin']
 KEY_DATA_TABLES=['app_users','products','sellers','listing_inquiries','purchase_requests','product_gallery','tester_feedback','listing_reports']
@@ -1092,7 +1095,7 @@ def setup():
         created_at TEXT
     )""")
     c.commit(); c.close()
-    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT','reference_image_url':'TEXT'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'knowledge_posts':{'video_url':'TEXT'},'homepage_blocks':{'video_url':'TEXT'}}
+    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT','reference_image_url':'TEXT'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'knowledge_posts':{'video_url':'TEXT'},'homepage_blocks':{'video_url':'TEXT'},'purchase_requests':{'counter_price':'REAL','counter_message':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
     try:
@@ -1101,7 +1104,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.25 tab accent and image framing active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.26 grading scale and make an offer active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1159,8 +1162,9 @@ def setup():
     old_v25_43_22_announcement='V25.43.22'+' reference image labeling active'
     old_v25_43_23_announcement='V25.43.23'+' visual identity refresh active'
     old_v25_43_24_announcement='V25.43.24'+' groove dividers and card polish active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement]:
-        set_setting('announcement','V25.43.25 tab accent and image framing active')
+    old_v25_43_25_announcement='V25.43.25'+' tab accent and image framing active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement]:
+        set_setting('announcement','V25.43.26 grading scale and make an offer active')
 setup()
 recovery_token_bridge()
 
@@ -2312,7 +2316,7 @@ def render_purchase_request_form(p, key_prefix):
     if not is_available_listing(p):
         st.info('Purchase requests are available only while a listing is available.')
         return
-    st.info('Checkout is not live yet. This sends a purchase request so the seller can confirm availability, pickup/shipping, and next steps.')
+    st.info(f"Buying at the listed price of {money(p['price'])}. Checkout is not live yet, so this sends a purchase request so the seller can confirm availability, pickup/shipping, and next steps. Want to propose a different price instead? Use Make an Offer.")
     if not is_authenticated():
         set_pending_action('Request to Buy',p)
         st.warning('Sign in to request this item. We will bring you back here.')
@@ -2358,20 +2362,75 @@ def render_purchase_request_form(p, key_prefix):
         contact=st.text_input('Buyer email or phone',value=buyer_contact,key=f'purchase_contact_{key_prefix}')
         method=st.selectbox('Preferred contact method',['Email','Phone','Text message','House Of Wax message'],key=f'purchase_method_{key_prefix}')
         fulfillment=st.selectbox('Pickup or shipping preference',['Shipping','Local pickup','Either / discuss with seller'],key=f'purchase_fulfillment_{key_prefix}')
-        offer=st.number_input('Optional offer price',min_value=0.0,step=1.0,value=0.0,key=f'purchase_offer_{key_prefix}')
-        message=st.text_area('Buyer message',key=f'purchase_message_{key_prefix}',placeholder='Confirm availability, shipping/pickup details, or make an offer.')
+        message=st.text_area('Buyer message',key=f'purchase_message_{key_prefix}',placeholder='Confirm availability, shipping/pickup details, or anything the seller should know.')
         sub=st.form_submit_button('Send purchase request')
     if sub:
         if not safe(name) or not safe(contact):
             st.warning('Add your name and contact info before sending a purchase request.')
         else:
-            data={'product_id':int(p['id']),'seller_id':int(p['seller_id']),'buyer_id':int(buyer_id or 0),'buyer_name':name,'buyer_contact':contact,'preferred_contact_method':method,'fulfillment_preference':fulfillment,'offer_price':float(offer or 0),'buyer_message':message,'status':'New','created_at':now(),'updated_at':now()}
+            data={'product_id':int(p['id']),'seller_id':int(p['seller_id']),'buyer_id':int(buyer_id or 0),'buyer_name':name,'buyer_contact':contact,'preferred_contact_method':method,'fulfillment_preference':fulfillment,'offer_price':0.0,'buyer_message':message,'status':'New','created_at':now(),'updated_at':now()}
             new_id=core_insert('purchase_requests',data,'''INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,preferred_contact_method,fulfillment_preference,offer_price,buyer_message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['product_id','seller_id','buyer_id','buyer_name','buyer_contact','preferred_contact_method','fulfillment_preference','offer_price','buyer_message','status','created_at','updated_at']))
             if new_id or not hosted_enabled():
                 clear_pending_action()
                 st.success('Purchase request sent. The seller can review it inside Seller Tools.')
             else:
                 st.error('Purchase request could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
+
+def render_offer_form(p, key_prefix):
+    if not is_available_listing(p):
+        st.info('Offers are available only while a listing is available.')
+        return
+    st.info(f"Listed at {money(p['price'])}. Propose a price below and the seller can accept, counter, or decline.")
+    if not is_authenticated():
+        set_pending_action('Make Offer',p)
+        st.warning('Sign in to make an offer. We will bring you back here.')
+        if st.button('Sign in or create Buyer account',key=f'offer_signin_{key_prefix}',width='stretch'):
+            request_marketplace_navigation('My Account')
+            st.rerun()
+        return
+    buyer_id=ensure_linked_buyer_profile()
+    buyer_name=''
+    buyer_contact=''
+    if buyer_id:
+        buyer=get_buyer(buyer_id)
+        if buyer is not None:
+            buyer_name=safe(buyer.get('name'))
+            buyer_contact=safe(buyer.get('email')) or safe(buyer.get('phone'))
+    if not buyer_id:
+        st.warning('Complete your buyer profile to make an offer.')
+        with st.form(f'complete_buyer_for_offer_{key_prefix}'):
+            profile_name=st.text_input('Name',value=safe(current_app_user().get('display_name')) or auth_user_email().split('@')[0],key=f'complete_buyer_name_offer_{key_prefix}')
+            profile_phone=st.text_input('Phone optional',key=f'complete_buyer_phone_offer_{key_prefix}')
+            sub_profile=st.form_submit_button('Save buyer profile and continue')
+        if sub_profile:
+            buyer_id=ensure_linked_buyer_profile(profile_name)
+            if buyer_id:
+                core_update('buyers',{'name':profile_name,'phone':profile_phone},{'id':buyer_id},'UPDATE buyers SET name=?,phone=? WHERE id=?',(profile_name,profile_phone,buyer_id))
+                restore_pending_action()
+                st.success('Buyer profile saved. You can make an offer now.')
+                st.rerun()
+            else:
+                st.error('Buyer profile could not be saved. Check Auth Diagnostics for the exact error.')
+        return
+    with st.form(f'offer_form_{key_prefix}'):
+        name=st.text_input('Buyer name',value=buyer_name,key=f'offer_name_{key_prefix}')
+        contact=st.text_input('Buyer email or phone',value=buyer_contact,key=f'offer_contact_{key_prefix}')
+        offer=st.number_input('Your offer price',min_value=0.01,step=1.0,value=max(0.01,float(p['price'] or 0)*0.85),key=f'offer_amount_{key_prefix}')
+        message=st.text_area('Message to seller - optional',key=f'offer_message_{key_prefix}',placeholder='Explain your offer if you want.')
+        sub=st.form_submit_button('Send offer')
+    if sub:
+        if not safe(name) or not safe(contact):
+            st.warning('Add your name and contact info before sending an offer.')
+        elif not offer or float(offer)<=0:
+            st.warning('Enter an offer amount greater than $0.')
+        else:
+            data={'product_id':int(p['id']),'seller_id':int(p['seller_id']),'buyer_id':int(buyer_id or 0),'buyer_name':name,'buyer_contact':contact,'preferred_contact_method':'House Of Wax message','fulfillment_preference':'Discuss with seller','offer_price':float(offer),'buyer_message':message,'status':'Offer Pending','created_at':now(),'updated_at':now()}
+            new_id=core_insert('purchase_requests',data,'''INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,preferred_contact_method,fulfillment_preference,offer_price,buyer_message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['product_id','seller_id','buyer_id','buyer_name','buyer_contact','preferred_contact_method','fulfillment_preference','offer_price','buyer_message','status','created_at','updated_at']))
+            if new_id or not hosted_enabled():
+                clear_pending_action()
+                st.success('Offer sent. The seller can accept, counter, or decline it inside Seller Tools.')
+            else:
+                st.error('Offer could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
 
 REPORT_REASONS=['Misleading description','Wrong condition','Counterfeit / bootleg concern','Stolen item concern','Offensive or prohibited content','Seller behavior issue','Other']
 
@@ -2555,10 +2614,17 @@ def product_card(p):
                 if not is_authenticated():
                     request_marketplace_navigation('My Account')
                 st.rerun()
-            if st.button('Request to Buy',key=f"buy_request_item_{int(p['id'])}",width='stretch'):
+            if st.button('Buy',key=f"buy_request_item_{int(p['id'])}",width='stretch'):
                 set_pending_action('Request to Buy',p)
                 st.session_state['product_id']=int(p['id'])
                 st.session_state[f'open_purchase_{int(p["id"])}']=True
+                if not is_authenticated():
+                    request_marketplace_navigation('My Account')
+                st.rerun()
+            if st.button('Make an Offer',key=f"offer_item_{int(p['id'])}",width='stretch'):
+                set_pending_action('Make Offer',p)
+                st.session_state['product_id']=int(p['id'])
+                st.session_state[f'open_offer_{int(p["id"])}']=True
                 if not is_authenticated():
                     request_marketplace_navigation('My Account')
                 st.rerun()
@@ -2663,13 +2729,19 @@ def product_detail(pid):
                     if not is_authenticated():
                         request_marketplace_navigation('My Account')
                     st.rerun()
-                if st.button('Request to Buy',key=f'detail_purchase_top_{pid}',width='stretch'):
+                if st.button('Buy',key=f'detail_purchase_top_{pid}',width='stretch'):
                     set_pending_action('Request to Buy',p)
                     st.session_state[f'open_purchase_{pid}']=True
                     if not is_authenticated():
                         request_marketplace_navigation('My Account')
                     st.rerun()
-                st.caption('Checkout is not live yet. Request to Buy sends a purchase request, not a payment.')
+                if st.button('Make an Offer',key=f'detail_offer_top_{pid}',width='stretch'):
+                    set_pending_action('Make Offer',p)
+                    st.session_state[f'open_offer_{pid}']=True
+                    if not is_authenticated():
+                        request_marketplace_navigation('My Account')
+                    st.rerun()
+                st.caption('Checkout is not live yet. Buy sends a purchase request, not a payment.')
             if st.button('View seller public profile'): st.session_state['seller_id']=int(s['id']); st.session_state.pop('product_id',None); st.rerun()
     st.subheader('Description'); st.write(safe(p['description'],'No description.'))
     if safe(p.get('video_url')):
@@ -2690,8 +2762,11 @@ def product_detail(pid):
         with st.expander('Ask About This Item / Contact Seller',expanded=True):
             render_buyer_inquiry_form(p,s,f'product_{pid}')
         purchase_expanded=bool(st.session_state.pop(f'open_purchase_{pid}',False))
-        with st.expander('Request to Buy',expanded=purchase_expanded):
+        with st.expander('Buy',expanded=purchase_expanded):
             render_purchase_request_form(p,f'product_{pid}')
+        offer_expanded=bool(st.session_state.pop(f'open_offer_{pid}',False))
+        with st.expander('Make an Offer',expanded=offer_expanded):
+            render_offer_form(p,f'product_{pid}')
     else:
         st.info(f"This listing is {listing_availability_label(p).lower()}, so public buyer actions are turned off.")
     bid=ensure_linked_buyer_profile() if is_authenticated() else 0
@@ -2783,8 +2858,8 @@ def tester_start_here(key_prefix='main'):
             'Review photos and condition.',
             'Click Contact Seller / Ask About This Item.',
             'Submit a sample inquiry.',
-            'Click Request to Buy.',
-            'Submit a sample purchase request.',
+            'Click Buy, or click Make an Offer to try proposing a price.',
+            'Submit a sample purchase request or offer.',
             'Leave tester feedback.'
         ]:
             st.write(f'- {item}')
@@ -2911,8 +2986,8 @@ def knowledge_center_education_hub():
             'Browse Marketplace for live listings from approved sellers.',
             'Review photos, condition notes, seller profile, trust badges, and listing readiness information.',
             'Ask the seller a question if condition, shipping, photos, or availability are unclear.',
-            'Use Request to Buy when you are ready to move forward.',
-            'In the prototype, checkout/payment may not be live yet. Request to Buy sends purchase intent, not payment.',
+            'Use Buy when you are ready to move forward.',
+            'In the prototype, checkout/payment may not be live yet. Buy sends purchase intent, not payment.',
             'Pending means the item is being held or worked out. Sold means it should no longer be available.'
         ]:
             st.write(f'- {item}')
@@ -2970,7 +3045,7 @@ def knowledge_center_education_hub():
     with buyer_faq:
         st.subheader('Buyer FAQ')
         faq=[
-            ('What does Request to Buy mean?','It means you want to move forward. In the prototype it creates a purchase request so the seller can confirm availability, pickup/shipping, and next steps.'),
+            ('What does Buy mean?','It means you want to move forward. In the prototype it creates a purchase request so the seller can confirm availability, pickup/shipping, and next steps.'),
             ('Is payment live?','Not yet. The current prototype does not process checkout or payment.'),
             ('How do I contact a seller?','Use Contact Seller / Ask About This Item on live/public listings.'),
             ('How do I know if an item is available?','Live listings can show buyer action buttons. Pending and Sold items show unavailable status.'),
@@ -3529,6 +3604,25 @@ def buyer_dashboard():
             else:
                 cols=[c for c in ['id','store_name','artist','title','fulfillment_preference','offer_price','buyer_message','status','created_at'] if c in purchases.columns]
                 st.dataframe(purchases[cols],width='stretch')
+                countered=purchases[purchases['status']=='Seller Countered'] if 'status' in purchases.columns else purchases.iloc[0:0]
+                if not countered.empty:
+                    st.markdown('#### Seller counter-offers awaiting your response')
+                    for _,cr in countered.iterrows():
+                        crid=int(cr['id'])
+                        with st.container(border=True):
+                            st.write(f"**{safe(cr.get('artist'))} — {safe(cr.get('title'))}** from {safe(cr.get('store_name'))}")
+                            st.write(f"Your offer: {money(cr.get('offer_price'))} → Seller's counter: {money(cr.get('counter_price'))}")
+                            if safe(cr.get('counter_message')):
+                                st.caption(safe(cr.get('counter_message')))
+                            cc1,cc2=st.columns(2)
+                            if cc1.button('Accept Counter',key=f'buyer_accept_counter_{crid}',width='stretch'):
+                                core_update('purchase_requests',{'status':'Seller Accepted','offer_price':float(cr.get('counter_price') or 0),'updated_at':now()},{'id':crid},'UPDATE purchase_requests SET status=?,offer_price=?,updated_at=? WHERE id=?',('Seller Accepted',float(cr.get('counter_price') or 0),now(),crid))
+                                st.success('Counter accepted. The seller will follow up on pickup/payment.')
+                                st.rerun()
+                            if cc2.button('Decline Counter',key=f'buyer_decline_counter_{crid}',width='stretch'):
+                                core_update('purchase_requests',{'status':'Closed','updated_at':now()},{'id':crid},'UPDATE purchase_requests SET status=?,updated_at=? WHERE id=?',('Closed',now(),crid))
+                                st.info('Counter declined.')
+                                st.rerun()
         with tabs[3]:
             st.write('Signed in as '+auth_user_email())
             if st.button('Sign Out',key='buyer_account_sign_out'):
@@ -5129,8 +5223,8 @@ def upload_product(sid,key):
         else:
             st.info('For unique or non-music items, adding your own photo is recommended.')
         c10,c11=st.columns(2)
-        mg=c10.selectbox('Condition - required',['Mint','Near Mint','VG+','VG','Good','Used','New','N/A'],help='Tell buyers the condition of the copy you are selling.')
-        sg=c11.selectbox('Sleeve/packaging condition - optional',['Mint','Near Mint','VG+','VG','Good','Used','New','N/A'])
+        mg=c10.selectbox('Condition - required',GRADE_SCALE,help='Tell buyers the condition of the copy you are selling.')
+        sg=c11.selectbox('Sleeve/packaging condition - optional',GRADE_SCALE)
         notes=st.text_area('Seller notes - optional',help='Optional. Add anything buyers should know.')
         desc=st.text_area('Extra description - optional',help='Optional. Add anything buyers should know.')
         c10,c11,c12=st.columns(3)
@@ -5416,6 +5510,8 @@ def seller_purchase_request_view(sid):
         st.write(f"**Pickup/shipping:** {safe(row.get('fulfillment_preference'))}")
         st.write(f"**Offer:** {money(row.get('offer_price')) if float(row.get('offer_price') or 0)>0 else 'No offer entered'}")
         st.write(f"**Message:** {safe(row.get('buyer_message'),'No message.')}")
+        if float(row.get('counter_price') or 0)>0:
+            st.write(f"**Your counter:** {money(row.get('counter_price'))} — {safe(row.get('counter_message'),'No message.')}")
         st.caption(f"Request status: {safe(row.get('status'))} • Received {safe(row.get('created_at'))}")
     c1,c2,c3,c4,c5=st.columns(5)
     if c1.button('Mark Seller Accepted',key=f'seller_purchase_accept_{rid}'):
@@ -5428,6 +5524,15 @@ def seller_purchase_request_view(sid):
         update_purchase_request_status(rid,'Sold',sid); st.success('Listing marked Sold.')
     if c5.button('Mark Closed',key=f'seller_purchase_closed_{rid}'):
         update_purchase_request_status(rid,'Closed',sid); st.success('Purchase request closed.')
+    if float(row.get('offer_price') or 0)>0 and safe(row.get('status')) in ('Offer Pending','Seller Countered'):
+        with st.form(f'seller_counter_form_{rid}'):
+            st.caption('Propose a different price back to the buyer.')
+            counter_price=st.number_input('Counter price',min_value=0.01,step=1.0,value=float(row.get('offer_price') or 1),key=f'counter_price_{rid}')
+            counter_message=st.text_input('Message to buyer - optional',key=f'counter_message_{rid}')
+            send_counter=st.form_submit_button('Send Counter Offer')
+        if send_counter:
+            core_update('purchase_requests',{'status':'Seller Countered','counter_price':float(counter_price),'counter_message':counter_message,'updated_at':now()},{'id':rid,'seller_id':int(sid)},'UPDATE purchase_requests SET status=?,counter_price=?,counter_message=?,updated_at=? WHERE id=? AND seller_id=?',('Seller Countered',float(counter_price),counter_message,now(),rid,sid))
+            st.success('Counter offer sent to the buyer.')
 
 def admin_purchase_request_view():
     st.subheader('Purchase Request Review')
@@ -5457,6 +5562,8 @@ def admin_purchase_request_view():
         st.write(f"**Pickup/shipping:** {safe(row.get('fulfillment_preference'))}")
         st.write(f"**Offer:** {money(row.get('offer_price')) if float(row.get('offer_price') or 0)>0 else 'No offer entered'}")
         st.write(f"**Message:** {safe(row.get('buyer_message'),'No message.')}")
+        if float(row.get('counter_price') or 0)>0:
+            st.write(f"**Seller counter:** {money(row.get('counter_price'))} — {safe(row.get('counter_message'),'No message.')}")
         st.caption(f"Request status: {safe(row.get('status'))} • Received {safe(row.get('created_at'))}")
     if st.button('Mark Purchase Request Closed',key=f'admin_purchase_closed_{rid}'):
         update_purchase_request_status(rid,'Closed'); st.success('Purchase request closed.')

@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.30 ADMIN PERMISSIONS HARDENING'
+APP_VERSION='V25.43.31 HOMEPAGE CONTENT AND NEWSLETTER PERSISTENCE'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -76,7 +76,7 @@ def supabase_config():
         url=url[:-8].rstrip('/')
     anon=safe(config_value('SUPABASE_ANON_KEY'))
     return url,anon
-CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms']
+CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups']
 GRADE_SCALE=['Mint','Near Mint','VG+','VG','Good+','Good','Fair','Poor']
 SUPABASE_STATUS={'last_read':'Not run','last_write':'Not run','last_error':''}
 AUTH_STATUS={'last_error':'','last_buyer_save_error':'','last_seller_save_error':'','last_link_error':''}
@@ -1086,7 +1086,7 @@ def setup():
         created_at TEXT
     )""")
     c.commit(); c.close()
-    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT','reference_image_url':'TEXT'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'knowledge_posts':{'video_url':'TEXT'},'homepage_blocks':{'video_url':'TEXT'},'purchase_requests':{'counter_price':'REAL','counter_message':'TEXT'}}
+    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT','reference_image_url':'TEXT'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'knowledge_posts':{'video_url':'TEXT'},'homepage_blocks':{'video_url':'TEXT'},'purchase_requests':{'counter_price':'REAL','counter_message':'TEXT'},'newsletter_signups':{'interest':'TEXT','updated_at':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
     try:
@@ -1095,7 +1095,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.30 admin permissions hardened active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.31 homepage and newsletter data now persisted active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1158,8 +1158,9 @@ def setup():
     old_v25_43_27_announcement='V25.43.27'+' admin screens consolidated active'
     old_v25_43_28_announcement='V25.43.28'+' homepage and seller tools consolidated active'
     old_v25_43_29_announcement='V25.43.29'+' shipping guidance active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement]:
-        set_setting('announcement','V25.43.30 admin permissions hardened active')
+    old_v25_43_30_announcement='V25.43.30'+' admin permissions hardened active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement]:
+        set_setting('announcement','V25.43.31 homepage and newsletter data now persisted active')
 setup()
 recovery_token_bridge()
 
@@ -3289,6 +3290,8 @@ def content_admin():
 # ---------- V18 Home + Editorial Experience ----------
 def seed_homepage_editorial():
     seed_knowledge()
+    if hosted_enabled():
+        return
     if table('homepage_blocks').empty:
         blocks=[
             ('hero','House Of Wax','Music. Culture. Collecting. Community.','Discover the stories, sounds, formats, and knowledge behind the music you collect. House Of Wax is where marketplace trust meets music culture education.','Visit Knowledge Hub','Knowledge Hub','Active',1),
@@ -3317,7 +3320,7 @@ def seed_homepage_editorial():
             run("INSERT INTO did_you_know(fact_text,category,status,created_at,updated_at) VALUES(?,?,'Active',?,?)",(fact,cat,now(),now()))
 
 def home_block(name):
-    r=df("SELECT * FROM homepage_blocks WHERE block_name=? AND status='Active' ORDER BY sort_order,id LIMIT 1",(name,))
+    r=hosted_select('homepage_blocks',{'block_name':name,'status':'Active'},order='sort_order.asc,id.asc',limit=1) if hosted_enabled() else df("SELECT * FROM homepage_blocks WHERE block_name=? AND status='Active' ORDER BY sort_order,id LIMIT 1",(name,))
     return {} if r.empty else r.iloc[0].to_dict()
 
 def mini_card(title,subtitle,body,video_url=''):
@@ -3394,8 +3397,8 @@ def home():
     if n3.button('Join the List'):
         if not safe(email): st.warning('Enter an email first.')
         else:
-            run("INSERT INTO newsletter_signups(email,name,source,created_at) VALUES(?,?,?,?)",(email,name,'Homepage',now()))
-            warn_if_local_only('Newsletter signup')
+            data={'email':email,'name':name,'source':'Homepage','created_at':now(),'updated_at':now()}
+            core_insert('newsletter_signups',data,"INSERT INTO newsletter_signups(email,name,source,created_at,updated_at) VALUES(?,?,?,?,?)",tuple(data[k] for k in ['email','name','source','created_at','updated_at']))
             st.success('You are on the House Of Wax list.')
 
 def homepage_editor():
@@ -3412,8 +3415,8 @@ def homepage_editor():
             status=st.selectbox('Status',['Active','Draft','Hidden'])
             order=st.number_input('Sort order',min_value=0,value=1)
             if st.form_submit_button('Save homepage block'):
-                run("INSERT INTO homepage_blocks(block_name,title,subtitle,body,button_text,button_target,video_url,status,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",(bn,title,sub,body,btn,target,safe(video_url).strip(),status,int(order),now(),now()))
-                warn_if_local_only('Homepage block')
+                data={'block_name':bn,'title':title,'subtitle':sub,'body':body,'button_text':btn,'button_target':target,'video_url':safe(video_url).strip(),'status':status,'sort_order':int(order),'created_at':now(),'updated_at':now()}
+                core_insert('homepage_blocks',data,"INSERT INTO homepage_blocks(block_name,title,subtitle,body,button_text,button_target,video_url,status,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",tuple(data[k] for k in ['block_name','title','subtitle','body','button_text','button_target','video_url','status','sort_order','created_at','updated_at']))
                 st.success('Homepage block saved.')
     with tabs[1]:
         st.dataframe(table('quick_tips'),width='stretch')
@@ -3421,8 +3424,8 @@ def homepage_editor():
             tip=st.text_area('Quick tip'); cat=st.text_input('Category')
             status=st.selectbox('Status',['Active','Draft','Hidden'],key='tip_status')
             if st.form_submit_button('Save quick tip'):
-                run("INSERT INTO quick_tips(tip_text,category,status,created_at,updated_at) VALUES(?,?,?,?,?)",(tip,cat,status,now(),now()))
-                warn_if_local_only('Quick tip')
+                data={'tip_text':tip,'category':cat,'status':status,'created_at':now(),'updated_at':now()}
+                core_insert('quick_tips',data,"INSERT INTO quick_tips(tip_text,category,status,created_at,updated_at) VALUES(?,?,?,?,?)",tuple(data[k] for k in ['tip_text','category','status','created_at','updated_at']))
                 st.success('Quick tip saved.')
     with tabs[2]:
         st.dataframe(table('did_you_know'),width='stretch')
@@ -3430,8 +3433,8 @@ def homepage_editor():
             fact=st.text_area('Fact'); cat=st.text_input('Category',key='fact_cat')
             status=st.selectbox('Status',['Active','Draft','Hidden'],key='fact_status')
             if st.form_submit_button('Save fact'):
-                run("INSERT INTO did_you_know(fact_text,category,status,created_at,updated_at) VALUES(?,?,?,?,?)",(fact,cat,status,now(),now()))
-                warn_if_local_only('Did You Know fact')
+                data={'fact_text':fact,'category':cat,'status':status,'created_at':now(),'updated_at':now()}
+                core_insert('did_you_know',data,"INSERT INTO did_you_know(fact_text,category,status,created_at,updated_at) VALUES(?,?,?,?,?)",tuple(data[k] for k in ['fact_text','category','status','created_at','updated_at']))
                 st.success('Fact saved.')
     with tabs[3]:
         data=table('newsletter_signups')
@@ -6473,11 +6476,11 @@ def payment_checkout_prep():
     header()
     marketplace_context('House Of Wax Marketplace → Payment / Checkout Prep')
     st.header('Payment / Checkout Prep')
-    st.info('House Of Wax currently supports Request to Buy. Real checkout and payment processing are not live yet.')
+    st.info('House Of Wax currently supports Request to Buy and Make an Offer. Real checkout and payment processing are not live yet.')
     st.warning('Do not collect payment without clear terms, seller agreements, refund/dispute rules, real authentication, hosted storage, and a trusted payment processor.')
 
     st.markdown('### Current buying action')
-    st.write('Request to Buy is the active prototype flow. It lets a buyer signal interest, share contact details, choose pickup/shipping preference, and let the seller respond before any payment happens.')
+    st.write('Request to Buy and Make an Offer are the active prototype flows. Request to Buy lets a buyer signal interest at the listed price; Make an Offer lets a buyer propose a different price. Both share contact details, pickup/shipping preference, and let the seller respond before any payment happens.')
     st.write('No Stripe, PayPal, credit card, or bank payment processing is implemented in this prototype.')
 
     st.markdown('### Purchase model options')
@@ -6496,7 +6499,7 @@ def payment_checkout_prep():
 
     st.markdown('### Recommended phased approach')
     phases=[
-        ('Phase 1 -- Live','Request to Buy + seller communication. Keep current buyer request flow as the live buying action.'),
+        ('Phase 1 -- Live','Request to Buy, Make an Offer, and seller communication. Keep the current buyer request flow as the live buying action.'),
         ('Phase 2 -- Live','Admin/seller-tracked Pending/Sold status, with listings now automatically returning to Live if a request is declined or closed instead of staying stuck as Pending.'),
         ('Phase 3 -- Not started','Real Stripe checkout. Blocked on attorney-reviewed legal terms and a formal refund/dispute policy -- authentication, hosted database, and permanent image storage are already in place.')
     ]
@@ -6505,7 +6508,7 @@ def payment_checkout_prep():
 
     st.markdown('### Before real payments')
     for item,ready in [('Real login/authentication',True),('Hosted database',True),('Permanent image storage',True),('Attorney-reviewed legal terms',False),('Seller agreement',False),('Refund and dispute policy',False)]:
-        st.write(('- ✅ ' if ready else '- ⬜ ')+item)
+        st.write(('- ✓ ' if ready else '- • ')+item)
 
     st.markdown('### Future checkout/order data model')
     st.caption('Future checkout/order fields: order_id, listing_id, buyer_id, seller_id, amount, status, payment_provider, pickup_or_shipping, shipping_address, created_at, updated_at.')
@@ -6545,8 +6548,8 @@ def contact_newsletter():
         if submitted:
             if email:
                 try:
-                    run("INSERT INTO newsletter_signups(name,email,interest,created_at) VALUES(?,?,?,?)",(name,email,interest,now()))
-                    warn_if_local_only('Newsletter signup')
+                    data={'name':name,'email':email,'interest':interest,'source':'Contact Page','created_at':now(),'updated_at':now()}
+                    core_insert('newsletter_signups',data,"INSERT INTO newsletter_signups(name,email,interest,source,created_at,updated_at) VALUES(?,?,?,?,?,?)",tuple(data[k] for k in ['name','email','interest','source','created_at','updated_at']))
                     st.success('You are on the House Of Wax list.')
                 except Exception as e:
                     st.error(f'Newsletter signup table is not ready yet: {e}')
@@ -6912,7 +6915,7 @@ def demo_guide():
         st.write('1. Open Marketplace.')
         st.write('2. Open a Live listing.')
         st.write('3. Use Contact Seller / Ask About This Item for questions.')
-        st.write('4. Use Request to Buy when the buyer is ready. Checkout is not live yet; this sends a purchase request.')
+        st.write('4. Use Request to Buy (at the listed price) or Make an Offer (to propose a different price) when the buyer is ready. Checkout is not live yet; this sends a purchase request.')
         st.caption('Pending and Sold listings can appear as unavailable, but buyer action buttons stay hidden.')
     with c2:
         st.subheader('Seller flow')
@@ -6970,7 +6973,7 @@ def pitch_demo_package():
 
     st.markdown('### Marketplace concept')
     st.write('Buyers browse live listings, view item details, ask sellers questions, and request to buy. Approved sellers build richer listings with search data, photos, condition notes, listing readiness, profile context, and trust badges. Admin/moderation tools help House Of Wax approve sellers, review reports, track inquiries, track purchase requests, and watch database health.')
-    st.caption('Checkout is not live yet. Request to Buy is the current purchase-intent workflow while payment decisions are prepared.')
+    st.caption('Checkout is not live yet. Request to Buy and Make an Offer are the current purchase-intent workflows while payment decisions are prepared.')
     st.caption('The Knowledge Center / Education Hub supports the pitch by showing how House Of Wax teaches buyers, sellers, and early testers before the marketplace scales.')
 
     c3,c4,c5=st.columns(3)
@@ -6979,7 +6982,7 @@ def pitch_demo_package():
         st.write('- Browse Marketplace.')
         st.write('- View a live listing.')
         st.write('- Contact Seller / Ask About This Item.')
-        st.write('- Request to Buy.')
+        st.write('- Request to Buy or Make an Offer.')
         st.write('- Follow inquiry and purchase request history.')
     with c4:
         st.subheader('Seller flow')

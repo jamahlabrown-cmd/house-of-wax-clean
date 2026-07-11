@@ -14,6 +14,10 @@ alter table tester_feedback enable row level security;
 alter table listing_reports enable row level security;
 alter table knowledge_posts enable row level security;
 alter table glossary_terms enable row level security;
+alter table homepage_blocks enable row level security;
+alter table quick_tips enable row level security;
+alter table did_you_know enable row level security;
+alter table newsletter_signups enable row level security;
 
 do $$
 declare
@@ -30,7 +34,11 @@ begin
         'tester_feedback',
         'listing_reports',
         'knowledge_posts',
-        'glossary_terms'
+        'glossary_terms',
+        'homepage_blocks',
+        'quick_tips',
+        'did_you_know',
+        'newsletter_signups'
     ]
     loop
         execute format('drop policy if exists "prototype anon read %s" on %I', t, t);
@@ -180,6 +188,54 @@ drop policy if exists "authenticated submit tester feedback" on public."tester_f
 create policy "authenticated submit tester feedback"
 on tester_feedback for insert to authenticated
 with check (true);
+
+drop policy if exists "public read active homepage blocks" on public."homepage_blocks";
+create policy "public read active homepage blocks"
+on homepage_blocks for select to anon, authenticated
+using (status = 'Active');
+
+drop policy if exists "admin manage homepage blocks" on public."homepage_blocks";
+create policy "admin manage homepage blocks"
+on homepage_blocks for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+drop policy if exists "public read active quick tips" on public."quick_tips";
+create policy "public read active quick tips"
+on quick_tips for select to anon, authenticated
+using (status = 'Active');
+
+drop policy if exists "admin manage quick tips" on public."quick_tips";
+create policy "admin manage quick tips"
+on quick_tips for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+drop policy if exists "public read active did you know" on public."did_you_know";
+create policy "public read active did you know"
+on did_you_know for select to anon, authenticated
+using (status = 'Active');
+
+drop policy if exists "admin manage did you know" on public."did_you_know";
+create policy "admin manage did you know"
+on did_you_know for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+-- newsletter_signups holds real visitor email addresses. No public read
+-- policy is defined at all -- only insert (so the signup form works for
+-- anyone) and the admin bypass below (so the Homepage Editor can list
+-- and export signups).
+drop policy if exists "anon submit newsletter signup" on public."newsletter_signups";
+create policy "anon submit newsletter signup"
+on newsletter_signups for insert to anon, authenticated
+with check (true);
+
+drop policy if exists "admin manage newsletter signups" on public."newsletter_signups";
+create policy "admin manage newsletter signups"
+on newsletter_signups for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
 
 drop policy if exists "public read published knowledge posts" on public."knowledge_posts";
 create policy "public read published knowledge posts"

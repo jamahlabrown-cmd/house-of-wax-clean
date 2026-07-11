@@ -3,6 +3,29 @@
 -- These policies replace prototype allow-all policies with ownership-based rules.
 -- Review before public launch; production may need stricter public field views and service-side admin tooling.
 
+-- is_admin_user() exists so admin-bypass policies never query app_users
+-- directly inline. A policy defined ON app_users that queries app_users
+-- in its own USING clause causes Postgres to detect infinite recursion
+-- and reject the query entirely (error 42P17) -- which breaks not just
+-- app_users but every other table whose policies look up app_users too,
+-- since evaluating that lookup re-triggers app_users' own RLS. A
+-- security definer function runs with the privileges of its owner
+-- (bypassing RLS for its internal query), so it can safely check
+-- admin_access without re-entering RLS evaluation.
+create or replace function is_admin_user()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from app_users
+    where auth_user_id = auth.uid()
+    and lower(admin_access) in ('yes','true','1','admin')
+  );
+$$;
+
 alter table app_users enable row level security;
 alter table buyers enable row level security;
 alter table sellers enable row level security;
@@ -207,8 +230,8 @@ using (status = 'Active');
 drop policy if exists "admin manage homepage blocks" on public."homepage_blocks";
 create policy "admin manage homepage blocks"
 on homepage_blocks for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 drop policy if exists "public read active quick tips" on public."quick_tips";
 create policy "public read active quick tips"
@@ -218,8 +241,8 @@ using (status = 'Active');
 drop policy if exists "admin manage quick tips" on public."quick_tips";
 create policy "admin manage quick tips"
 on quick_tips for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 drop policy if exists "public read active did you know" on public."did_you_know";
 create policy "public read active did you know"
@@ -229,8 +252,8 @@ using (status = 'Active');
 drop policy if exists "admin manage did you know" on public."did_you_know";
 create policy "admin manage did you know"
 on did_you_know for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 -- newsletter_signups holds real visitor email addresses. No public read
 -- policy is defined at all -- only insert (so the signup form works for
@@ -244,8 +267,8 @@ with check (true);
 drop policy if exists "admin manage newsletter signups" on public."newsletter_signups";
 create policy "admin manage newsletter signups"
 on newsletter_signups for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 -- Follower counts and badges are shown on public seller storefronts, so
 -- both need public read. Only a buyer's own follow action needs a write
@@ -263,8 +286,8 @@ with check (buyer_id in (select buyer_id from app_users where auth_user_id = aut
 drop policy if exists "admin manage seller followers" on public."seller_followers";
 create policy "admin manage seller followers"
 on seller_followers for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 drop policy if exists "public read active seller badges" on public."seller_badges";
 create policy "public read active seller badges"
@@ -274,8 +297,8 @@ using (active = 'Yes');
 drop policy if exists "admin manage seller badges" on public."seller_badges";
 create policy "admin manage seller badges"
 on seller_badges for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 -- Announcements, events, and policies are seller-owned content shown on
 -- the seller's own public storefront -- public read, seller writes only
@@ -294,8 +317,8 @@ with check (seller_id in (select seller_id from app_users where auth_user_id = a
 drop policy if exists "admin manage store announcements" on public."store_announcements";
 create policy "admin manage store announcements"
 on store_announcements for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 drop policy if exists "public read active seller events" on public."seller_events";
 create policy "public read active seller events"
@@ -311,8 +334,8 @@ with check (seller_id in (select seller_id from app_users where auth_user_id = a
 drop policy if exists "admin manage seller events" on public."seller_events";
 create policy "admin manage seller events"
 on seller_events for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 drop policy if exists "public read seller policies" on public."seller_policies";
 create policy "public read seller policies"
@@ -328,8 +351,8 @@ with check (seller_id in (select seller_id from app_users where auth_user_id = a
 drop policy if exists "admin manage seller policies" on public."seller_policies";
 create policy "admin manage seller policies"
 on seller_policies for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 drop policy if exists "public read published knowledge posts" on public."knowledge_posts";
 create policy "public read published knowledge posts"
@@ -339,8 +362,8 @@ using (status = 'Published');
 drop policy if exists "admin manage knowledge posts" on public."knowledge_posts";
 create policy "admin manage knowledge posts"
 on knowledge_posts for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 drop policy if exists "public read published glossary terms" on public."glossary_terms";
 create policy "public read published glossary terms"
@@ -350,8 +373,8 @@ using (status = 'Published');
 drop policy if exists "admin manage glossary terms" on public."glossary_terms";
 create policy "admin manage glossary terms"
 on glossary_terms for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 -- ---------- Admin bypass policies ----------
 -- The app has no elevated Postgres role (no service_role key is used
@@ -365,50 +388,50 @@ with check (auth.uid() in (select auth_user_id from app_users where lower(admin_
 drop policy if exists "admin manage sellers" on public."sellers";
 create policy "admin manage sellers"
 on sellers for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 drop policy if exists "admin manage products" on public."products";
 create policy "admin manage products"
 on products for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 drop policy if exists "admin manage buyers" on public."buyers";
 create policy "admin manage buyers"
 on buyers for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 drop policy if exists "admin manage app users" on public."app_users";
 create policy "admin manage app users"
 on app_users for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 drop policy if exists "admin manage listing inquiries" on public."listing_inquiries";
 create policy "admin manage listing inquiries"
 on listing_inquiries for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 drop policy if exists "admin manage purchase requests" on public."purchase_requests";
 create policy "admin manage purchase requests"
 on purchase_requests for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 drop policy if exists "admin manage listing reports" on public."listing_reports";
 create policy "admin manage listing reports"
 on listing_reports for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 drop policy if exists "admin manage tester feedback" on public."tester_feedback";
 create policy "admin manage tester feedback"
 on tester_feedback for all to authenticated
-using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
-with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+using (is_admin_user())
+with check (is_admin_user());
 
 -- listing_reports and tester_feedback previously only allowed inserts from
 -- the authenticated role, but the report-a-listing and tester-feedback

@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.26 GRADING SCALE, BUY RELABEL, AND MAKE AN OFFER'
+APP_VERSION='V25.43.27 CONSOLIDATE DUPLICATE ADMIN SCREENS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -909,15 +909,6 @@ def listing_status_badge(status):
         kind='danger'
     status_badge(label,kind)
 
-def admin_seller_status_badge(status):
-    normalized=normalize_seller_status(status)
-    if normalized=='Approved Seller':
-        status_badge(normalized,'success')
-    elif normalized=='Suspended Seller':
-        status_badge(normalized,'danger')
-    else:
-        status_badge(normalized,'warning')
-
 def public_seller_trust_badge(seller):
     label=seller_public_trust_label(seller)
     kind='success' if label in ['Verified Seller','Active Seller','Trusted Seller','House Of Wax Seller'] else ('danger' if label=='Not Enabled' else 'neutral')
@@ -1104,7 +1095,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.26 grading scale and make an offer active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.27 admin screens consolidated active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1163,8 +1154,9 @@ def setup():
     old_v25_43_23_announcement='V25.43.23'+' visual identity refresh active'
     old_v25_43_24_announcement='V25.43.24'+' groove dividers and card polish active'
     old_v25_43_25_announcement='V25.43.25'+' tab accent and image framing active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement]:
-        set_setting('announcement','V25.43.26 grading scale and make an offer active')
+    old_v25_43_26_announcement='V25.43.26'+' grading scale and make an offer active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement]:
+        set_setting('announcement','V25.43.27 admin screens consolidated active')
 setup()
 recovery_token_bridge()
 
@@ -5874,54 +5866,11 @@ def culture():
         with st.container(border=True):
             if safe(p['image_url']): safe_image(safe(p['image_url']),width='stretch',fallback_text='Image unavailable.')
             st.subheader(safe(p['title'])); st.caption(f"{safe(p['category'])} • {safe(p['author'])}"); st.write(safe(p['body']))
-def seller_approval_area():
-    st.markdown('#### Seller Approval')
-    sellers=table('sellers')
-    if sellers.empty:
-        st.info('No seller profiles found.')
-        return
-    view=sellers.copy()
-    view['seller_status']=view['status'].apply(normalize_seller_status)
-    if 'rules_accepted' in view.columns:
-        view['rules_accepted_display']=view['rules_accepted'].apply(lambda v: 'Yes' if safe(v).strip().lower() in ['yes','true','1','accepted'] else 'No')
-    cols=[c for c in ['id','store_name','email','seller_status','rules_accepted_display','rules_accepted_at','created_at'] if c in view.columns]
-    st.dataframe(view[cols],width='stretch')
-    labels=[f"{int(r.id)} | {safe(r.store_name)} | {normalize_seller_status(r.status)}" for _,r in sellers.iterrows()]
-    pick=st.selectbox('Select seller account',labels,key='seller_approval_pick')
-    sid=int(pick.split('|')[0].strip())
-    seller=get_seller(sid)
-    status=normalize_seller_status(seller.get('status') if seller is not None else '')
-    st.write(f"**Current seller status:** {status}")
-    admin_seller_status_badge(status)
-    rules_yes=seller_rules_accepted(seller)
-    st.write(f"**Rules accepted:** {'Yes' if rules_yes else 'No'}")
-    if rules_yes:
-        status_badge('Rules accepted','success')
-        st.caption('Accepted date: '+safe(seller.get('rules_accepted_at'),'date not recorded'))
-    else:
-        status_badge('Rules not accepted','warning')
-    c1,c2,c3=st.columns(3)
-    if c1.button('Approve Seller',key=f'approve_seller_{sid}'):
-        core_update('sellers',{'status':'Approved Seller'},{'id':sid},"UPDATE sellers SET status='Approved Seller' WHERE id=?",(sid,))
-        update_app_user_seller_status_for_seller(sid,'Approved Seller')
-        st.success('Seller approved. This seller can publish listings directly to their store.')
-        st.rerun()
-    if c2.button('Suspend Seller',key=f'suspend_seller_{sid}'):
-        core_update('sellers',{'status':'Suspended Seller'},{'id':sid},"UPDATE sellers SET status='Suspended Seller' WHERE id=?",(sid,))
-        update_app_user_seller_status_for_seller(sid,'Suspended Seller')
-        st.warning('Seller suspended. They cannot publish new listings.')
-        st.rerun()
-    if c3.button('Set Pending',key=f'pending_seller_{sid}'):
-        core_update('sellers',{'status':'Pending Seller Approval'},{'id':sid},"UPDATE sellers SET status='Pending Seller Approval' WHERE id=?",(sid,))
-        update_app_user_seller_status_for_seller(sid,'Pending Seller Approval')
-        st.info('Seller set to pending approval.')
-        st.rerun()
-
 def listing_review_queue():
     admin_context('House Of Wax Admin → Moderation Center')
     st.subheader('Moderation Center')
     st.info('House Of Wax approves sellers, not every normal listing. Use this center to review reports, moderate listings, and manage seller approval.')
-    seller_approval_area()
+    admin_seller_applications()
     st.divider()
     st.markdown('#### Reports / Complaints')
     reports=table('listing_reports')
@@ -6384,11 +6333,12 @@ def admin():
         if not st.button('Enter admin'): return
         if pwd!=ADMIN_PASSWORD: st.error('Wrong password.'); return
     else: st.info('No admin password set. Testing build allows admin access.')
-    tabs=st.tabs(['Overview','User Directory','Seller Applications','Moderation Center','Inquiries','Purchase Requests','Tester Feedback','Database Status','Sellers','Buyers','Community tools','Reports','Cleanup'])
+    tabs=st.tabs(['Overview','Inquiries','Purchase Requests','Sellers','Buyers','Community tools','Reports','Cleanup'])
     with tabs[0]:
         if st.button('Create/repair House Of Wax Official seller'):
             sid=ensure_house_of_wax_official(); st.success(f'House Of Wax Official seller ready. Seller ID {sid}')
         c1,c2,c3,c4=st.columns(4); c1.metric('Buyers',len(table('buyers'))); c2.metric('Sellers',len(table('sellers'))); c3.metric('Products',len(table('products'))); c4.metric('Orders',len(table('orders')))
+        st.info('User Directory, Seller Applications, Moderation Center, Tester Feedback, and Database Status now live only in the sidebar Admin navigation (left side) — they were duplicated here and in the sidebar before, so this tab set was trimmed to remove the second copy.')
         with st.expander('Music Data Sources Roadmap',expanded=False):
             st.write('Future source/partner work should support both new and old music without making House Of Wax dependent on one outside source.')
             for item in [
@@ -6400,24 +6350,19 @@ def admin():
                 'Respect each API’s terms, rate limits, and attribution requirements.'
             ]:
                 st.write(f'- {item}')
-    with tabs[1]: admin_user_directory()
-    with tabs[2]: admin_seller_applications()
-    with tabs[3]: listing_review_queue()
-    with tabs[4]: admin_inquiry_view()
-    with tabs[5]: admin_purchase_request_view()
-    with tabs[6]: admin_tester_feedback_view()
-    with tabs[7]: admin_database_status()
-    with tabs[8]: st.dataframe(table('sellers'),width='stretch')
-    with tabs[9]: st.dataframe(table('buyers'),width='stretch')
-    with tabs[10]:
+    with tabs[1]: admin_inquiry_view()
+    with tabs[2]: admin_purchase_request_view()
+    with tabs[3]: st.dataframe(table('sellers'),width='stretch')
+    with tabs[4]: st.dataframe(table('buyers'),width='stretch')
+    with tabs[5]:
         sid=seller_pick('adminseller'); badge=st.text_input('Badge',placeholder='Soul Specialist, Jazz Dealer, Verified Seller'); typ=st.selectbox('Badge type',['Community','Specialty','Performance','Verified'])
         if st.button('Add badge'): run("INSERT INTO seller_badges(seller_id,badge_name,badge_type,active,created_at) VALUES(?,?,?,'Yes',?)",(sid,badge,typ,now())); warn_if_local_only('Seller badge'); st.success('Badge added.')
         if st.button('Create seller spotlight culture post'):
             s=get_seller(sid); run("INSERT INTO culture_posts(title,category,author,body,image_url,status,created_at) VALUES(?,'Seller Spotlight','House Of Wax',?,?,'Published',?)",(f"Seller Spotlight: {safe(s['store_name'])}",safe(s['seller_story'],safe(s['store_bio'])),safe(s['banner_url']) or safe(s['logo_url']),now())); st.success('Spotlight created.')
         st.subheader('Messages'); st.dataframe(table('messages'),width='stretch'); st.subheader('Feedback'); st.dataframe(table('feedback'),width='stretch')
-    with tabs[11]:
+    with tabs[6]:
         rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','listing_reports','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(rep); st.dataframe(data,width='stretch'); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
-    with tabs[12]:
+    with tabs[7]:
         t=st.selectbox('Table',['buyers','sellers','products','product_gallery','listing_reports','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(t); st.dataframe(data,width='stretch')
         if not data.empty:
             rid=st.selectbox('Row ID',data['id'].tolist()); confirm=st.checkbox('Confirm delete')
@@ -7460,7 +7405,7 @@ if area=='House Of Wax Marketplace':
 else:
     st.sidebar.markdown('### House Of Wax Admin')
     st.sidebar.caption('Platform management: seller approval, moderation, reports, tester feedback, database status, Supabase diagnostics, and testing.')
-    menu=st.sidebar.radio('Admin navigation',['Admin Dashboard','User Directory','Seller Applications','Seller Approval','Moderation Center','Content Admin','Homepage Editor','Tester Feedback','Database Status / Diagnostics','Test Setup'],key='admin_navigation')
+    menu=st.sidebar.radio('Admin navigation',['Admin Dashboard','User Directory','Seller Applications','Moderation Center','Content Admin','Homepage Editor','Tester Feedback','Database Status / Diagnostics','Test Setup'],key='admin_navigation')
 if area=='House Of Wax Marketplace':
     mobile_navigation_bar()
 if area=='House Of Wax Marketplace' and menu=='Search Music' and ('seller_id' in st.session_state or 'product_id' in st.session_state):
@@ -7501,13 +7446,6 @@ else:
         admin_context('House Of Wax Admin -> Seller Applications')
         if is_admin_unlocked():
             admin_seller_applications()
-        else:
-            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
-    elif menu=='Seller Approval':
-        header()
-        admin_context('House Of Wax Admin → Seller Approval')
-        if is_admin_unlocked():
-            seller_approval_area()
         else:
             st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
     elif menu=='Moderation Center':

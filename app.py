@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.23 VISUAL IDENTITY REFRESH: SERIF TYPE AND WAX ACCENT'
+APP_VERSION='V25.43.24 GROOVE DIVIDERS AND CARD/BUTTON POLISH'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1101,7 +1101,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.23 visual identity refresh active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.24 groove dividers and card polish active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1157,8 +1157,9 @@ def setup():
     old_v25_43_20_announcement='V25.43.20'+' knowledge hub persistence fix active'
     old_v25_43_21_announcement='V25.43.21'+' knowledge hub auto-seed fix active'
     old_v25_43_22_announcement='V25.43.22'+' reference image labeling active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement]:
-        set_setting('announcement','V25.43.23 visual identity refresh active')
+    old_v25_43_23_announcement='V25.43.23'+' visual identity refresh active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement]:
+        set_setting('announcement','V25.43.24 groove dividers and card polish active')
 setup()
 recovery_token_bridge()
 
@@ -1632,8 +1633,61 @@ def apply_brand_style():
         text-indent: 0 !important;
     }
 
+    /* ---------- V25.43.23 groove divider + card/button refinement ---------- */
+    .how-divider {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 30px 0;
+    }
+
+    .how-divider-line {
+        flex: 1;
+        height: 1px;
+        background-image: repeating-linear-gradient(90deg, rgba(201,164,92,.4) 0 4px, transparent 4px 9px);
+    }
+
+    .how-divider-dot {
+        flex: none;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        border: 1px solid var(--how-gold);
+    }
+
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        position: relative;
+        border-radius: 16px !important;
+        box-shadow: 0 14px 34px rgba(0,0,0,.22) !important;
+    }
+
+    div[data-testid="stVerticalBlockBorderWrapper"]::before {
+        content: '';
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        top: 0;
+        height: 2px;
+        background: linear-gradient(90deg, var(--how-gold), var(--how-oxblood-bright));
+        opacity: .55;
+        border-radius: 0 0 3px 3px;
+    }
+
+    .stButton > button,
+    .stFormSubmitButton > button,
+    .stDownloadButton > button,
+    div[data-testid="stButton"] > button,
+    div[data-testid="stFormSubmitButton"] > button,
+    div[data-testid="stDownloadButton"] > button,
+    a[data-testid="stLinkButton"] {
+        box-shadow: 0 6px 16px rgba(0,0,0,.22) !important;
+    }
+
     </style>
     """, unsafe_allow_html=True)
+
+def groove_divider():
+    st.markdown('<div class="how-divider"><span class="how-divider-line"></span><span class="how-divider-dot"></span><span class="how-divider-line"></span></div>', unsafe_allow_html=True)
 
 def section_header(title, subtitle='', kicker='House Of Wax'):
     st.markdown(f"""
@@ -3196,7 +3250,6 @@ def home():
     header()
     marketplace_context('House Of Wax Marketplace → Home')
     hero=home_block('hero')
-    st.markdown('---')
     st.markdown(f'''
     <div class="how-hero">
         <div class="how-kicker">House Of Wax</div>
@@ -3218,14 +3271,13 @@ def home():
     c2.metric('Glossary Terms',len(table('glossary_terms')))
     c3.metric('Marketplace Items',len(table('products')))
     c4.metric('Community Posts',len(table('culture_posts')))
-    st.markdown('---')
+    groove_divider()
     l,r=st.columns(2)
     with l:
         x=home_block('featured_story'); mini_card(x.get('title','What Does VG+ Really Mean?'),x.get('subtitle','Featured Story'),x.get('body','Learn grading before you buy.'),x.get('video_url',''))
     with r:
         x=home_block('weekly_focus'); mini_card(x.get('title','This Week at House Of Wax'),x.get('subtitle','Matrix / Runout'),x.get('body','Runout markings can reveal pressing details.'),x.get('video_url',''))
-    st.markdown('---')
-    st.markdown('---')
+    groove_divider()
     c1,c2,c3=st.columns(3)
     with c1:
         with st.container(border=True):
@@ -3254,7 +3306,7 @@ def home():
     cols=st.columns(4)
     for i,(t,bdy) in enumerate(tiles):
         with cols[i%4]: mini_card(t,'Knowledge path',bdy)
-    st.markdown('---')
+    groove_divider()
     q,d=st.columns(2)
     with q:
         section_header('Collector Quick Tips','Useful knowledge in seconds.','Collect Smarter')
@@ -3264,19 +3316,19 @@ def home():
         section_header('Did You Know?','Fast facts from House Of Wax.','Quick Culture')
         facts=df("SELECT * FROM did_you_know WHERE status='Active' ORDER BY id LIMIT 4")
         for _,fact in facts.iterrows(): mini_card('Did you know?',safe(fact['category']),safe(fact['fact_text']))
-    st.markdown('---')
+    groove_divider()
     s,p=st.columns(2)
     with s:
         x=home_block('genre_spotlight'); mini_card(x.get('title','Southern Soul Essentials'),x.get('subtitle','Genre / Era Spotlight'),x.get('body','Explore the sound, labels, artists, and culture.'),x.get('video_url',''))
     with p:
         x=home_block('editorial_pick'); mini_card(x.get('title','Format Focus: Why Cassettes Still Matter'),x.get('subtitle','House Of Wax Editorial Pick'),x.get('body','Cassettes connect music to memory and mixtape culture.'),x.get('video_url',''))
-    st.markdown('---')
+    groove_divider()
     section_header('Latest From the Knowledge Hub','House Of Wax education, culture, and collecting guides.','Read + Learn')
     posts=hosted_select('knowledge_posts',{'status':'Published'},order='updated_at.desc',limit=6) if hosted_enabled() else df("SELECT * FROM knowledge_posts WHERE status='Published' ORDER BY updated_at DESC LIMIT 6")
     cols=st.columns(3)
     for i,(_,post) in enumerate(posts.iterrows()):
         with cols[i%3]: knowledge_card(post, f'home_latest_{i}')
-    st.markdown('---')
+    groove_divider()
     news=home_block('newsletter')
     st.markdown(f"## {safe(news.get('title'),'Join House Of Wax')}")
     st.write(safe(news.get('body'),'Get collector tips, music culture stories, grading guides, and marketplace education from House Of Wax.'))

@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.27 CONSOLIDATE DUPLICATE ADMIN SCREENS'
+APP_VERSION='V25.43.28 CONSOLIDATE HOMEPAGE, TESTER CHECKLIST, AND SELLER TOOLS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1095,7 +1095,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.27 admin screens consolidated active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.28 homepage and seller tools consolidated active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1155,8 +1155,9 @@ def setup():
     old_v25_43_24_announcement='V25.43.24'+' groove dividers and card polish active'
     old_v25_43_25_announcement='V25.43.25'+' tab accent and image framing active'
     old_v25_43_26_announcement='V25.43.26'+' grading scale and make an offer active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement]:
-        set_setting('announcement','V25.43.27 admin screens consolidated active')
+    old_v25_43_27_announcement='V25.43.27'+' admin screens consolidated active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement]:
+        set_setting('announcement','V25.43.28 homepage and seller tools consolidated active')
 setup()
 recovery_token_bridge()
 
@@ -1984,7 +1985,7 @@ def account_page():
         if st.button('Go to Marketplace',key='account_go_to_marketplace',width='stretch'):
             request_marketplace_navigation('Search Music',clear_product=True,clear_seller=True)
             st.rerun()
-        tabs=st.tabs(['Account','Buying','Selling','Diagnostics','Sign Out'])
+        tabs=st.tabs(['Account','Buying','Selling','Sign Out'])
         with tabs[0]:
             st.subheader('Account')
             st.write('**Name:** '+(safe(user.get('display_name')) or 'Not set'))
@@ -1992,6 +1993,8 @@ def account_page():
             st.write('**Account status:** '+account_status(user))
             st.write('**Admin access:** '+('Yes' if is_admin_user(user) else 'No'))
             st.caption('Tokens and secrets are never displayed.')
+            with st.expander('Diagnostics',expanded=False):
+                auth_diagnostics_section()
         with tabs[1]:
             st.subheader('Buying')
             if buyer_id:
@@ -2000,9 +2003,9 @@ def account_page():
                 if buyer is not None:
                     st.write(f"**Buyer profile:** {safe(buyer.get('name'))} | {safe(buyer.get('email'))}")
                 if st.button('Open buyer profile, inquiries, and purchase requests',key='account_open_buyer_dashboard',width='stretch'):
-                    st.session_state['account_show_buyer_dashboard']=True
-                if st.session_state.get('account_show_buyer_dashboard'):
-                    buyer_dashboard()
+                    st.session_state['pending_my_house_workspace']='Buyer Profile'
+                    request_marketplace_navigation('My House of Wax')
+                    st.rerun()
             else:
                 st.warning('Buyer profile is missing. The app will try to repair it now.')
                 if st.button('Repair buyer profile link',key='account_repair_buyer_profile'):
@@ -2040,8 +2043,6 @@ def account_page():
                     request_marketplace_navigation('Seller Dashboard')
                     st.rerun()
         with tabs[3]:
-            auth_diagnostics_section()
-        with tabs[4]:
             if st.button('Sign Out',key='account_sign_out_button'):
                 auth_sign_out()
                 st.success('Signed out.')
@@ -2898,8 +2899,7 @@ def tester_feedback_form(key_prefix='public'):
     st.markdown('## Tester Feedback')
     st.info('Use sample information only. Do not enter sensitive private information, real payment details, passwords, private addresses, or anything you would not want reviewed by the House Of Wax team.')
     st.write('Test buyer flow, seller flow, Knowledge Center, and admin/moderation flow if available, and tell us where you got stuck. This helps House Of Wax improve before adding risky production features.')
-    with st.expander('Tester Start Here',expanded=False):
-        tester_start_here(f'feedback_{key_prefix}')
+    st.caption('New here? The full testing checklist (Buyer/Seller/Admin paths) lives on the Home page under Tester Start Here.')
     with st.form(f'tester_feedback_form_{key_prefix}'):
         tester_name=st.text_input('Tester name optional',key=f'tester_feedback_name_{key_prefix}')
         tester_type=st.selectbox('Tester type',['Buyer','Seller','Admin/Reviewer','Investor/Advisor','Other'],key=f'tester_feedback_type_{key_prefix}')
@@ -2953,8 +2953,7 @@ def knowledge_center_education_hub():
     st.markdown('## Knowledge Center / Education Hub')
     st.write('A practical public guide to buying, selling, collecting, photos, condition, trust, and House Of Wax marketplace standards.')
     st.info('House Of Wax is a marketplace and culture platform. The launch wedge is vinyl records and music collectibles first, with room to grow into merch, memorabilia, clothing, and broader culture goods after the first trust and listing workflows are proven.')
-    with st.expander('Tester Start Here',expanded=False):
-        tester_start_here('knowledge_center')
+    st.caption('New here? The full testing checklist (Buyer/Seller/Admin paths) lives on the Home page under Tester Start Here.')
 
     overview, buying, selling, condition, photos, trust, buyer_faq, seller_faq, rules = st.tabs([
         'What is House Of Wax?',
@@ -3356,40 +3355,14 @@ def home():
     c3.metric('Marketplace Items',len(table('products')))
     c4.metric('Community Posts',len(table('culture_posts')))
     groove_divider()
-    l,r=st.columns(2)
-    with l:
-        x=home_block('featured_story'); mini_card(x.get('title','What Does VG+ Really Mean?'),x.get('subtitle','Featured Story'),x.get('body','Learn grading before you buy.'),x.get('video_url',''))
-    with r:
-        x=home_block('weekly_focus'); mini_card(x.get('title','This Week at House Of Wax'),x.get('subtitle','Matrix / Runout'),x.get('body','Runout markings can reveal pressing details.'),x.get('video_url',''))
-    groove_divider()
-    c1,c2,c3=st.columns(3)
-    with c1:
-        with st.container(border=True):
-            st.subheader('About House Of Wax')
-            st.write('Learn what the platform is, who it is for, and why culture and trust are built in.')
-    with c2:
-        with st.container(border=True):
-            st.subheader('Trust & Safety')
-            st.write('Read the standards behind buyer/seller feedback, transparency, and marketplace trust.')
-    with c3:
-        with st.container(border=True):
-            st.subheader('Join the List')
-            st.write('Sign up for Knowledge Hub updates, collecting tips, culture stories, and future drops.')
+    x=home_block('featured_story'); mini_card(x.get('title','What Does VG+ Really Mean?'),x.get('subtitle','This Week at House Of Wax'),x.get('body','Learn grading before you buy.'),x.get('video_url',''))
 
     section_header('Learn the Culture','Start with the basics or go deeper into pressings, grading, formats, trust, and music history.','Education + Discovery')
-    tiles=[
-        ('Record Collecting 101','Learn the basic language of collecting.'),
-        ('Vinyl Grading School','Understand Mint, Near Mint, VG+, VG, and Good.'),
-        ('Barcode, Catalog & Matrix Guides','Learn how identifiers help verify releases.'),
-        ('Bootlegs & Reissues','Learn originals, reissues, unofficial pressings, and bootlegs.'),
-        ('Care, Storage & Cleaning','Protect records, sleeves, tapes, CDs, posters, and memorabilia.'),
-        ('Music History & Culture','Explore scenes, regions, genres, and movements.'),
-        ('Genre Education','Learn the roots and sounds behind different genres.'),
-        ('House Of Wax Trust Standards','Understand transparency and public feedback.')
-    ]
-    cols=st.columns(4)
-    for i,(t,bdy) in enumerate(tiles):
-        with cols[i%4]: mini_card(t,'Knowledge path',bdy)
+    with st.container(border=True):
+        st.subheader('Everything you need to collect smarter, in one place')
+        st.write('Record collecting basics, grading, barcodes and matrix numbers, bootlegs and reissues, care and storage, genre history, and House Of Wax trust standards all live inside the Knowledge Hub.')
+        if st.button('Visit the Knowledge Hub',key='learn_culture_cta',width='stretch'):
+            request_marketplace_navigation('Knowledge Hub'); st.rerun()
     groove_divider()
     q,d=st.columns(2)
     with q:
@@ -3401,11 +3374,7 @@ def home():
         facts=df("SELECT * FROM did_you_know WHERE status='Active' ORDER BY id LIMIT 4")
         for _,fact in facts.iterrows(): mini_card('Did you know?',safe(fact['category']),safe(fact['fact_text']))
     groove_divider()
-    s,p=st.columns(2)
-    with s:
-        x=home_block('genre_spotlight'); mini_card(x.get('title','Southern Soul Essentials'),x.get('subtitle','Genre / Era Spotlight'),x.get('body','Explore the sound, labels, artists, and culture.'),x.get('video_url',''))
-    with p:
-        x=home_block('editorial_pick'); mini_card(x.get('title','Format Focus: Why Cassettes Still Matter'),x.get('subtitle','House Of Wax Editorial Pick'),x.get('body','Cassettes connect music to memory and mixtape culture.'),x.get('video_url',''))
+    x=home_block('genre_spotlight'); mini_card(x.get('title','Southern Soul Essentials'),x.get('subtitle','Culture Spotlight'),x.get('body','Explore the sound, labels, artists, and culture.'),x.get('video_url',''))
     groove_divider()
     section_header('Latest From the Knowledge Hub','House Of Wax education, culture, and collecting guides.','Read + Learn')
     posts=hosted_select('knowledge_posts',{'status':'Published'},order='updated_at.desc',limit=6) if hosted_enabled() else df("SELECT * FROM knowledge_posts WHERE status='Published' ORDER BY updated_at DESC LIMIT 6")
@@ -5777,25 +5746,19 @@ def seller_dashboard():
         seller_inquiry_view(sid)
         return
     seller_inventory_visibility_summary(sid)
-    tabs=st.tabs(['My Store / Seller Profile','Policies','Add Inventory / Upload Product','Barcode scanner','Bulk import','Gallery','My Listings / Inventory','Inquiries','Purchase requests','Orders','Messages','Announcements','Events/drops','Badges','Leave buyer feedback','Public feedback'])
+    st.caption('My Store Profile, Add Inventory, My Inventory, and Seller Messages/Inquiries and Buyer Requests are in the radio above. The tabs below cover everything else.')
+    tabs=st.tabs(['Policies','Barcode scanner','Bulk import','Gallery','Orders','Messages','Announcements','Events/drops','Badges','Leave buyer feedback','Public feedback'])
     with tabs[0]:
-        seller_store_profile_editor(sid,s,'tab_my_store')
-    with tabs[1]:
         p=df('SELECT * FROM seller_policies WHERE seller_id=?',(sid,)); pol=p.iloc[0] if not p.empty else {}
         with st.form('policy'):
             shipping=st.text_area('Shipping policy',value=safe(pol.get('shipping_policy') if len(pol) else 'Ships within 3 business days.')); returns=st.text_area('Return policy',value=safe(pol.get('return_policy') if len(pol) else 'No buyer remorse returns unless seller approves.')); grading=st.text_area('Grading policy',value=safe(pol.get('grading_policy') if len(pol) else 'Collector grading standards.')); pickup=st.text_area('Pickup / meetup / local policy notes',value=safe(pol.get('local_pickup_policy') if len(pol) else '')); sub=st.form_submit_button('Save policies')
         if sub: run('INSERT OR REPLACE INTO seller_policies(seller_id,shipping_policy,return_policy,grading_policy,local_pickup_policy) VALUES(?,?,?,?,?)',(sid,shipping,returns,grading,pickup)); warn_if_local_only('Seller policies'); st.success('Policies saved.')
-    with tabs[2]:
-        st.subheader('Add Inventory / Upload Product')
-        st.info('This is where sellers add items they want to list. Create one listing here. Save as Draft to keep it private, or Publish to My Store if your seller account is approved and seller rules are accepted.')
-        render_barcode_lookup_widget('upload_product')
-        upload_product(sid,'normal_upload')
-    with tabs[3]:
+    with tabs[1]:
         st.subheader('Barcode scanner / inventory quick add')
         st.info('Click into the barcode field and scan with a USB/Bluetooth scanner, phone keyboard scanner, or type/paste the barcode.')
         render_barcode_lookup_widget('barcode_quick_add')
         upload_product(sid,'barcode_quick_add')
-    with tabs[4]:
+    with tabs[2]:
         csv=st.file_uploader('Upload CSV',type=['csv']); st.caption('Supports barcode,catalog_number,matrix_runout,artist,title,format,label,release_year,genre,price,quantity,image_url')
         if csv is not None:
             data=pd.read_csv(csv); st.dataframe(data,width='stretch')
@@ -5817,20 +5780,14 @@ def seller_dashboard():
                     st.warning(f'Imported {n} as Draft. Accept seller rules before publishing imported listings live.'+corrected_note)
                 else:
                     st.warning(f'Imported {n} as Draft. Seller approval is required before publishing live.'+corrected_note)
-    with tabs[5]:
+    with tabs[3]:
         prods=df('SELECT * FROM products WHERE seller_id=?',(sid,)); st.dataframe(prods,width='stretch')
         if not prods.empty:
             pid=st.selectbox('Product for gallery',prods['id'].tolist()); img=st.file_uploader('Gallery image',type=['png','jpg','jpeg','webp']); url=st.text_input('Or image URL'); cap=st.text_input('Caption')
             if st.button('Add gallery image'):
                 image=save_file(img,'product_gallery') or url
                 if image: run('INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),image,cap,now())); st.success('Gallery image added.')
-    with tabs[6]:
-        seller_listings_manager(sid,'tab_my_listings')
-    with tabs[7]:
-        seller_inquiry_view(sid)
-    with tabs[8]:
-        seller_purchase_request_view(sid)
-    with tabs[9]:
+    with tabs[4]:
         orders=df('SELECT o.*,b.name buyer_name,b.email buyer_email,b.rating buyer_rating FROM orders o LEFT JOIN buyers b ON o.buyer_id=b.id WHERE o.seller_id=? ORDER BY o.created_at DESC',(sid,)); st.dataframe(orders,width='stretch')
         if not orders.empty:
             bids=orders['buyer_id'].dropna().astype(int).unique().tolist(); bp=st.selectbox('View buyer public trust profile',bids); buyer_profile_public(int(bp)); oid=st.selectbox('Order ID',orders['id'].tolist()); status=st.selectbox('Order status',['New','Contacted','Invoice Sent','Paid','Shipped','Completed','Cancelled','Disputed'])
@@ -5838,21 +5795,21 @@ def seller_dashboard():
                 run('UPDATE orders SET status=?,updated_at=? WHERE id=? AND seller_id=?',(status,now(),int(oid),sid))
                 if status=='Completed': row=orders[orders['id']==oid].iloc[0]; run('UPDATE sellers SET completed_sales=completed_sales+1 WHERE id=?',(sid,)); run('UPDATE buyers SET completed_purchases=completed_purchases+1 WHERE id=?',(int(row['buyer_id']),))
                 st.success('Order updated.')
-    with tabs[10]: st.dataframe(df('SELECT * FROM messages WHERE seller_id=? ORDER BY created_at DESC',(sid,)),width='stretch')
-    with tabs[11]:
+    with tabs[5]: st.dataframe(df('SELECT * FROM messages WHERE seller_id=? ORDER BY created_at DESC',(sid,)),width='stretch')
+    with tabs[6]:
         with st.form('ann'): title=st.text_input('Announcement title'); body=st.text_area('Announcement body'); sub=st.form_submit_button('Post announcement')
         if sub: run("INSERT INTO store_announcements(seller_id,title,body,status,created_at) VALUES(?,?,?,'Active',?)",(sid,title,body,now())); warn_if_local_only('Store announcement'); st.success('Posted.')
         st.dataframe(df('SELECT * FROM store_announcements WHERE seller_id=?',(sid,)),width='stretch')
-    with tabs[12]:
+    with tabs[7]:
         with st.form('ev'): title=st.text_input('Drop/event title'); typ=st.selectbox('Type',['Record Drop','Auction Drop','Sale','Live Event','Other']); date=st.text_input('Date/time'); desc=st.text_area('Description'); sub=st.form_submit_button('Save event')
         if sub: run("INSERT INTO seller_events(seller_id,event_title,event_type,event_date,description,status,created_at) VALUES(?,?,?,?,?,'Active',?)",(sid,title,typ,date,desc,now())); warn_if_local_only('Seller event'); st.success('Saved.')
-    with tabs[13]: st.write(badges(sid) or 'No badges yet.'); st.dataframe(df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),width='stretch')
-    with tabs[14]:
+    with tabs[8]: st.write(badges(sid) or 'No badges yet.'); st.dataframe(df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),width='stretch')
+    with tabs[9]:
         orders=df("SELECT * FROM orders WHERE seller_id=? AND status='Completed'",(sid,)); st.dataframe(orders,width='stretch')
         if not orders.empty:
             oid=st.selectbox('Completed order',orders['id'].tolist(),key='sellerfb'); o=orders[orders['id']==oid].iloc[0]; rating=st.slider('Buyer rating',1,5,5); comment=st.text_area('Public buyer feedback')
             if st.button('Submit public buyer feedback'): run("INSERT INTO feedback(order_id,reviewer_type,reviewer_id,reviewee_type,reviewee_id,rating,comment,public,created_at) VALUES(?,'Seller',?,'Buyer',?,?,?,'Yes',?)",(int(oid),sid,int(o['buyer_id']),int(rating),comment,now())); update_rating('Buyer',int(o['buyer_id'])); st.success('Feedback posted.')
-    with tabs[15]: feedback_public('Seller',sid)
+    with tabs[10]: feedback_public('Seller',sid)
 def auctions():
     header(); st.header('Auctions'); sid=seller_pick('auction_seller'); prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved','Public')",(sid,))
     if not prods.empty:
@@ -6941,8 +6898,7 @@ def demo_guide():
     st.header('Demo Guide')
     st.info('House Of Wax is a working Streamlit prototype for demo and founder review. It is not a production marketplace yet.')
     st.write('Use this guide to walk through the core experience without needing to explain the whole app first.')
-    with st.expander('Tester Start Here',expanded=False):
-        tester_start_here('demo_guide')
+    st.caption('New here? The full testing checklist (Buyer/Seller/Admin paths) lives on the Home page under Tester Start Here.')
     c1,c2,c3=st.columns(3)
     with c1:
         st.subheader('Buyer flow')

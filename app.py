@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.32 SELLER ENGAGEMENT DATA PERSISTENCE'
+APP_VERSION='V25.43.33 PENDING SELLER APPLICATION ALERT'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -806,6 +806,12 @@ def normalize_seller_status(status):
     mapping={'Approved':'Approved Seller','Active':'Approved Seller','Verified':'Approved Seller','Verified Seller':'Approved Seller','Pending':'Pending Seller Approval','Suspended':'Suspended Seller'}
     return mapping.get(raw,raw if raw in SELLER_STATUSES else 'Pending Seller Approval')
 
+def pending_seller_application_count():
+    sellers=table('sellers')
+    if sellers.empty or 'status' not in sellers.columns:
+        return 0
+    return int((sellers['status'].apply(normalize_seller_status)=='Pending Seller Approval').sum())
+
 def seller_can_publish(seller):
     return seller is not None and normalize_seller_status(seller.get('status'))=='Approved Seller'
 
@@ -1095,7 +1101,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.32 seller engagement data now persisted active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.33 pending seller application alert active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1160,8 +1166,9 @@ def setup():
     old_v25_43_29_announcement='V25.43.29'+' shipping guidance active'
     old_v25_43_30_announcement='V25.43.30'+' admin permissions hardened active'
     old_v25_43_31_announcement='V25.43.31'+' homepage and newsletter data now persisted active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement]:
-        set_setting('announcement','V25.43.32 seller engagement data now persisted active')
+    old_v25_43_32_announcement='V25.43.32'+' seller engagement data now persisted active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement]:
+        set_setting('announcement','V25.43.33 pending seller application alert active')
 setup()
 recovery_token_bridge()
 
@@ -6325,6 +6332,12 @@ def admin():
         if not st.button('Enter admin'): return
         if pwd!=ADMIN_PASSWORD: st.error('Wrong password.'); return
     else: st.info('No admin password set. Testing build allows admin access.')
+    pending_seller_apps=pending_seller_application_count()
+    if pending_seller_apps:
+        st.error(f"{pending_seller_apps} seller application{'s' if pending_seller_apps!=1 else ''} waiting for review.")
+        if st.button('Review seller applications',key='admin_dashboard_jump_to_seller_apps'):
+            st.session_state['admin_navigation']='Seller Applications'
+            st.rerun()
     tabs=st.tabs(['Overview','Inquiries','Purchase Requests','Sellers','Buyers','Community tools','Reports','Cleanup'])
     with tabs[0]:
         if st.button('Create/repair House Of Wax Official seller'):
@@ -7397,7 +7410,8 @@ if area=='House Of Wax Marketplace':
         st.session_state['marketplace_navigation']='Search Music' if st.session_state.get('marketplace_navigation')=='Marketplace' else 'Home'
     menu=st.sidebar.radio('Marketplace navigation',marketplace_menu,key='marketplace_navigation')
 else:
-    st.sidebar.markdown('### House Of Wax Admin')
+    pending_seller_apps=pending_seller_application_count()
+    st.sidebar.markdown('### House Of Wax Admin'+(f' ⚠️ {pending_seller_apps} pending' if pending_seller_apps else ''))
     st.sidebar.caption('Platform management: seller approval, moderation, reports, tester feedback, database status, Supabase diagnostics, and testing.')
     menu=st.sidebar.radio('Admin navigation',['Admin Dashboard','User Directory','Seller Applications','Moderation Center','Content Admin','Homepage Editor','Tester Feedback','Database Status / Diagnostics','Test Setup'],key='admin_navigation')
 if area=='House Of Wax Marketplace':

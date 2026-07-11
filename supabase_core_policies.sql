@@ -104,6 +104,11 @@ create policy "public read live products"
 on products for select to anon, authenticated
 using (listing_status in ('Live','Active','Approved','Public','Pending Pickup/Payment','Pending','Sold'));
 
+drop policy if exists "seller read own products" on public."products";
+create policy "seller read own products"
+on products for select to authenticated
+using (seller_id in (select seller_id from app_users where auth_user_id = auth.uid()));
+
 drop policy if exists "seller create own products" on public."products";
 create policy "seller create own products"
 on products for insert to authenticated

@@ -211,6 +211,6 @@ grant select (
   id, seller_id, sku, barcode, catalog_number, matrix_runout, category,
   artist, title, format, label, release_year, genre, media_grade,
   sleeve_grade, condition_notes, description, price, quantity,
-  shipping_price, image_url, video_url, audio_url, external_release_url,
-  listing_status, listing_type, created_at, updated_at
+  shipping_price, image_url, reference_image_url, video_url, audio_url,
+  external_release_url, listing_status, listing_type, created_at, updated_at
 ) on public.products to anon;

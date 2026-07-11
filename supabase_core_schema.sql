@@ -102,6 +102,7 @@ create table if not exists products (
     quantity integer default 1,
     shipping_price numeric default 0,
     image_url text,
+    reference_image_url text,
     video_url text,
     audio_url text,
     external_release_url text,

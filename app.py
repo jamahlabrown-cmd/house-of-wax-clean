@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.21 STOP AUTO-SEEDING HOSTED KNOWLEDGE CONTENT'
+APP_VERSION='V25.43.22 REFERENCE IMAGE LABELING AND SELLER PHOTO BADGE'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1092,7 +1092,7 @@ def setup():
         created_at TEXT
     )""")
     c.commit(); c.close()
-    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'knowledge_posts':{'video_url':'TEXT'},'homepage_blocks':{'video_url':'TEXT'}}
+    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT','reference_image_url':'TEXT'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'knowledge_posts':{'video_url':'TEXT'},'homepage_blocks':{'video_url':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
     try:
@@ -1101,7 +1101,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.21 knowledge hub auto-seed fix active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.22 reference image labeling active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1155,8 +1155,9 @@ def setup():
     old_v25_43_18_announcement='V25.43.18'+' session restore crash fixed'
     old_v25_43_19_announcement='V25.43.19'+' purchase request status fix active'
     old_v25_43_20_announcement='V25.43.20'+' knowledge hub persistence fix active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement]:
-        set_setting('announcement','V25.43.21 knowledge hub auto-seed fix active')
+    old_v25_43_21_announcement='V25.43.21'+' knowledge hub auto-seed fix active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement]:
+        set_setting('announcement','V25.43.22 reference image labeling active')
 setup()
 recovery_token_bridge()
 
@@ -2413,6 +2414,10 @@ def product_card(p):
         image=listing_primary_image(p)
         if image: safe_image(image,width='stretch',fallback_text='Listing image unavailable.')
         else: st.info('No listing image yet.')
+        if has_listing_photos(int(p['id'])):
+            st.caption('📷 Seller photos included')
+        elif image:
+            st.caption('Reference image — official release art, not the seller\'s exact copy.')
         st.subheader(safe(p.get('title'),'Untitled listing'))
         st.write('**Artist:** '+safe(p.get('artist'),'Unknown artist'))
         st.caption(f"Format: {safe(p.get('format')) or 'Not listed'}")
@@ -2532,6 +2537,10 @@ def product_detail(pid):
         primary_image=listing_primary_image(p)
         if primary_image: safe_image(primary_image,width='stretch',fallback_text='Listing image unavailable.')
         else: st.markdown('## 🎵')
+        if has_listing_photos(int(pid)):
+            st.success('📷 This listing includes real photos of the seller\'s exact copy.')
+        elif primary_image:
+            st.caption('This is a reference image (official release art) and not a photo of the seller\'s exact copy. Ask the seller for condition photos if you want to see the real item before buying.')
         render_listing_photo_gallery(pid,primary_image,'public')
     with rcol:
         st.title(f"{safe(p['artist'])} — {safe(p['title'])}"); st.write('**Price:** '+money(p['price'])); st.write('**Shipping:** '+money(p['shipping_price']))
@@ -5038,16 +5047,13 @@ def upload_product(sid,key):
 
         st.markdown('#### Step 4: Photos')
         st.caption('Prototype storage: uploaded images are saved locally under house_of_wax_uploads/product_images. Production launch should use hosted storage.')
-        if is_music_category(category):
-            st.info('For most music listings, the album cover image is enough to get started. You can add your own photos if you want.')
+        refimgurl=st.text_input('Reference image - official release art, auto-filled if found',value=defaults.get('image_url',''),help='This is official release art from the House Of Wax database or outside sources (Discogs/MusicBrainz), not a photo of your exact copy. It is shown to buyers labeled as reference art.')
+        if safe(refimgurl):
+            st.success('Reference image found automatically. No action needed.')
         else:
-            st.warning('For unique or non-music items, adding your own photo is recommended.')
-        imgurl=st.text_input('Album cover / product image URL - auto-filled if found',value=defaults.get('image_url',''),help='Album cover may be added automatically. Your own photos are optional for music items.')
-        if is_music_category(category) and safe(imgurl):
-            st.success('Album cover image found automatically.')
-        elif is_music_category(category):
-            st.info('No cover image found. You can still save the listing.')
-        main_img=st.file_uploader('Your own main photo - optional for music',type=['png','jpg','jpeg','webp'],key=f'main_photo_{key}')
+            st.info('No reference image found yet. You can still save the listing, or add a photo below.')
+        st.caption('Adding your own photos below is optional. Listings with real seller photos get a "Seller photos included" badge buyers can see.')
+        main_img=st.file_uploader('Your own main photo - optional',type=['png','jpg','jpeg','webp'],key=f'main_photo_{key}')
         supporting_imgs=st.file_uploader('Extra photos - optional',type=['png','jpg','jpeg','webp'],accept_multiple_files=True,key=f'supporting_photos_{key}')
         condition_imgs=st.file_uploader('Condition photos - optional',type=['png','jpg','jpeg','webp'],accept_multiple_files=True,key=f'condition_photos_{key}')
         video_url_input=st.text_input('Video URL - optional (YouTube link or other video link)',value=defaults.get('video_url',''),help='Shows a playable video on your listing, e.g. a needle-drop or item walkthrough.',key=f'video_url_{key}')
@@ -5059,11 +5065,7 @@ def upload_product(sid,key):
         for i,up in enumerate(condition_imgs or [],1):
             uploaded_previews.append((f'Condition photo {i}',up))
         has_uploaded_photos=bool(uploaded_previews)
-        if not has_uploaded_photos:
-            if is_music_category(category):
-                st.info('No seller-uploaded photo needed for standard music listings. The album cover can be used when available.')
-            else:
-                st.info('No seller-uploaded photo yet. You can still save, but adding your own photo is recommended for unique or non-music items.')
+        imgurl=refimgurl
 
         st.markdown('#### Preview')
         preview_description=desc or f'{artist} - {title}. {notes}'
@@ -5118,9 +5120,9 @@ def upload_product(sid,key):
         listing_status='Live' if publish_listing else 'Draft'
         has_saved_seller_photos=bool(saved_main or saved_supporting or saved_condition)
         score,quality_label,_=listing_quality_assessment(category,artist,title,price,description,mg,sg,image,has_saved_seller_photos,smart_confidence)
-        product_data={'seller_id':int(sid),'sku':sku,'barcode':barcode,'catalog_number':catalog,'matrix_runout':matrix,'category':category,'artist':artist,'title':title,'format':fmt,'label':label,'release_year':year,'genre':genre,'media_grade':mg,'sleeve_grade':sg,'condition_notes':notes,'description':description,'price':float(price),'quantity':int(qty),'shipping_price':float(ship),'image_url':image,'video_url':safe(video_url_input).strip(),'audio_url':'','external_release_url':external_release_url,'listing_status':listing_status,'listing_type':'Fixed Price','created_at':now(),'updated_at':now()}
-        product_keys=['seller_id','sku','barcode','catalog_number','matrix_runout','category','artist','title','format','label','release_year','genre','media_grade','sleeve_grade','condition_notes','description','price','quantity','shipping_price','image_url','video_url','audio_url','external_release_url','listing_status','listing_type','created_at','updated_at']
-        pid=core_insert('products',product_data,"""INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",tuple(product_data[k] for k in product_keys))
+        product_data={'seller_id':int(sid),'sku':sku,'barcode':barcode,'catalog_number':catalog,'matrix_runout':matrix,'category':category,'artist':artist,'title':title,'format':fmt,'label':label,'release_year':year,'genre':genre,'media_grade':mg,'sleeve_grade':sg,'condition_notes':notes,'description':description,'price':float(price),'quantity':int(qty),'shipping_price':float(ship),'image_url':image,'reference_image_url':safe(refimgurl).strip(),'video_url':safe(video_url_input).strip(),'audio_url':'','external_release_url':external_release_url,'listing_status':listing_status,'listing_type':'Fixed Price','created_at':now(),'updated_at':now()}
+        product_keys=['seller_id','sku','barcode','catalog_number','matrix_runout','category','artist','title','format','label','release_year','genre','media_grade','sleeve_grade','condition_notes','description','price','quantity','shipping_price','image_url','reference_image_url','video_url','audio_url','external_release_url','listing_status','listing_type','created_at','updated_at']
+        pid=core_insert('products',product_data,"""INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,reference_image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",tuple(product_data[k] for k in product_keys))
         if saved_main:
             core_insert('product_gallery',{'product_id':int(pid),'image_url':saved_main,'caption':'Main listing photo - seller uploaded exact item photo','created_at':now()},'INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),saved_main,'Main listing photo - seller uploaded exact item photo',now()))
         for i,path in enumerate(saved_supporting,1):

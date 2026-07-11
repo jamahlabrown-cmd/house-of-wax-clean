@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.31 HOMEPAGE CONTENT AND NEWSLETTER PERSISTENCE'
+APP_VERSION='V25.43.32 SELLER ENGAGEMENT DATA PERSISTENCE'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -76,7 +76,7 @@ def supabase_config():
         url=url[:-8].rstrip('/')
     anon=safe(config_value('SUPABASE_ANON_KEY'))
     return url,anon
-CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups']
+CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies']
 GRADE_SCALE=['Mint','Near Mint','VG+','VG','Good+','Good','Fair','Poor']
 SUPABASE_STATUS={'last_read':'Not run','last_write':'Not run','last_error':''}
 AUTH_STATUS={'last_error':'','last_buyer_save_error':'','last_seller_save_error':'','last_link_error':''}
@@ -1095,7 +1095,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.31 homepage and newsletter data now persisted active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.32 seller engagement data now persisted active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1159,8 +1159,9 @@ def setup():
     old_v25_43_28_announcement='V25.43.28'+' homepage and seller tools consolidated active'
     old_v25_43_29_announcement='V25.43.29'+' shipping guidance active'
     old_v25_43_30_announcement='V25.43.30'+' admin permissions hardened active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement]:
-        set_setting('announcement','V25.43.31 homepage and newsletter data now persisted active')
+    old_v25_43_31_announcement='V25.43.31'+' homepage and newsletter data now persisted active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement]:
+        set_setting('announcement','V25.43.32 seller engagement data now persisted active')
 setup()
 recovery_token_bridge()
 
@@ -1792,10 +1793,11 @@ def barcode_lookup(code):
     r=df('''SELECT barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,description,price,shipping_price,image_url FROM products WHERE barcode=? ORDER BY created_at DESC LIMIT 1''',(code.strip(),))
     return {} if r.empty else r.iloc[0].to_dict()
 def badges(sid):
-    r=df("SELECT badge_name FROM seller_badges WHERE seller_id=? AND active='Yes'",(int(sid),))
+    r=hosted_select('seller_badges',{'seller_id':int(sid),'active':'Yes'}) if hosted_enabled() else df("SELECT badge_name FROM seller_badges WHERE seller_id=? AND active='Yes'",(int(sid),))
     return '' if r.empty else ' • '.join([safe(x) for x in r['badge_name'].tolist()])
 def followers(sid):
-    r=df('SELECT COUNT(*) c FROM seller_followers WHERE seller_id=?',(int(sid),)); return 0 if r.empty else int(r.iloc[0]['c'] or 0)
+    r=hosted_select('seller_followers',{'seller_id':int(sid)},select='id') if hosted_enabled() else df('SELECT COUNT(*) c FROM seller_followers WHERE seller_id=?',(int(sid),))
+    return len(r) if hosted_enabled() else (0 if r.empty else int(r.iloc[0]['c'] or 0))
 def fee(total,auction=False): return round(float(total)*float(setting('auction_commission_percent' if auction else 'platform_commission_percent','9'))/100,2)
 
 def seller_profile_completion(sid):
@@ -2649,14 +2651,18 @@ def seller_profile(sid):
         if not bid:
             st.info('Sign in as a Buyer to follow this seller.')
         elif st.button('Follow seller',key=f'followbtn{sid}'):
-            if df('SELECT id FROM seller_followers WHERE seller_id=? AND buyer_id=?',(sid,bid)).empty: run('INSERT INTO seller_followers(seller_id,buyer_id,created_at) VALUES(?,?,?)',(sid,bid,now())); warn_if_local_only('Following this seller'); st.success('Followed.')
+            existing=hosted_select('seller_followers',{'seller_id':sid,'buyer_id':bid},limit=1) if hosted_enabled() else df('SELECT id FROM seller_followers WHERE seller_id=? AND buyer_id=?',(sid,bid))
+            if existing.empty:
+                data={'seller_id':sid,'buyer_id':bid,'created_at':now()}
+                core_insert('seller_followers',data,'INSERT INTO seller_followers(seller_id,buyer_id,created_at) VALUES(?,?,?)',(sid,bid,now()))
+                st.success('Followed.')
             else: st.info('Already following.')
-    anns=df("SELECT * FROM store_announcements WHERE seller_id=? AND status='Active' ORDER BY created_at DESC",(sid,))
+    anns=hosted_select('store_announcements',{'seller_id':sid,'status':'Active'},order='created_at.desc') if hosted_enabled() else df("SELECT * FROM store_announcements WHERE seller_id=? AND status='Active' ORDER BY created_at DESC",(sid,))
     if not anns.empty:
         st.subheader('Store announcements')
         for _,a in anns.iterrows():
             with st.container(border=True): st.write('**'+safe(a['title'])+'**'); st.write(safe(a['body']))
-    evs=df("SELECT * FROM seller_events WHERE seller_id=? AND status='Active' ORDER BY event_date",(sid,))
+    evs=hosted_select('seller_events',{'seller_id':sid,'status':'Active'},order='event_date.asc') if hosted_enabled() else df("SELECT * FROM seller_events WHERE seller_id=? AND status='Active' ORDER BY event_date",(sid,))
     if not evs.empty:
         st.subheader('Drops / events')
         for _,e in evs.iterrows():
@@ -2674,7 +2680,7 @@ def seller_profile(sid):
     with st.expander('Report Seller',expanded=False):
         st.caption('Use this if a seller appears misleading, unsafe, abusive, or against House Of Wax platform rules.')
         report_listing_form(None,s,f'seller_{sid}')
-    pol=df('SELECT * FROM seller_policies WHERE seller_id=?',(sid,))
+    pol=hosted_select('seller_policies',{'seller_id':sid},limit=1) if hosted_enabled() else df('SELECT * FROM seller_policies WHERE seller_id=?',(sid,))
     if not pol.empty:
         p=pol.iloc[0]
         st.subheader('Store policies')
@@ -3647,7 +3653,13 @@ def buyer_dashboard():
     with tabs[1]: buyer_request_history(bid)
     with tabs[2]: st.dataframe(df('SELECT * FROM orders WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),width='stretch')
     with tabs[3]: st.dataframe(df('SELECT * FROM messages WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),width='stretch')
-    with tabs[4]: st.dataframe(df('SELECT f.*,s.store_name,s.rating FROM seller_followers f LEFT JOIN sellers s ON f.seller_id=s.id WHERE f.buyer_id=?',(bid,)),width='stretch')
+    with tabs[4]:
+        follows=hosted_select('seller_followers',{'buyer_id':bid}) if hosted_enabled() else df('SELECT * FROM seller_followers WHERE buyer_id=?',(bid,))
+        if follows.empty:
+            st.dataframe(follows,width='stretch')
+        else:
+            sellers_ref=table('sellers')[['id','store_name','rating']].rename(columns={'id':'seller_id'})
+            st.dataframe(follows.merge(sellers_ref,on='seller_id',how='left'),width='stretch')
     with tabs[5]:
         orders=df("SELECT * FROM orders WHERE buyer_id=? AND status='Completed' ORDER BY created_at DESC",(bid,)); st.dataframe(orders,width='stretch')
         if not orders.empty:
@@ -5759,10 +5771,17 @@ def seller_dashboard():
     st.caption('My Store Profile, Add Inventory, My Inventory, and Seller Messages/Inquiries and Buyer Requests are in the radio above. The tabs below cover everything else.')
     tabs=st.tabs(['Policies','Barcode scanner','Bulk import','Gallery','Orders','Messages','Announcements','Events/drops','Badges','Leave buyer feedback','Public feedback'])
     with tabs[0]:
-        p=df('SELECT * FROM seller_policies WHERE seller_id=?',(sid,)); pol=p.iloc[0] if not p.empty else {}
+        p=hosted_select('seller_policies',{'seller_id':sid},limit=1) if hosted_enabled() else df('SELECT * FROM seller_policies WHERE seller_id=?',(sid,)); pol=p.iloc[0] if not p.empty else {}
         with st.form('policy'):
             shipping=st.text_area('Shipping policy',value=safe(pol.get('shipping_policy') if len(pol) else 'Ships within 3 business days.')); returns=st.text_area('Return policy',value=safe(pol.get('return_policy') if len(pol) else 'No buyer remorse returns unless seller approves.')); grading=st.text_area('Grading policy',value=safe(pol.get('grading_policy') if len(pol) else 'Collector grading standards.')); pickup=st.text_area('Pickup / meetup / local policy notes',value=safe(pol.get('local_pickup_policy') if len(pol) else '')); sub=st.form_submit_button('Save policies')
-        if sub: run('INSERT OR REPLACE INTO seller_policies(seller_id,shipping_policy,return_policy,grading_policy,local_pickup_policy) VALUES(?,?,?,?,?)',(sid,shipping,returns,grading,pickup)); warn_if_local_only('Seller policies'); st.success('Policies saved.')
+        if sub:
+            if hosted_enabled():
+                data={'seller_id':sid,'shipping_policy':shipping,'return_policy':returns,'grading_policy':grading,'local_pickup_policy':pickup}
+                if not p.empty: hosted_update('seller_policies',data,{'seller_id':sid})
+                else: hosted_insert('seller_policies',data)
+            else:
+                run('INSERT OR REPLACE INTO seller_policies(seller_id,shipping_policy,return_policy,grading_policy,local_pickup_policy) VALUES(?,?,?,?,?)',(sid,shipping,returns,grading,pickup))
+            st.success('Policies saved.')
     with tabs[1]:
         st.subheader('Barcode scanner / inventory quick add')
         st.info('Click into the barcode field and scan with a USB/Bluetooth scanner, phone keyboard scanner, or type/paste the barcode.')
@@ -5808,12 +5827,18 @@ def seller_dashboard():
     with tabs[5]: st.dataframe(df('SELECT * FROM messages WHERE seller_id=? ORDER BY created_at DESC',(sid,)),width='stretch')
     with tabs[6]:
         with st.form('ann'): title=st.text_input('Announcement title'); body=st.text_area('Announcement body'); sub=st.form_submit_button('Post announcement')
-        if sub: run("INSERT INTO store_announcements(seller_id,title,body,status,created_at) VALUES(?,?,?,'Active',?)",(sid,title,body,now())); warn_if_local_only('Store announcement'); st.success('Posted.')
-        st.dataframe(df('SELECT * FROM store_announcements WHERE seller_id=?',(sid,)),width='stretch')
+        if sub:
+            data={'seller_id':sid,'title':title,'body':body,'status':'Active','created_at':now()}
+            core_insert('store_announcements',data,"INSERT INTO store_announcements(seller_id,title,body,status,created_at) VALUES(?,?,?,'Active',?)",(sid,title,body,now()))
+            st.success('Posted.')
+        st.dataframe(hosted_select('store_announcements',{'seller_id':sid}) if hosted_enabled() else df('SELECT * FROM store_announcements WHERE seller_id=?',(sid,)),width='stretch')
     with tabs[7]:
         with st.form('ev'): title=st.text_input('Drop/event title'); typ=st.selectbox('Type',['Record Drop','Auction Drop','Sale','Live Event','Other']); date=st.text_input('Date/time'); desc=st.text_area('Description'); sub=st.form_submit_button('Save event')
-        if sub: run("INSERT INTO seller_events(seller_id,event_title,event_type,event_date,description,status,created_at) VALUES(?,?,?,?,?,'Active',?)",(sid,title,typ,date,desc,now())); warn_if_local_only('Seller event'); st.success('Saved.')
-    with tabs[8]: st.write(badges(sid) or 'No badges yet.'); st.dataframe(df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),width='stretch')
+        if sub:
+            data={'seller_id':sid,'event_title':title,'event_type':typ,'event_date':date,'description':desc,'status':'Active','created_at':now()}
+            core_insert('seller_events',data,"INSERT INTO seller_events(seller_id,event_title,event_type,event_date,description,status,created_at) VALUES(?,?,?,?,?,'Active',?)",(sid,title,typ,date,desc,now()))
+            st.success('Saved.')
+    with tabs[8]: st.write(badges(sid) or 'No badges yet.'); st.dataframe(hosted_select('seller_badges',{'seller_id':sid}) if hosted_enabled() else df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),width='stretch')
     with tabs[9]:
         orders=df("SELECT * FROM orders WHERE seller_id=? AND status='Completed'",(sid,)); st.dataframe(orders,width='stretch')
         if not orders.empty:
@@ -6323,7 +6348,10 @@ def admin():
     with tabs[4]: st.dataframe(table('buyers'),width='stretch')
     with tabs[5]:
         sid=seller_pick('adminseller'); badge=st.text_input('Badge',placeholder='Soul Specialist, Jazz Dealer, Verified Seller'); typ=st.selectbox('Badge type',['Community','Specialty','Performance','Verified'])
-        if st.button('Add badge'): run("INSERT INTO seller_badges(seller_id,badge_name,badge_type,active,created_at) VALUES(?,?,?,'Yes',?)",(sid,badge,typ,now())); warn_if_local_only('Seller badge'); st.success('Badge added.')
+        if st.button('Add badge'):
+            data={'seller_id':sid,'badge_name':badge,'badge_type':typ,'active':'Yes','created_at':now()}
+            core_insert('seller_badges',data,"INSERT INTO seller_badges(seller_id,badge_name,badge_type,active,created_at) VALUES(?,?,?,'Yes',?)",(sid,badge,typ,now()))
+            st.success('Badge added.')
         if st.button('Create seller spotlight culture post'):
             s=get_seller(sid); run("INSERT INTO culture_posts(title,category,author,body,image_url,status,created_at) VALUES(?,'Seller Spotlight','House Of Wax',?,?,'Published',?)",(f"Seller Spotlight: {safe(s['store_name'])}",safe(s['seller_story'],safe(s['store_bio'])),safe(s['banner_url']) or safe(s['logo_url']),now())); st.success('Spotlight created.')
         st.subheader('Messages'); st.dataframe(table('messages'),width='stretch'); st.subheader('Feedback'); st.dataframe(table('feedback'),width='stretch')

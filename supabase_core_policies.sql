@@ -18,6 +18,11 @@ alter table homepage_blocks enable row level security;
 alter table quick_tips enable row level security;
 alter table did_you_know enable row level security;
 alter table newsletter_signups enable row level security;
+alter table seller_followers enable row level security;
+alter table seller_badges enable row level security;
+alter table store_announcements enable row level security;
+alter table seller_events enable row level security;
+alter table seller_policies enable row level security;
 
 do $$
 declare
@@ -38,7 +43,12 @@ begin
         'homepage_blocks',
         'quick_tips',
         'did_you_know',
-        'newsletter_signups'
+        'newsletter_signups',
+        'seller_followers',
+        'seller_badges',
+        'store_announcements',
+        'seller_events',
+        'seller_policies'
     ]
     loop
         execute format('drop policy if exists "prototype anon read %s" on %I', t, t);
@@ -234,6 +244,90 @@ with check (true);
 drop policy if exists "admin manage newsletter signups" on public."newsletter_signups";
 create policy "admin manage newsletter signups"
 on newsletter_signups for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+-- Follower counts and badges are shown on public seller storefronts, so
+-- both need public read. Only a buyer's own follow action needs a write
+-- policy -- badges are admin-granted trust signals, not self-assigned.
+drop policy if exists "public read seller followers" on public."seller_followers";
+create policy "public read seller followers"
+on seller_followers for select to anon, authenticated
+using (true);
+
+drop policy if exists "buyer follow seller" on public."seller_followers";
+create policy "buyer follow seller"
+on seller_followers for insert to authenticated
+with check (buyer_id in (select buyer_id from app_users where auth_user_id = auth.uid()));
+
+drop policy if exists "admin manage seller followers" on public."seller_followers";
+create policy "admin manage seller followers"
+on seller_followers for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+drop policy if exists "public read active seller badges" on public."seller_badges";
+create policy "public read active seller badges"
+on seller_badges for select to anon, authenticated
+using (active = 'Yes');
+
+drop policy if exists "admin manage seller badges" on public."seller_badges";
+create policy "admin manage seller badges"
+on seller_badges for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+-- Announcements, events, and policies are seller-owned content shown on
+-- the seller's own public storefront -- public read, seller writes only
+-- their own rows, admin can manage any row.
+drop policy if exists "public read active store announcements" on public."store_announcements";
+create policy "public read active store announcements"
+on store_announcements for select to anon, authenticated
+using (status = 'Active');
+
+drop policy if exists "seller manage own store announcements" on public."store_announcements";
+create policy "seller manage own store announcements"
+on store_announcements for all to authenticated
+using (seller_id in (select seller_id from app_users where auth_user_id = auth.uid()))
+with check (seller_id in (select seller_id from app_users where auth_user_id = auth.uid()));
+
+drop policy if exists "admin manage store announcements" on public."store_announcements";
+create policy "admin manage store announcements"
+on store_announcements for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+drop policy if exists "public read active seller events" on public."seller_events";
+create policy "public read active seller events"
+on seller_events for select to anon, authenticated
+using (status = 'Active');
+
+drop policy if exists "seller manage own seller events" on public."seller_events";
+create policy "seller manage own seller events"
+on seller_events for all to authenticated
+using (seller_id in (select seller_id from app_users where auth_user_id = auth.uid()))
+with check (seller_id in (select seller_id from app_users where auth_user_id = auth.uid()));
+
+drop policy if exists "admin manage seller events" on public."seller_events";
+create policy "admin manage seller events"
+on seller_events for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+drop policy if exists "public read seller policies" on public."seller_policies";
+create policy "public read seller policies"
+on seller_policies for select to anon, authenticated
+using (true);
+
+drop policy if exists "seller manage own seller policies" on public."seller_policies";
+create policy "seller manage own seller policies"
+on seller_policies for all to authenticated
+using (seller_id in (select seller_id from app_users where auth_user_id = auth.uid()))
+with check (seller_id in (select seller_id from app_users where auth_user_id = auth.uid()));
+
+drop policy if exists "admin manage seller policies" on public."seller_policies";
+create policy "admin manage seller policies"
+on seller_policies for all to authenticated
 using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
 with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
 

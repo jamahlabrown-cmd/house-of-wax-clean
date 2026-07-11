@@ -12,6 +12,8 @@ alter table listing_inquiries enable row level security;
 alter table purchase_requests enable row level security;
 alter table tester_feedback enable row level security;
 alter table listing_reports enable row level security;
+alter table knowledge_posts enable row level security;
+alter table glossary_terms enable row level security;
 
 do $$
 declare
@@ -26,7 +28,9 @@ begin
         'listing_inquiries',
         'purchase_requests',
         'tester_feedback',
-        'listing_reports'
+        'listing_reports',
+        'knowledge_posts',
+        'glossary_terms'
     ]
     loop
         execute format('drop policy if exists "prototype anon read %s" on %I', t, t);
@@ -166,8 +170,33 @@ create policy "authenticated submit tester feedback"
 on tester_feedback for insert to authenticated
 with check (true);
 
+drop policy if exists "public read published knowledge posts" on public."knowledge_posts";
+create policy "public read published knowledge posts"
+on knowledge_posts for select to anon, authenticated
+using (status = 'Published');
+
+drop policy if exists "admin manage knowledge posts" on public."knowledge_posts";
+create policy "admin manage knowledge posts"
+on knowledge_posts for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
+drop policy if exists "public read published glossary terms" on public."glossary_terms";
+create policy "public read published glossary terms"
+on glossary_terms for select to anon, authenticated
+using (status = 'Published');
+
+drop policy if exists "admin manage glossary terms" on public."glossary_terms";
+create policy "admin manage glossary terms"
+on glossary_terms for all to authenticated
+using (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')))
+with check (auth.uid() in (select auth_user_id from app_users where lower(admin_access) in ('yes','true','1','admin')));
+
 -- Admin management should be handled by secure server/service tooling or custom claims.
 -- Do not expose service_role keys in Streamlit.
+-- Note: the ADMIN_EMAILS allowlist (app-layer only) is not enforceable in RLS;
+-- admins added only via that allowlist (not app_users.admin_access='Yes') will
+-- need admin_access set on their app_users row to write knowledge content directly.
 
 -- products.reviewer_notes is internal admin moderation commentary, never
 -- meant to be public. RLS is row-level only, so the "public read live

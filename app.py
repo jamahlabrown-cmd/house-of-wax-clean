@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.19 PURCHASE REQUEST STATUS FIX'
+APP_VERSION='V25.43.20 KNOWLEDGE HUB PERSISTENCE FIX'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -76,7 +76,7 @@ def supabase_config():
         url=url[:-8].rstrip('/')
     anon=safe(config_value('SUPABASE_ANON_KEY'))
     return url,anon
-CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports']
+CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms']
 SUPABASE_STATUS={'last_read':'Not run','last_write':'Not run','last_error':''}
 AUTH_STATUS={'last_error':'','last_buyer_save_error':'','last_seller_save_error':'','last_link_error':''}
 def supabase_key_type():
@@ -1101,7 +1101,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.19 purchase request status fix active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.20 knowledge hub persistence fix active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1153,8 +1153,9 @@ def setup():
     old_v25_43_16_announcement='V25.43.16'+' password reset active'
     old_v25_43_17_announcement='V25.43.17'+' persistent upload storage active'
     old_v25_43_18_announcement='V25.43.18'+' session restore crash fixed'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement]:
-        set_setting('announcement','V25.43.19 purchase request status fix active')
+    old_v25_43_19_announcement='V25.43.19'+' purchase request status fix active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement]:
+        set_setting('announcement','V25.43.20 knowledge hub persistence fix active')
 setup()
 recovery_token_bridge()
 
@@ -2619,8 +2620,8 @@ def seed_knowledge():
             ('Why Buyer and Seller Feedback Should Be Public','House Of Wax Trust Standards','Everyone','Beginner','Public feedback helps the community understand who they are doing business with.','Trust matters in a marketplace built around used, collectible, and condition-sensitive goods. Public feedback gives buyers and sellers more confidence before a transaction.','House Of Wax is built around education, transparency, and accountability.')
         ]
         for title,cat,aud,level,summary,body,tip in starters:
-            run("""INSERT INTO knowledge_posts(title,category,audience,level,summary,body,house_tip,status,featured,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
-                (title,cat,aud,level,summary,body,tip,'Published','Yes' if 'VG+' in title else 'No',now(),now()))
+            data={'title':title,'category':cat,'audience':aud,'level':level,'summary':summary,'body':body,'house_tip':tip,'status':'Published','featured':'Yes' if 'VG+' in title else 'No','created_at':now(),'updated_at':now()}
+            core_insert('knowledge_posts',data,"""INSERT INTO knowledge_posts(title,category,audience,level,summary,body,house_tip,status,featured,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",tuple(data[k] for k in ['title','category','audience','level','summary','body','house_tip','status','featured','created_at','updated_at']))
     terms=table('glossary_terms')
     if terms.empty:
         starter_terms=[
@@ -2631,8 +2632,8 @@ def seed_knowledge():
             ('Promo Copy','Record collecting','A promotional copy distributed to radio stations, DJs, reviewers, or industry contacts.','Promos can be collectible but should be clearly described.','White label promo copies often have special labels or stamps.')
         ]
         for term,cat,definition,why,example in starter_terms:
-            run("""INSERT OR IGNORE INTO glossary_terms(term,category,plain_definition,why_it_matters,example,status,created_at,updated_at) VALUES(?,?,?,?,?,'Published',?,?)""",
-                (term,cat,definition,why,example,now(),now()))
+            data={'term':term,'category':cat,'plain_definition':definition,'why_it_matters':why,'example':example,'status':'Published','created_at':now(),'updated_at':now()}
+            core_insert('glossary_terms',data,"""INSERT OR IGNORE INTO glossary_terms(term,category,plain_definition,why_it_matters,example,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)""",tuple(data[k] for k in ['term','category','plain_definition','why_it_matters','example','status','created_at','updated_at']))
 
 def make_social_pack(title,category,summary,body,tip):
     core=safe(summary) or safe(body)[:180]
@@ -2913,7 +2914,8 @@ def knowledge_hub():
     st.divider()
     st.markdown('## Article Library + Glossary')
     if 'selected_knowledge_id' in st.session_state:
-        rows=df('SELECT * FROM knowledge_posts WHERE id=?',(int(st.session_state['selected_knowledge_id']),))
+        selected_kid=int(st.session_state['selected_knowledge_id'])
+        rows=hosted_select('knowledge_posts',{'id':selected_kid},limit=1) if hosted_enabled() else df('SELECT * FROM knowledge_posts WHERE id=?',(selected_kid,))
         if rows.empty:
             st.session_state.pop('selected_knowledge_id',None); st.rerun()
         post=rows.iloc[0]
@@ -2939,7 +2941,7 @@ def knowledge_hub():
                 st.markdown(f'**{k}**')
                 st.text_area(k,v,height=140,key=f"social_pack_{k}_{int(post['id'])}")
         return
-    featured=df("SELECT * FROM knowledge_posts WHERE status='Published' AND featured='Yes' ORDER BY updated_at DESC")
+    featured=hosted_select('knowledge_posts',{'status':'Published','featured':'Yes'},order='updated_at.desc') if hosted_enabled() else df("SELECT * FROM knowledge_posts WHERE status='Published' AND featured='Yes' ORDER BY updated_at DESC")
     if not featured.empty:
         st.subheader('Featured education')
         knowledge_card(featured.iloc[0], 'featured')
@@ -2947,7 +2949,7 @@ def knowledge_hub():
     q=st.text_input('Search topics like VG+, barcode, runout, bootleg, storage, trust')
     cats=['All']+KNOWLEDGE_CATEGORIES
     cat=st.selectbox('Category',cats)
-    posts=df("SELECT * FROM knowledge_posts WHERE status='Published' ORDER BY updated_at DESC")
+    posts=hosted_select('knowledge_posts',{'status':'Published'},order='updated_at.desc') if hosted_enabled() else df("SELECT * FROM knowledge_posts WHERE status='Published' ORDER BY updated_at DESC")
     if q:
         term=q.lower()
         posts=posts[
@@ -2962,7 +2964,7 @@ def knowledge_hub():
         with cols[i%2]: knowledge_card(row, f'library_{i}')
     st.divider()
     st.subheader('Collector glossary')
-    terms=df("SELECT * FROM glossary_terms WHERE status='Published' ORDER BY term")
+    terms=hosted_select('glossary_terms',{'status':'Published'},order='term.asc') if hosted_enabled() else df("SELECT * FROM glossary_terms WHERE status='Published' ORDER BY term")
     tq=st.text_input('Search glossary')
     if tq:
         term=tq.lower()
@@ -3031,8 +3033,8 @@ def content_admin():
             submitted=st.form_submit_button('Save education article')
         if submitted:
             img=save_file(img_file,'knowledge_images') or img_url
-            run("""INSERT INTO knowledge_posts(title,category,audience,level,summary,body,house_tip,image_url,video_url,status,featured,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (title,category,audience,level,summary,body,tip,img,safe(video_url).strip(),status,featured,now(),now()))
+            data={'title':title,'category':category,'audience':audience,'level':level,'summary':summary,'body':body,'house_tip':tip,'image_url':img,'video_url':safe(video_url).strip(),'status':status,'featured':featured,'created_at':now(),'updated_at':now()}
+            core_insert('knowledge_posts',data,"""INSERT INTO knowledge_posts(title,category,audience,level,summary,body,house_tip,image_url,video_url,status,featured,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",tuple(data[k] for k in ['title','category','audience','level','summary','body','house_tip','image_url','video_url','status','featured','created_at','updated_at']))
             st.success('Knowledge article saved.')
         st.dataframe(table('knowledge_posts'),width='stretch')
     with tabs[1]:
@@ -3045,8 +3047,14 @@ def content_admin():
             status=st.selectbox('Status',['Published','Draft'])
             submitted=st.form_submit_button('Save glossary term')
         if submitted:
-            run("""INSERT OR REPLACE INTO glossary_terms(term,category,plain_definition,why_it_matters,example,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)""",
-                (term,category,definition,why,example,status,now(),now()))
+            clean_term=safe(term).strip()
+            data={'term':clean_term,'category':category,'plain_definition':definition,'why_it_matters':why,'example':example,'status':status,'updated_at':now()}
+            existing=hosted_select('glossary_terms',{'term':clean_term},limit=1) if hosted_enabled() else df('SELECT id FROM glossary_terms WHERE lower(term)=lower(?)',(clean_term,))
+            if not existing.empty:
+                core_update('glossary_terms',data,{'id':int(existing.iloc[0]['id'])},'UPDATE glossary_terms SET term=?,category=?,plain_definition=?,why_it_matters=?,example=?,status=?,updated_at=? WHERE id=?',(clean_term,category,definition,why,example,status,now(),int(existing.iloc[0]['id'])))
+            else:
+                data['created_at']=now()
+                core_insert('glossary_terms',data,"""INSERT INTO glossary_terms(term,category,plain_definition,why_it_matters,example,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)""",tuple(data[k] for k in ['term','category','plain_definition','why_it_matters','example','status','created_at','updated_at']))
             st.success('Glossary term saved.')
         st.dataframe(table('glossary_terms'),width='stretch')
     with tabs[2]:
@@ -3219,7 +3227,7 @@ def home():
         x=home_block('editorial_pick'); mini_card(x.get('title','Format Focus: Why Cassettes Still Matter'),x.get('subtitle','House Of Wax Editorial Pick'),x.get('body','Cassettes connect music to memory and mixtape culture.'),x.get('video_url',''))
     st.markdown('---')
     section_header('Latest From the Knowledge Hub','House Of Wax education, culture, and collecting guides.','Read + Learn')
-    posts=df("SELECT * FROM knowledge_posts WHERE status='Published' ORDER BY updated_at DESC LIMIT 6")
+    posts=hosted_select('knowledge_posts',{'status':'Published'},order='updated_at.desc',limit=6) if hosted_enabled() else df("SELECT * FROM knowledge_posts WHERE status='Published' ORDER BY updated_at DESC LIMIT 6")
     cols=st.columns(3)
     for i,(_,post) in enumerate(posts.iterrows()):
         with cols[i%3]: knowledge_card(post, f'home_latest_{i}')

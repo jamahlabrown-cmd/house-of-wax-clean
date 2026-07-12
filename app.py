@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.39 CLEANUP PASS 3: SELLER DASHBOARD COPY'
+APP_VERSION='V25.43.40 BARCODE SCAN TIP + PRICE RANGE SUGGESTIONS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1101,7 +1101,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.39 cleanup pass 3 active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.40 barcode tip and price suggestions active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1173,8 +1173,9 @@ def setup():
     old_v25_43_36_announcement='V25.43.36'+' save failures now show errors active'
     old_v25_43_37_announcement='V25.43.37'+' cleanup pass 1 active'
     old_v25_43_38_announcement='V25.43.38'+' cleanup pass 2 active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement]:
-        set_setting('announcement','V25.43.39 cleanup pass 3 active')
+    old_v25_43_39_announcement='V25.43.39'+' cleanup pass 3 active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement]:
+        set_setting('announcement','V25.43.40 barcode tip and price suggestions active')
 setup()
 recovery_token_bridge()
 
@@ -3864,6 +3865,66 @@ def discogs_token_status():
     except Exception:
         return False
 
+def suggest_price_range_from_discogs(release_id):
+    # Discogs' price_suggestions endpoint returns a suggested price per
+    # condition grade (Mint, Near Mint, VG+, etc.), but it only works if
+    # the Discogs account behind DISCOGS_TOKEN has complete seller
+    # settings on Discogs itself -- otherwise it errors. Fails quietly so
+    # callers can fall back to House Of Wax's own sales history.
+    if not release_id:
+        return None
+    try:
+        token=st.secrets.get('DISCOGS_TOKEN','')
+    except Exception:
+        token=''
+    if not token:
+        return None
+    try:
+        url=f'https://api.discogs.com/marketplace/price_suggestions/{release_id}'
+        params={'token':token}
+        headers={'User-Agent':'HouseOfWaxPrototype/1.0'}
+        r=requests.get(url,params=params,headers=headers,timeout=8)
+        if r.status_code!=200:
+            return None
+        data=r.json()
+        by_grade={grade:info.get('value') for grade,info in data.items() if isinstance(info,dict) and info.get('value')}
+        values=list(by_grade.values())
+        if not values:
+            return None
+        return {'low':min(values),'high':max(values),'source':'Discogs marketplace (real listings, varies by condition)','by_grade':by_grade}
+    except Exception:
+        return None
+
+def suggest_price_range_from_how_history(artist):
+    artist_clean=safe(artist).strip().lower()
+    if not artist_clean:
+        return None
+    try:
+        sold=hosted_select('products',{'listing_status':'Sold'}) if hosted_enabled() else df("SELECT * FROM products WHERE listing_status='Sold'")
+        matches=sold[sold['artist'].fillna('').str.strip().str.lower()==artist_clean] if not sold.empty and 'artist' in sold.columns else pd.DataFrame()
+        label='sold on House Of Wax'
+        if len(matches)<2:
+            live=hosted_select('products',{},in_filters={'listing_status':PUBLIC_LISTING_STATUSES}) if hosted_enabled() else df('SELECT * FROM products')
+            if not live.empty and 'artist' in live.columns:
+                matches=live[live['artist'].fillna('').str.strip().str.lower()==artist_clean]
+                label='currently listed on House Of Wax'
+        if matches.empty or 'price' not in matches.columns:
+            return None
+        prices=matches['price'].dropna().astype(float)
+        prices=prices[prices>0]
+        if len(prices)<2:
+            return None
+        return {'low':float(prices.quantile(0.25)),'high':float(prices.quantile(0.75)),'count':int(len(prices)),'source':f'{len(prices)} similar item(s) {label}'}
+    except Exception:
+        return None
+
+def suggest_seller_price_range(artist, discogs_release_id=None):
+    if discogs_release_id:
+        result=suggest_price_range_from_discogs(discogs_release_id)
+        if result:
+            return result
+    return suggest_price_range_from_how_history(artist)
+
 def barcode_length_status(barcode):
     code=normalize_barcode(barcode)
     if not code:
@@ -4803,6 +4864,10 @@ def render_barcode_lookup_widget(key_prefix='main'):
     st.markdown('### Barcode / UPC lookup')
     st.write('For records, CDs, and cassettes, scan or type the barcode. House Of Wax checks its own release database first, then outside sources for release information and cover art. For shirts, dolls, memorabilia, merch, and accessories, sellers should use a photo of the exact item or an official product image.')
     st.caption('Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches.')
+    with st.expander('Scanning with your phone? Here\'s the fastest way',expanded=False):
+        st.write("On Android, point Google Lens (already on your phone) at the barcode and copy the number it reads.")
+        st.write("On iPhone, search your App Store for a free barcode or UPC scanner app, scan the item, then copy the number it shows.")
+        st.write("Either way, switch back to House Of Wax and paste the number into the field below.")
     render_source_health_panel(key_prefix)
     c1,c2=st.columns([2,1])
     barcode=c1.text_input('Scan or enter barcode / UPC',key=f'v24_lookup_barcode_{key_prefix}',placeholder='Click here, scan, or type at least 5-6 digits',help='Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches.')
@@ -5191,6 +5256,9 @@ def listing_preview_card(category, artist, title, fmt, label, year, genre, mg, s
 
 def upload_product(sid,key):
     defaults=v24_listing_defaults()
+    selected_match=st.session_state.get('v24_autofill_listing',{})
+    discogs_release_id=safe(selected_match.get('external_id')) if safe(selected_match.get('source'))=='Discogs' else ''
+    price_suggestion=suggest_seller_price_range(defaults.get('artist'),discogs_release_id) if defaults.get('artist') else None
     seller=get_seller(int(sid))
     seller_status=normalize_seller_status(seller.get('status') if seller is not None else '')
     is_approved=seller_can_publish(seller)
@@ -5238,6 +5306,8 @@ def upload_product(sid,key):
         sg=c11.selectbox('Sleeve/packaging condition - optional',GRADE_SCALE)
         notes=st.text_area('Seller notes - optional',help='Optional. Add anything buyers should know.')
         desc=st.text_area('Extra description - optional',help='Optional. Add anything buyers should know.')
+        if price_suggestion:
+            st.info(f"Suggested price range: {money(price_suggestion['low'])}–{money(price_suggestion['high'])}, based on {price_suggestion['source']}. You set the final price.")
         c10,c11,c12=st.columns(3)
         price_text=c10.text_input('Price - required',help='Type your asking price. Examples: 10, 10.00, or $10.00.',placeholder='10.00')
         qty_text=c11.text_input('Quantity - required',value='1',help='Type the number of copies/items you have.')

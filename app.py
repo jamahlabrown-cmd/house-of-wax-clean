@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.35 FIX ADMIN JUMP-TO-REVIEW CRASH'
+APP_VERSION='V25.43.36 SILENT SAVE-FAILURE SWEEP'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1101,7 +1101,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.35 admin jump-to-review crash fixed active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.36 save failures now show errors active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1169,8 +1169,9 @@ def setup():
     old_v25_43_32_announcement='V25.43.32'+' seller engagement data now persisted active'
     old_v25_43_33_announcement='V25.43.33'+' pending seller application alert active'
     old_v25_43_34_announcement='V25.43.34'+' remaining local-only bugs fixed active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement]:
-        set_setting('announcement','V25.43.35 admin jump-to-review crash fixed active')
+    old_v25_43_35_announcement='V25.43.35'+' admin jump-to-review crash fixed active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement]:
+        set_setting('announcement','V25.43.36 save failures now show errors active')
 setup()
 recovery_token_bridge()
 
@@ -2455,8 +2456,11 @@ def report_listing_form(listing=None, seller=None, key_prefix='report'):
             st.warning('Add a few details so House Of Wax knows what to review.')
             return
         data={'listing_id':listing_id,'seller_id':seller_id,'reporter_name':reporter_name,'reporter_contact':reporter_contact,'reason':reason,'details':details,'status':'Open','created_at':now(),'updated_at':now()}
-        core_insert('listing_reports',data,'''INSERT INTO listing_reports(listing_id,seller_id,reporter_name,reporter_contact,reason,details,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['listing_id','seller_id','reporter_name','reporter_contact','reason','details','status','created_at','updated_at']))
-        st.success('Report received. House Of Wax may review the listing or seller under platform rules.')
+        new_id=core_insert('listing_reports',data,'''INSERT INTO listing_reports(listing_id,seller_id,reporter_name,reporter_contact,reason,details,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['listing_id','seller_id','reporter_name','reporter_contact','reason','details','status','created_at','updated_at']))
+        if new_id or not hosted_enabled():
+            st.success('Report received. House Of Wax may review the listing or seller under platform rules.')
+        else:
+            st.error('Report could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
 
 def buyer_activity_tables(bid):
     if hosted_enabled():
@@ -2663,8 +2667,11 @@ def seller_profile(sid):
             existing=hosted_select('seller_followers',{'seller_id':sid,'buyer_id':bid},limit=1) if hosted_enabled() else df('SELECT id FROM seller_followers WHERE seller_id=? AND buyer_id=?',(sid,bid))
             if existing.empty:
                 data={'seller_id':sid,'buyer_id':bid,'created_at':now()}
-                core_insert('seller_followers',data,'INSERT INTO seller_followers(seller_id,buyer_id,created_at) VALUES(?,?,?)',(sid,bid,now()))
-                st.success('Followed.')
+                new_id=core_insert('seller_followers',data,'INSERT INTO seller_followers(seller_id,buyer_id,created_at) VALUES(?,?,?)',(sid,bid,now()))
+                if new_id or not hosted_enabled():
+                    st.success('Followed.')
+                else:
+                    st.error('Could not follow this seller. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
             else: st.info('Already following.')
     anns=hosted_select('store_announcements',{'seller_id':sid,'status':'Active'},order='created_at.desc') if hosted_enabled() else df("SELECT * FROM store_announcements WHERE seller_id=? AND status='Active' ORDER BY created_at DESC",(sid,))
     if not anns.empty:
@@ -2935,8 +2942,11 @@ def tester_feedback_form(key_prefix='public'):
             st.warning('Add at least one note or a page/flow tested before submitting.')
         else:
             data={'tester_name':tester_name,'tester_type':tester_type,'page_flow':page_flow,'worked_well':worked_well,'confusing':confusing,'felt_broken':felt_broken,'missing':missing,'ease_rating':int(ease_rating),'would_use_again':would_use_again,'open_notes':open_notes,'status':'New','created_at':now()}
-            core_insert('tester_feedback',data,'''INSERT INTO tester_feedback(tester_name,tester_type,page_flow,worked_well,confusing,felt_broken,missing,ease_rating,would_use_again,open_notes,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['tester_name','tester_type','page_flow','worked_well','confusing','felt_broken','missing','ease_rating','would_use_again','open_notes','status','created_at']))
-            st.success('Feedback saved. Thank you for helping test House Of Wax.')
+            new_id=core_insert('tester_feedback',data,'''INSERT INTO tester_feedback(tester_name,tester_type,page_flow,worked_well,confusing,felt_broken,missing,ease_rating,would_use_again,open_notes,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['tester_name','tester_type','page_flow','worked_well','confusing','felt_broken','missing','ease_rating','would_use_again','open_notes','status','created_at']))
+            if new_id or not hosted_enabled():
+                st.success('Feedback saved. Thank you for helping test House Of Wax.')
+            else:
+                st.error('Feedback could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
 
 def admin_tester_feedback_view():
     st.subheader('Tester Feedback Review')
@@ -3235,8 +3245,11 @@ def content_admin():
         if submitted:
             img=save_file(img_file,'knowledge_images') or img_url
             data={'title':title,'category':category,'audience':audience,'level':level,'summary':summary,'body':body,'house_tip':tip,'image_url':img,'video_url':safe(video_url).strip(),'status':status,'featured':featured,'created_at':now(),'updated_at':now()}
-            core_insert('knowledge_posts',data,"""INSERT INTO knowledge_posts(title,category,audience,level,summary,body,house_tip,image_url,video_url,status,featured,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",tuple(data[k] for k in ['title','category','audience','level','summary','body','house_tip','image_url','video_url','status','featured','created_at','updated_at']))
-            st.success('Knowledge article saved.')
+            new_id=core_insert('knowledge_posts',data,"""INSERT INTO knowledge_posts(title,category,audience,level,summary,body,house_tip,image_url,video_url,status,featured,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",tuple(data[k] for k in ['title','category','audience','level','summary','body','house_tip','image_url','video_url','status','featured','created_at','updated_at']))
+            if new_id or not hosted_enabled():
+                st.success('Knowledge article saved.')
+            else:
+                st.error('Knowledge article could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
         st.dataframe(table('knowledge_posts'),width='stretch')
     with tabs[1]:
         with st.form('glossary_form'):
@@ -3252,11 +3265,14 @@ def content_admin():
             data={'term':clean_term,'category':category,'plain_definition':definition,'why_it_matters':why,'example':example,'status':status,'updated_at':now()}
             existing=hosted_select('glossary_terms',{'term':clean_term},limit=1) if hosted_enabled() else df('SELECT id FROM glossary_terms WHERE lower(term)=lower(?)',(clean_term,))
             if not existing.empty:
-                core_update('glossary_terms',data,{'id':int(existing.iloc[0]['id'])},'UPDATE glossary_terms SET term=?,category=?,plain_definition=?,why_it_matters=?,example=?,status=?,updated_at=? WHERE id=?',(clean_term,category,definition,why,example,status,now(),int(existing.iloc[0]['id'])))
+                ok=core_update('glossary_terms',data,{'id':int(existing.iloc[0]['id'])},'UPDATE glossary_terms SET term=?,category=?,plain_definition=?,why_it_matters=?,example=?,status=?,updated_at=? WHERE id=?',(clean_term,category,definition,why,example,status,now(),int(existing.iloc[0]['id'])))
             else:
                 data['created_at']=now()
-                core_insert('glossary_terms',data,"""INSERT INTO glossary_terms(term,category,plain_definition,why_it_matters,example,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)""",tuple(data[k] for k in ['term','category','plain_definition','why_it_matters','example','status','created_at','updated_at']))
-            st.success('Glossary term saved.')
+                ok=core_insert('glossary_terms',data,"""INSERT INTO glossary_terms(term,category,plain_definition,why_it_matters,example,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)""",tuple(data[k] for k in ['term','category','plain_definition','why_it_matters','example','status','created_at','updated_at']))
+            if ok or not hosted_enabled():
+                st.success('Glossary term saved.')
+            else:
+                st.error('Glossary term could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
         st.dataframe(table('glossary_terms'),width='stretch')
     with tabs[2]:
         posts=table('knowledge_posts')
@@ -3413,8 +3429,11 @@ def home():
         if not safe(email): st.warning('Enter an email first.')
         else:
             data={'email':email,'name':name,'source':'Homepage','created_at':now(),'updated_at':now()}
-            core_insert('newsletter_signups',data,"INSERT INTO newsletter_signups(email,name,source,created_at,updated_at) VALUES(?,?,?,?,?)",tuple(data[k] for k in ['email','name','source','created_at','updated_at']))
-            st.success('You are on the House Of Wax list.')
+            new_id=core_insert('newsletter_signups',data,"INSERT INTO newsletter_signups(email,name,source,created_at,updated_at) VALUES(?,?,?,?,?)",tuple(data[k] for k in ['email','name','source','created_at','updated_at']))
+            if new_id or not hosted_enabled():
+                st.success('You are on the House Of Wax list.')
+            else:
+                st.error('Signup could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
 
 def homepage_editor():
     seed_homepage_editorial()
@@ -3431,8 +3450,11 @@ def homepage_editor():
             order=st.number_input('Sort order',min_value=0,value=1)
             if st.form_submit_button('Save homepage block'):
                 data={'block_name':bn,'title':title,'subtitle':sub,'body':body,'button_text':btn,'button_target':target,'video_url':safe(video_url).strip(),'status':status,'sort_order':int(order),'created_at':now(),'updated_at':now()}
-                core_insert('homepage_blocks',data,"INSERT INTO homepage_blocks(block_name,title,subtitle,body,button_text,button_target,video_url,status,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",tuple(data[k] for k in ['block_name','title','subtitle','body','button_text','button_target','video_url','status','sort_order','created_at','updated_at']))
-                st.success('Homepage block saved.')
+                new_id=core_insert('homepage_blocks',data,"INSERT INTO homepage_blocks(block_name,title,subtitle,body,button_text,button_target,video_url,status,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",tuple(data[k] for k in ['block_name','title','subtitle','body','button_text','button_target','video_url','status','sort_order','created_at','updated_at']))
+                if new_id or not hosted_enabled():
+                    st.success('Homepage block saved.')
+                else:
+                    st.error('Homepage block could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
     with tabs[1]:
         st.dataframe(table('quick_tips'),width='stretch')
         with st.form('tip_form'):
@@ -3440,8 +3462,11 @@ def homepage_editor():
             status=st.selectbox('Status',['Active','Draft','Hidden'],key='tip_status')
             if st.form_submit_button('Save quick tip'):
                 data={'tip_text':tip,'category':cat,'status':status,'created_at':now(),'updated_at':now()}
-                core_insert('quick_tips',data,"INSERT INTO quick_tips(tip_text,category,status,created_at,updated_at) VALUES(?,?,?,?,?)",tuple(data[k] for k in ['tip_text','category','status','created_at','updated_at']))
-                st.success('Quick tip saved.')
+                new_id=core_insert('quick_tips',data,"INSERT INTO quick_tips(tip_text,category,status,created_at,updated_at) VALUES(?,?,?,?,?)",tuple(data[k] for k in ['tip_text','category','status','created_at','updated_at']))
+                if new_id or not hosted_enabled():
+                    st.success('Quick tip saved.')
+                else:
+                    st.error('Quick tip could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
     with tabs[2]:
         st.dataframe(table('did_you_know'),width='stretch')
         with st.form('fact_form'):
@@ -3449,8 +3474,11 @@ def homepage_editor():
             status=st.selectbox('Status',['Active','Draft','Hidden'],key='fact_status')
             if st.form_submit_button('Save fact'):
                 data={'fact_text':fact,'category':cat,'status':status,'created_at':now(),'updated_at':now()}
-                core_insert('did_you_know',data,"INSERT INTO did_you_know(fact_text,category,status,created_at,updated_at) VALUES(?,?,?,?,?)",tuple(data[k] for k in ['fact_text','category','status','created_at','updated_at']))
-                st.success('Fact saved.')
+                new_id=core_insert('did_you_know',data,"INSERT INTO did_you_know(fact_text,category,status,created_at,updated_at) VALUES(?,?,?,?,?)",tuple(data[k] for k in ['fact_text','category','status','created_at','updated_at']))
+                if new_id or not hosted_enabled():
+                    st.success('Fact saved.')
+                else:
+                    st.error('Fact could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
     with tabs[3]:
         data=table('newsletter_signups')
         st.dataframe(data,width='stretch')
@@ -5311,6 +5339,9 @@ def upload_product(sid,key):
         product_data={'seller_id':int(sid),'sku':sku,'barcode':barcode,'catalog_number':catalog,'matrix_runout':matrix,'category':category,'artist':artist,'title':title,'format':fmt,'label':label,'release_year':year,'genre':genre,'media_grade':mg,'sleeve_grade':sg,'condition_notes':notes,'description':description,'price':float(price),'quantity':int(qty),'shipping_price':float(ship),'image_url':image,'reference_image_url':safe(refimgurl).strip(),'video_url':safe(video_url_input).strip(),'audio_url':'','external_release_url':external_release_url,'listing_status':listing_status,'listing_type':'Fixed Price','created_at':now(),'updated_at':now()}
         product_keys=['seller_id','sku','barcode','catalog_number','matrix_runout','category','artist','title','format','label','release_year','genre','media_grade','sleeve_grade','condition_notes','description','price','quantity','shipping_price','image_url','reference_image_url','video_url','audio_url','external_release_url','listing_status','listing_type','created_at','updated_at']
         pid=core_insert('products',product_data,"""INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,reference_image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",tuple(product_data[k] for k in product_keys))
+        if not pid and hosted_enabled():
+            st.error('This listing could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error')+' Nothing was published -- please try again.')
+            return
         if saved_main:
             core_insert('product_gallery',{'product_id':int(pid),'image_url':saved_main,'caption':'Main listing photo - seller uploaded exact item photo','created_at':now()},'INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),saved_main,'Main listing photo - seller uploaded exact item photo',now()))
         for i,path in enumerate(saved_supporting,1):
@@ -5786,13 +5817,24 @@ def seller_dashboard():
         with st.form('policy'):
             shipping=st.text_area('Shipping policy',value=safe(pol.get('shipping_policy') if len(pol) else 'Ships within 3 business days.')); returns=st.text_area('Return policy',value=safe(pol.get('return_policy') if len(pol) else 'No buyer remorse returns unless seller approves.')); grading=st.text_area('Grading policy',value=safe(pol.get('grading_policy') if len(pol) else 'Collector grading standards.')); pickup=st.text_area('Pickup / meetup / local policy notes',value=safe(pol.get('local_pickup_policy') if len(pol) else '')); sub=st.form_submit_button('Save policies')
         if sub:
+            ok=True
             if hosted_enabled():
                 data={'seller_id':sid,'shipping_policy':shipping,'return_policy':returns,'grading_policy':grading,'local_pickup_policy':pickup}
-                if not p.empty: hosted_update('seller_policies',data,{'seller_id':sid})
-                else: hosted_insert('seller_policies',data)
+                if not p.empty:
+                    ok=hosted_update('seller_policies',data,{'seller_id':sid})
+                else:
+                    # seller_policies has no id column, so hosted_insert's
+                    # id-based success signal is always 0 here even when the
+                    # insert worked -- check the request outcome directly.
+                    _,insert_detail=hosted_request('post','seller_policies',data=data)
+                    show_hosted_error('insert','seller_policies',insert_detail)
+                    ok=bool(insert_detail.get('ok'))
             else:
                 run('INSERT OR REPLACE INTO seller_policies(seller_id,shipping_policy,return_policy,grading_policy,local_pickup_policy) VALUES(?,?,?,?,?)',(sid,shipping,returns,grading,pickup))
-            st.success('Policies saved.')
+            if ok:
+                st.success('Policies saved.')
+            else:
+                st.error('Policies could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
     with tabs[1]:
         st.subheader('Barcode scanner / inventory quick add')
         st.info('Click into the barcode field and scan with a USB/Bluetooth scanner, phone keyboard scanner, or type/paste the barcode.')
@@ -5804,6 +5846,7 @@ def seller_dashboard():
             data=pd.read_csv(csv); st.dataframe(data,width='stretch')
             if st.button('Import CSV products'):
                 n=0
+                failed=0
                 corrected=0
                 imported_seller=get_seller(int(sid))
                 imported_status='Live' if seller_can_publish_live(imported_seller) else 'Draft'
@@ -5814,14 +5857,19 @@ def seller_dashboard():
                     if price_err or shipping_err or qty_err: corrected+=1
                     row_data={'seller_id':sid,'sku':safe(r.get('sku')),'barcode':safe(r.get('barcode')),'catalog_number':safe(r.get('catalog_number')),'matrix_runout':safe(r.get('matrix_runout')),'category':safe(r.get('category'),'Vinyl Records'),'artist':safe(r.get('artist')),'title':safe(r.get('title')),'format':safe(r.get('format'),'Vinyl'),'label':safe(r.get('label')),'release_year':safe(r.get('release_year')),'genre':safe(r.get('genre')),'media_grade':safe(r.get('media_grade')),'sleeve_grade':safe(r.get('sleeve_grade')),'condition_notes':safe(r.get('condition_notes')),'description':safe(r.get('description')),'price':price,'quantity':quantity,'shipping_price':shipping_price,'image_url':safe(r.get('image_url')),'video_url':safe(r.get('video_url')),'audio_url':safe(r.get('audio_url')),'external_release_url':safe(r.get('external_release_url')),'listing_status':imported_status,'listing_type':'Fixed Price','created_at':now(),'updated_at':now()}
                     row_cols=['seller_id','sku','barcode','catalog_number','matrix_runout','category','artist','title','format','label','release_year','genre','media_grade','sleeve_grade','condition_notes','description','price','quantity','shipping_price','image_url','video_url','audio_url','external_release_url','listing_status','listing_type','created_at','updated_at']
-                    core_insert('products',row_data,f"INSERT INTO products({','.join(row_cols)}) VALUES({','.join(['?']*len(row_cols))})",tuple(row_data[k] for k in row_cols)); n+=1
+                    row_id=core_insert('products',row_data,f"INSERT INTO products({','.join(row_cols)}) VALUES({','.join(['?']*len(row_cols))})",tuple(row_data[k] for k in row_cols))
+                    if row_id or not hosted_enabled(): n+=1
+                    else: failed+=1
                 corrected_note=f' {corrected} row(s) had an invalid price/quantity and were imported with a corrected value (0 or 1) -- review before publishing.' if corrected else ''
-                if imported_status=='Live':
-                    st.success(f'Imported {n}. Published imported items as Live.'+corrected_note)
+                failed_note=f' {failed} row(s) failed to save and were skipped -- Supabase error: {safe(SUPABASE_STATUS.get("last_error"),"Unknown error")}' if failed else ''
+                if failed and not n:
+                    st.error('No rows could be imported.'+failed_note)
+                elif imported_status=='Live':
+                    st.success(f'Imported {n}. Published imported items as Live.'+corrected_note+failed_note)
                 elif seller_can_publish(imported_seller) and not seller_rules_accepted(imported_seller):
-                    st.warning(f'Imported {n} as Draft. Accept seller rules before publishing imported listings live.'+corrected_note)
+                    st.warning(f'Imported {n} as Draft. Accept seller rules before publishing imported listings live.'+corrected_note+failed_note)
                 else:
-                    st.warning(f'Imported {n} as Draft. Seller approval is required before publishing live.'+corrected_note)
+                    st.warning(f'Imported {n} as Draft. Seller approval is required before publishing live.'+corrected_note+failed_note)
     with tabs[3]:
         prods=hosted_select('products',{'seller_id':int(sid)}) if hosted_enabled() else df('SELECT * FROM products WHERE seller_id=?',(sid,)); st.dataframe(prods,width='stretch')
         if not prods.empty:
@@ -5830,8 +5878,11 @@ def seller_dashboard():
                 image=save_file(img,'product_gallery') or url
                 if image:
                     data={'product_id':int(pid),'image_url':image,'caption':cap,'created_at':now()}
-                    core_insert('product_gallery',data,'INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),image,cap,now()))
-                    st.success('Gallery image added.')
+                    new_id=core_insert('product_gallery',data,'INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),image,cap,now()))
+                    if new_id or not hosted_enabled():
+                        st.success('Gallery image added.')
+                    else:
+                        st.error('Gallery image could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
     with tabs[4]:
         orders=df('SELECT o.*,b.name buyer_name,b.email buyer_email,b.rating buyer_rating FROM orders o LEFT JOIN buyers b ON o.buyer_id=b.id WHERE o.seller_id=? ORDER BY o.created_at DESC',(sid,)); st.dataframe(orders,width='stretch')
         if not orders.empty:
@@ -5845,15 +5896,21 @@ def seller_dashboard():
         with st.form('ann'): title=st.text_input('Announcement title'); body=st.text_area('Announcement body'); sub=st.form_submit_button('Post announcement')
         if sub:
             data={'seller_id':sid,'title':title,'body':body,'status':'Active','created_at':now()}
-            core_insert('store_announcements',data,"INSERT INTO store_announcements(seller_id,title,body,status,created_at) VALUES(?,?,?,'Active',?)",(sid,title,body,now()))
-            st.success('Posted.')
+            new_id=core_insert('store_announcements',data,"INSERT INTO store_announcements(seller_id,title,body,status,created_at) VALUES(?,?,?,'Active',?)",(sid,title,body,now()))
+            if new_id or not hosted_enabled():
+                st.success('Posted.')
+            else:
+                st.error('Announcement could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
         st.dataframe(hosted_select('store_announcements',{'seller_id':sid}) if hosted_enabled() else df('SELECT * FROM store_announcements WHERE seller_id=?',(sid,)),width='stretch')
     with tabs[7]:
         with st.form('ev'): title=st.text_input('Drop/event title'); typ=st.selectbox('Type',['Record Drop','Auction Drop','Sale','Live Event','Other']); date=st.text_input('Date/time'); desc=st.text_area('Description'); sub=st.form_submit_button('Save event')
         if sub:
             data={'seller_id':sid,'event_title':title,'event_type':typ,'event_date':date,'description':desc,'status':'Active','created_at':now()}
-            core_insert('seller_events',data,"INSERT INTO seller_events(seller_id,event_title,event_type,event_date,description,status,created_at) VALUES(?,?,?,?,?,'Active',?)",(sid,title,typ,date,desc,now()))
-            st.success('Saved.')
+            new_id=core_insert('seller_events',data,"INSERT INTO seller_events(seller_id,event_title,event_type,event_date,description,status,created_at) VALUES(?,?,?,?,?,'Active',?)",(sid,title,typ,date,desc,now()))
+            if new_id or not hosted_enabled():
+                st.success('Saved.')
+            else:
+                st.error('Event could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
     with tabs[8]: st.write(badges(sid) or 'No badges yet.'); st.dataframe(hosted_select('seller_badges',{'seller_id':sid}) if hosted_enabled() else df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),width='stretch')
     with tabs[9]:
         orders=df("SELECT * FROM orders WHERE seller_id=? AND status='Completed'",(sid,)); st.dataframe(orders,width='stretch')
@@ -6372,8 +6429,11 @@ def admin():
         sid=seller_pick('adminseller'); badge=st.text_input('Badge',placeholder='Soul Specialist, Jazz Dealer, Verified Seller'); typ=st.selectbox('Badge type',['Community','Specialty','Performance','Verified'])
         if st.button('Add badge'):
             data={'seller_id':sid,'badge_name':badge,'badge_type':typ,'active':'Yes','created_at':now()}
-            core_insert('seller_badges',data,"INSERT INTO seller_badges(seller_id,badge_name,badge_type,active,created_at) VALUES(?,?,?,'Yes',?)",(sid,badge,typ,now()))
-            st.success('Badge added.')
+            new_id=core_insert('seller_badges',data,"INSERT INTO seller_badges(seller_id,badge_name,badge_type,active,created_at) VALUES(?,?,?,'Yes',?)",(sid,badge,typ,now()))
+            if new_id or not hosted_enabled():
+                st.success('Badge added.')
+            else:
+                st.error('Badge could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
         if st.button('Create seller spotlight culture post'):
             s=get_seller(sid); run("INSERT INTO culture_posts(title,category,author,body,image_url,status,created_at) VALUES(?,'Seller Spotlight','House Of Wax',?,?,'Published',?)",(f"Seller Spotlight: {safe(s['store_name'])}",safe(s['seller_story'],safe(s['store_bio'])),safe(s['banner_url']) or safe(s['logo_url']),now())); st.success('Spotlight created.')
         st.subheader('Messages'); st.dataframe(table('messages'),width='stretch'); st.subheader('Feedback'); st.dataframe(table('feedback'),width='stretch')
@@ -6599,10 +6659,13 @@ def contact_newsletter():
             if email:
                 try:
                     data={'name':name,'email':email,'interest':interest,'source':'Contact Page','created_at':now(),'updated_at':now()}
-                    core_insert('newsletter_signups',data,"INSERT INTO newsletter_signups(name,email,interest,source,created_at,updated_at) VALUES(?,?,?,?,?,?)",tuple(data[k] for k in ['name','email','interest','source','created_at','updated_at']))
-                    st.success('You are on the House Of Wax list.')
+                    new_id=core_insert('newsletter_signups',data,"INSERT INTO newsletter_signups(name,email,interest,source,created_at,updated_at) VALUES(?,?,?,?,?,?)",tuple(data[k] for k in ['name','email','interest','source','created_at','updated_at']))
+                    if new_id or not hosted_enabled():
+                        st.success('You are on the House Of Wax list.')
+                    else:
+                        st.error('Signup could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
                 except Exception as e:
-                    st.error(f'Newsletter signup table is not ready yet: {e}')
+                    st.error(f'Newsletter signup could not be saved: {e}')
             else:
                 st.error('Add an email address.')
     st.markdown('### Contact')

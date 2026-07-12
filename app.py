@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.36 SILENT SAVE-FAILURE SWEEP'
+APP_VERSION='V25.43.37 CLEANUP: DEAD CODE AND WARMER COPY'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -953,9 +953,9 @@ def is_admin_unlocked():
 
 def prototype_role_notice():
     if is_authenticated():
-        st.info('Signed in as '+auth_user_email()+'. Access is limited to the buyer or seller profile linked to this account.')
+        st.info("You're signed in as "+auth_user_email()+". You'll see the buyer and seller info tied to this account.")
     else:
-        st.info('Public browsing is available. Sign in before managing profiles, inventory, inquiries, or purchase requests.')
+        st.info("Browsing is open to everyone. Sign in when you're ready to list something, message a seller, or make an offer.")
 
 def admin_access_warning():
     st.warning('House Of Wax Admin is visible because Testing mode/Admin mode is enabled.')
@@ -1101,7 +1101,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.36 save failures now show errors active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.37 cleanup pass 1 active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1170,8 +1170,9 @@ def setup():
     old_v25_43_33_announcement='V25.43.33'+' pending seller application alert active'
     old_v25_43_34_announcement='V25.43.34'+' remaining local-only bugs fixed active'
     old_v25_43_35_announcement='V25.43.35'+' admin jump-to-review crash fixed active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement]:
-        set_setting('announcement','V25.43.36 save failures now show errors active')
+    old_v25_43_36_announcement='V25.43.36'+' save failures now show errors active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement]:
+        set_setting('announcement','V25.43.37 cleanup pass 1 active')
 setup()
 recovery_token_bridge()
 
@@ -1988,7 +1989,7 @@ def account_page():
         st.success('Signed in as '+auth_user_email())
         c1,c2,c3=st.columns(3)
         c1.metric('Account',safe(user.get('display_name')) or auth_user_email().split('@')[0])
-        c2.metric('Buying','Enabled' if buyer_id else 'Needs profile')
+        c2.metric('Buying','Ready to go' if buyer_id else 'One click away')
         c3.metric('Selling',seller_status)
         st.caption('One account per person. Buyer access stays active even after you apply to sell.')
         action=pending_action()
@@ -2006,10 +2007,12 @@ def account_page():
             st.write('**Name:** '+(safe(user.get('display_name')) or 'Not set'))
             st.write('**Email:** '+auth_user_email())
             st.write('**Account status:** '+account_status(user))
-            st.write('**Admin access:** '+('Yes' if is_admin_user(user) else 'No'))
+            if is_admin_user(user):
+                st.write('**Admin access:** Yes')
             st.caption('Tokens and secrets are never displayed.')
-            with st.expander('Diagnostics',expanded=False):
-                auth_diagnostics_section()
+            if is_admin_unlocked():
+                with st.expander('Diagnostics',expanded=False):
+                    auth_diagnostics_section()
         with tabs[1]:
             st.subheader('Buying')
             if buyer_id:
@@ -2687,7 +2690,7 @@ def seller_profile(sid):
     if safe(s['seller_story']) or safe(s['store_bio']):
         st.write(safe(s['seller_story'],safe(s['store_bio'])))
     else:
-        st.info('Seller profile information is missing.')
+        st.info("This seller hasn't added a bio yet.")
     location=', '.join([x for x in [safe(s.get('city')),safe(s.get('state'))] if x])
     st.write('**Location:** '+safe(location,'Not listed'))
     st.write('**Favorite genres/categories:** '+safe(s['specialties'],'Not listed'))
@@ -2787,18 +2790,6 @@ def product_detail(pid):
             render_offer_form(p,f'product_{pid}')
     else:
         st.info(f"This listing is {listing_availability_label(p).lower()}, so public buyer actions are turned off.")
-    bid=ensure_linked_buyer_profile() if is_authenticated() else 0
-    if is_available and bid:
-        with st.expander('Message seller',expanded=False):
-            action=st.selectbox('Action',['Ask a Question','Make Offer'],key=f'act{pid}'); msg=st.text_area('Message',key=f'msg{pid}')
-            if st.button('Send to seller',key=f'send{pid}'):
-                total=float(p['price'] or 0)+float(p['shipping_price'] or 0); pf=fee(total)
-                run('''INSERT INTO orders(product_id,seller_id,buyer_id,order_type,status,item_price,shipping_price,platform_fee,seller_payout,buyer_message,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',(pid,int(p['seller_id']),bid,action,'New',float(p['price'] or 0),float(p['shipping_price'] or 0),pf,total-pf,msg,now(),now()))
-                run('''INSERT INTO messages(product_id,seller_id,buyer_id,sender_type,subject,message,status,created_at) VALUES(?,?,?,?,?,?,?,?)''',(pid,int(p['seller_id']),bid,'Buyer',action,msg,'New',now()))
-                st.success('Sent. It appears in seller orders and messages.')
-    with st.expander('Report listing'):
-        reason=st.selectbox('Reason',['Counterfeit / Bootleg','Misgraded','Wrong information','Spam','Other']); details=st.text_area('Details')
-        if st.button('Submit report'): run("INSERT INTO listing_flags(product_id,seller_id,buyer_id,reason,details,status,created_at) VALUES(?,?,?,?,?,'Open',?)",(pid,int(p['seller_id']),bid,reason,details,now())); st.success('Report submitted.')
 
 # ---------- Pages ----------
 
@@ -2978,9 +2969,8 @@ def admin_tester_feedback_view():
                     st.write(safe(row.get(col)))
 
 def knowledge_center_education_hub():
-    st.markdown('## Knowledge Center / Education Hub')
-    st.write('A practical public guide to buying, selling, collecting, photos, condition, trust, and House Of Wax marketplace standards.')
-    st.info('House Of Wax is a marketplace and culture platform. The launch wedge is vinyl records and music collectibles first, with room to grow into merch, memorabilia, clothing, and broader culture goods after the first trust and listing workflows are proven.')
+    st.write('A practical guide to buying, selling, collecting, photos, condition, trust, and House Of Wax marketplace standards.')
+    st.info("We're starting with vinyl records and music collectibles, with merch, memorabilia, clothing, and more culture goods on the way.")
     st.caption('New here? The full testing checklist (Buyer/Seller/Admin paths) lives on the Home page under Tester Start Here.')
 
     overview, buying, selling, condition, photos, trust, buyer_faq, seller_faq, rules = st.tabs([
@@ -3119,8 +3109,8 @@ def knowledge_hub():
     seed_knowledge()
     header()
     marketplace_context('House Of Wax Marketplace → Knowledge Hub')
-    st.header('House Of Wax Knowledge Center / Education Hub')
-    st.write('House Of Wax-owned education, culture, history, discovery, content series, and marketplace learning. This is not seller promotion. This hub teaches buyers, collectors, sellers, and early testers how to understand records, music culture, formats, trust, grading, photos, listing quality, barcodes, catalog numbers, matrix/runouts, genres, eras, and safer buying.')
+    st.header('Knowledge Hub')
+    st.write("Everything you need to buy and sell smarter — grading, pressings, barcodes and matrix numbers, trust, and the stories behind the music. Written by House Of Wax, not sponsored by sellers.")
     knowledge_center_education_hub()
     groove_divider()
     st.markdown('## Article Library + Glossary')
@@ -3502,11 +3492,12 @@ def marketplace():
     if prods.empty:
         all_products=table('products')
         if all_products.empty:
-            st.info('No live inventory yet. Approved sellers can use Seller Tools to create a listing and publish it directly to their store.')
+            st.info("Nothing's live yet. If you're a seller, be the first to add something in Seller Tools.")
         else:
-            statuses=', '.join([f"{safe(k)}: {int(v)}" for k,v in all_products['listing_status'].fillna('Blank').value_counts().items()])
-            st.info('Public marketplace cards appear for Live listings from approved sellers, plus older Approved/Active/Public listing records for compatibility. Draft, Hidden, Under Review, Removed, Sold, and listings from pending/suspended sellers are not shown in global marketplace search. Current listing statuses: '+safe(statuses,'none'))
-            st.write('To make a listing appear: open My House of Wax, choose Seller role, open Seller Dashboard, select an approved seller, and Publish to My Store from Add Inventory or My Inventory.')
+            st.info("Nothing's live for buyers to see right now — check back soon.")
+            if is_admin_unlocked():
+                statuses=', '.join([f"{safe(k)}: {int(v)}" for k,v in all_products['listing_status'].fillna('Blank').value_counts().items()])
+                st.caption('Admin note: current listing statuses: '+safe(statuses,'none')+'. To make a listing appear, open My House of Wax, choose Seller role, open Seller Dashboard, select an approved seller, and Publish to My Store from Add Inventory or My Inventory.')
         return
     q=st.text_input('Search by artist or album',placeholder="Example: Marvin Gaye or What's Going On",help='Search all live listings from House Of Wax sellers.',key='global_marketplace_search')
     category='All'
@@ -3563,7 +3554,8 @@ def buyer_dashboard():
     header(); marketplace_context('House Of Wax Marketplace → My Account'); st.header('My Account')
     st.write('View your profile, questions, and purchase requests.')
     prototype_role_notice()
-    st.caption(f'Active storage mode: {active_storage_label()}')
+    if is_admin_unlocked():
+        st.caption(f'Active storage mode: {active_storage_label()}')
     if not is_admin_unlocked():
         if not is_authenticated():
             st.warning('Sign in as a Buyer to view your buyer dashboard.')
@@ -5705,7 +5697,8 @@ def seller_dashboard():
     pending_section=st.session_state.pop('pending_seller_tools_primary_section',None)
     if pending_section:
         st.session_state['seller_tools_primary_section']=pending_section
-    st.caption(f'Active storage mode: {active_storage_label()}')
+    if is_admin_unlocked():
+        st.caption(f'Active storage mode: {active_storage_label()}')
     if not is_admin_unlocked():
         if not is_authenticated():
             st.warning('Sign in as a Seller to use Seller Dashboard.')
@@ -6482,7 +6475,7 @@ def trust_safety():
     st.write('- Education reduces disputes and builds a stronger marketplace.')
     st.markdown('### Trust tools being built')
     brand_badges(['Public feedback','Seller approval','Buyer history','Condition education','Marketplace standards'])
-    st.info('This prototype is not yet a production payment or dispute platform. Policies should be reviewed before public launch.')
+    st.info("We're still building out in-app payments and formal dispute handling. For now, buying happens through purchase requests and direct communication with the seller.")
 
 def seller_standards():
     header()

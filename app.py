@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.33 PENDING SELLER APPLICATION ALERT'
+APP_VERSION='V25.43.34 FIX REMAINING LOCAL-ONLY READS/WRITES'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1101,7 +1101,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.33 pending seller application alert active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.34 remaining local-only bugs fixed active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1167,8 +1167,9 @@ def setup():
     old_v25_43_30_announcement='V25.43.30'+' admin permissions hardened active'
     old_v25_43_31_announcement='V25.43.31'+' homepage and newsletter data now persisted active'
     old_v25_43_32_announcement='V25.43.32'+' seller engagement data now persisted active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement]:
-        set_setting('announcement','V25.43.33 pending seller application alert active')
+    old_v25_43_33_announcement='V25.43.33'+' pending seller application alert active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement]:
+        set_setting('announcement','V25.43.34 remaining local-only bugs fixed active')
 setup()
 recovery_token_bridge()
 
@@ -1797,7 +1798,7 @@ def update_rating(kind,i):
         run(('UPDATE sellers SET rating=? WHERE id=?' if kind=='Seller' else 'UPDATE buyers SET rating=? WHERE id=?'),(score,int(i)))
 def barcode_lookup(code):
     if not code: return {}
-    r=df('''SELECT barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,description,price,shipping_price,image_url FROM products WHERE barcode=? ORDER BY created_at DESC LIMIT 1''',(code.strip(),))
+    r=hosted_select('products',{'barcode':code.strip()},order='created_at.desc',limit=1) if hosted_enabled() else df('''SELECT barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,description,price,shipping_price,image_url FROM products WHERE barcode=? ORDER BY created_at DESC LIMIT 1''',(code.strip(),))
     return {} if r.empty else r.iloc[0].to_dict()
 def badges(sid):
     r=hosted_select('seller_badges',{'seller_id':int(sid),'active':'Yes'}) if hosted_enabled() else df("SELECT badge_name FROM seller_badges WHERE seller_id=? AND active='Yes'",(int(sid),))
@@ -1822,7 +1823,7 @@ def seller_profile_completion(sid):
     return score,checks
 
 def seller_quality_listing_stats(sid):
-    prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Live','Active','Approved','Public')",(int(sid),))
+    prods=hosted_select('products',{'seller_id':int(sid)},in_filters={'listing_status':['Live','Active','Approved','Public']}) if hosted_enabled() else df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Live','Active','Approved','Public')",(int(sid),))
     if prods.empty:
         return 0,0,0
     scores=[]
@@ -3386,11 +3387,11 @@ def home():
     q,d=st.columns(2)
     with q:
         section_header('Collector Quick Tips','Useful knowledge in seconds.','Collect Smarter')
-        tips=df("SELECT * FROM quick_tips WHERE status='Active' ORDER BY id LIMIT 5")
+        tips=hosted_select('quick_tips',{'status':'Active'},order='id.asc',limit=5) if hosted_enabled() else df("SELECT * FROM quick_tips WHERE status='Active' ORDER BY id LIMIT 5")
         for _,tip in tips.iterrows(): st.write(f"• {safe(tip['tip_text'])}")
     with d:
         section_header('Did You Know?','Fast facts from House Of Wax.','Quick Culture')
-        facts=df("SELECT * FROM did_you_know WHERE status='Active' ORDER BY id LIMIT 4")
+        facts=hosted_select('did_you_know',{'status':'Active'},order='id.asc',limit=4) if hosted_enabled() else df("SELECT * FROM did_you_know WHERE status='Active' ORDER BY id LIMIT 4")
         for _,fact in facts.iterrows(): mini_card('Did you know?',safe(fact['category']),safe(fact['fact_text']))
     groove_divider()
     x=home_block('genre_spotlight'); mini_card(x.get('title','Southern Soul Essentials'),x.get('subtitle','Culture Spotlight'),x.get('body','Explore the sound, labels, artists, and culture.'),x.get('video_url',''))
@@ -5535,8 +5536,9 @@ def admin_purchase_request_view():
     cols=[c for c in ['id','store_name','artist','title','buyer_name','buyer_contact','fulfillment_preference','offer_price','status','listing_status','created_at'] if c in shown.columns]
     st.dataframe(shown[cols],width='stretch')
     c1,c2=st.columns(2)
-    c1.metric('Pending listings',len(df("SELECT id FROM products WHERE listing_status IN ('Pending Pickup/Payment','Pending')")))
-    c2.metric('Sold listings',len(df("SELECT id FROM products WHERE listing_status='Sold'")))
+    all_products=table('products')
+    c1.metric('Pending listings',0 if all_products.empty else int(all_products['listing_status'].isin(['Pending Pickup/Payment','Pending']).sum()))
+    c2.metric('Sold listings',0 if all_products.empty else int((all_products['listing_status']=='Sold').sum()))
     if shown.empty:
         st.info('No purchase requests match that status.')
         return
@@ -5587,8 +5589,9 @@ def seller_store_profile_editor(sid, s, key_prefix='seller_profile'):
     st.write('These saved details help buyers understand who they are buying from. Private email and phone are not shown publicly.')
     st.caption('My Store Preview: this profile remains saved even when there are no public listings. Public buyers may only see live/public listings.')
     render_seller_trust_badges(sid,'seller')
-    public_count=len(df("SELECT id FROM products WHERE seller_id=? AND listing_status IN ('Live','Active','Approved','Public')",(sid,)))
-    unavailable_count=len(df("SELECT id FROM products WHERE seller_id=? AND listing_status IN ('Pending Pickup/Payment','Pending','Sold')",(sid,)))
+    own_listings=hosted_select('products',{'seller_id':int(sid)}) if hosted_enabled() else df('SELECT * FROM products WHERE seller_id=?',(sid,))
+    public_count=0 if own_listings.empty else int(own_listings['listing_status'].isin(['Live','Active','Approved','Public']).sum())
+    unavailable_count=0 if own_listings.empty else int(own_listings['listing_status'].isin(['Pending Pickup/Payment','Pending','Sold']).sum())
     if public_count:
         st.success(f'My Store Preview is ready: {public_count} live/public listing(s) can lead buyers to this seller profile.')
     elif unavailable_count:
@@ -5808,7 +5811,9 @@ def seller_dashboard():
                     shipping_price,shipping_err=parse_money_input(r.get('shipping_price',0),'Shipping price')
                     quantity,qty_err=parse_quantity_input(r.get('quantity',1))
                     if price_err or shipping_err or qty_err: corrected+=1
-                    run('''INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(sid,safe(r.get('sku')),safe(r.get('barcode')),safe(r.get('catalog_number')),safe(r.get('matrix_runout')),safe(r.get('category'),'Vinyl Records'),safe(r.get('artist')),safe(r.get('title')),safe(r.get('format'),'Vinyl'),safe(r.get('label')),safe(r.get('release_year')),safe(r.get('genre')),safe(r.get('media_grade')),safe(r.get('sleeve_grade')),safe(r.get('condition_notes')),safe(r.get('description')),price,quantity,shipping_price,safe(r.get('image_url')),safe(r.get('video_url')),safe(r.get('audio_url')),safe(r.get('external_release_url')),imported_status,'Fixed Price',now(),now())); n+=1
+                    row_data={'seller_id':sid,'sku':safe(r.get('sku')),'barcode':safe(r.get('barcode')),'catalog_number':safe(r.get('catalog_number')),'matrix_runout':safe(r.get('matrix_runout')),'category':safe(r.get('category'),'Vinyl Records'),'artist':safe(r.get('artist')),'title':safe(r.get('title')),'format':safe(r.get('format'),'Vinyl'),'label':safe(r.get('label')),'release_year':safe(r.get('release_year')),'genre':safe(r.get('genre')),'media_grade':safe(r.get('media_grade')),'sleeve_grade':safe(r.get('sleeve_grade')),'condition_notes':safe(r.get('condition_notes')),'description':safe(r.get('description')),'price':price,'quantity':quantity,'shipping_price':shipping_price,'image_url':safe(r.get('image_url')),'video_url':safe(r.get('video_url')),'audio_url':safe(r.get('audio_url')),'external_release_url':safe(r.get('external_release_url')),'listing_status':imported_status,'listing_type':'Fixed Price','created_at':now(),'updated_at':now()}
+                    row_cols=['seller_id','sku','barcode','catalog_number','matrix_runout','category','artist','title','format','label','release_year','genre','media_grade','sleeve_grade','condition_notes','description','price','quantity','shipping_price','image_url','video_url','audio_url','external_release_url','listing_status','listing_type','created_at','updated_at']
+                    core_insert('products',row_data,f"INSERT INTO products({','.join(row_cols)}) VALUES({','.join(['?']*len(row_cols))})",tuple(row_data[k] for k in row_cols)); n+=1
                 corrected_note=f' {corrected} row(s) had an invalid price/quantity and were imported with a corrected value (0 or 1) -- review before publishing.' if corrected else ''
                 if imported_status=='Live':
                     st.success(f'Imported {n}. Published imported items as Live.'+corrected_note)
@@ -5817,12 +5822,15 @@ def seller_dashboard():
                 else:
                     st.warning(f'Imported {n} as Draft. Seller approval is required before publishing live.'+corrected_note)
     with tabs[3]:
-        prods=df('SELECT * FROM products WHERE seller_id=?',(sid,)); st.dataframe(prods,width='stretch')
+        prods=hosted_select('products',{'seller_id':int(sid)}) if hosted_enabled() else df('SELECT * FROM products WHERE seller_id=?',(sid,)); st.dataframe(prods,width='stretch')
         if not prods.empty:
             pid=st.selectbox('Product for gallery',prods['id'].tolist()); img=st.file_uploader('Gallery image',type=['png','jpg','jpeg','webp']); url=st.text_input('Or image URL'); cap=st.text_input('Caption')
             if st.button('Add gallery image'):
                 image=save_file(img,'product_gallery') or url
-                if image: run('INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),image,cap,now())); st.success('Gallery image added.')
+                if image:
+                    data={'product_id':int(pid),'image_url':image,'caption':cap,'created_at':now()}
+                    core_insert('product_gallery',data,'INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),image,cap,now()))
+                    st.success('Gallery image added.')
     with tabs[4]:
         orders=df('SELECT o.*,b.name buyer_name,b.email buyer_email,b.rating buyer_rating FROM orders o LEFT JOIN buyers b ON o.buyer_id=b.id WHERE o.seller_id=? ORDER BY o.created_at DESC',(sid,)); st.dataframe(orders,width='stretch')
         if not orders.empty:

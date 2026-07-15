@@ -2647,7 +2647,7 @@ def product_card(p):
     with st.container(border=True):
         seller=get_seller(int(p['seller_id'])) if safe(p.get('seller_id')) else None
         image=listing_primary_image(p)
-        if image: safe_image(image,width='stretch',fallback_text='Listing image unavailable.')
+        if image: safe_image(image,width=220,fallback_text='Listing image unavailable.')
         else: st.info('No listing image yet.')
         if has_listing_photos(int(p['id'])):
             status_badge('📷 Seller photos included','success')

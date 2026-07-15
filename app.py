@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.42 VERIFIED DOMAIN EMAIL SENDER'
+APP_VERSION='V25.43.43 INSTAGRAM AUTO-POSTING'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1176,8 +1176,9 @@ def setup():
     old_v25_43_39_announcement='V25.43.39'+' cleanup pass 3 active'
     old_v25_43_40_announcement='V25.43.40'+' barcode tip and price suggestions active'
     old_v25_43_41_announcement='V25.43.41'+' email notifications active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement]:
-        set_setting('announcement','V25.43.42 verified domain sender active')
+    old_v25_43_42_announcement='V25.43.42'+' verified domain sender active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement]:
+        set_setting('announcement','V25.43.43 Instagram auto-posting active')
 setup()
 recovery_token_bridge()
 
@@ -3222,7 +3223,7 @@ def content_admin():
     header()
     st.header('House Of Wax Content Admin')
     st.write('Create House Of Wax educational content only. This is for teaching and brand authority, not seller promotion.')
-    tabs=st.tabs(['Article creator','Glossary builder','Social copy generator','Draft library','Content calendar','Reports'])
+    tabs=st.tabs(['Article creator','Glossary builder','Social copy generator','Draft library','Content calendar','Reports','Instagram Posting'])
     with tabs[0]:
         with st.form('knowledge_article_form'):
             title=st.text_input('Article title')
@@ -3312,6 +3313,51 @@ def content_admin():
         data=table(rep)
         st.dataframe(data,width='stretch')
         st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
+    with tabs[6]:
+        st.subheader('Post to Instagram')
+        if not instagram_configured():
+            st.warning('Instagram is not connected yet. Add INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID in Secrets.')
+        else:
+            st.caption('Posts go live immediately on the connected @shophouseofwax account.')
+            source=st.radio('Image source',['Paste an image URL','Use a knowledge article image','Use a product listing image'],horizontal=True,key='ig_source')
+            image_url=''
+            default_caption=''
+            if source=='Paste an image URL':
+                image_url=st.text_input('Image URL',key='ig_manual_image_url').strip()
+            elif source=='Use a knowledge article image':
+                posts=table('knowledge_posts')
+                posts=posts[posts['image_url'].astype(str).str.len()>0] if not posts.empty else posts
+                if posts.empty:
+                    st.info('No knowledge articles with images yet.')
+                else:
+                    pid=st.selectbox('Choose article',posts['id'].tolist(),format_func=lambda i: safe(posts[posts['id']==i].iloc[0]['title']) or f'Article {i}',key='ig_article_pick')
+                    post=posts[posts['id']==pid].iloc[0]
+                    image_url=safe(post['image_url'])
+                    pack=make_social_pack(post['title'],post['category'],post['summary'],post['body'],post['house_tip'])
+                    default_caption=pack['Instagram/Facebook caption']
+            else:
+                prods=table('products')
+                if not prods.empty:
+                    prods=prods[prods['listing_status'].isin(PUBLIC_LISTING_STATUSES) & (prods['image_url'].astype(str).str.len()>0)]
+                if prods.empty:
+                    st.info('No live listings with images yet.')
+                else:
+                    prid=st.selectbox('Choose listing',prods['id'].tolist(),format_func=lambda i: (safe(prods[prods['id']==i].iloc[0]['artist'])+' — '+safe(prods[prods['id']==i].iloc[0]['title'])).strip(' —') or f'Listing {i}',key='ig_product_pick')
+                    prod=prods[prods['id']==prid].iloc[0]
+                    image_url=safe(prod['image_url'])
+                    default_caption=f"{safe(prod['artist'])} — {safe(prod['title'])}\n\n{safe(prod['description'])[:200]}\n\nFind it on House Of Wax.\n\n#HouseOfWax #VinylCommunity #RecordCollecting"
+            if image_url:
+                safe_image(image_url,width='stretch',fallback_text='Image preview unavailable.')
+            caption=st.text_area('Caption',value=default_caption,height=160,key='ig_caption_box')
+            if st.button('Post to Instagram now',disabled=not image_url):
+                ok,result=post_to_instagram(image_url,caption)
+                if ok:
+                    st.success('Posted to Instagram.')
+                    permalink=fetch_instagram_permalink(result)
+                    if permalink:
+                        st.markdown(f'[View the post]({permalink})')
+                else:
+                    st.error(result)
 
 
 # ---------- V18 Home + Editorial Experience ----------
@@ -3912,6 +3958,63 @@ def send_email(to_email, subject, html_body):
         return r.status_code in (200,201)
     except Exception:
         return False
+
+def instagram_configured():
+    try:
+        return bool(st.secrets.get('INSTAGRAM_ACCESS_TOKEN','')) and bool(st.secrets.get('INSTAGRAM_BUSINESS_ACCOUNT_ID',''))
+    except Exception:
+        return False
+
+def post_to_instagram(image_url, caption):
+    # Unlike send_email, this runs from a direct "Post now" button click, so
+    # failures are returned as a message to show the admin instead of being
+    # swallowed. Instagram's Graph API needs a two-step call: create a media
+    # container from a publicly reachable image_url, then publish it.
+    image_url=safe(image_url).strip()
+    caption=safe(caption)
+    if not image_url:
+        return False,'An image URL is required.'
+    try:
+        access_token=st.secrets.get('INSTAGRAM_ACCESS_TOKEN','')
+        account_id=st.secrets.get('INSTAGRAM_BUSINESS_ACCOUNT_ID','')
+    except Exception:
+        access_token=''; account_id=''
+    if not access_token or not account_id:
+        return False,'Instagram is not connected. Add INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID in Secrets.'
+    try:
+        create_url=f'https://graph.facebook.com/v21.0/{account_id}/media'
+        r=requests.post(create_url,data={'image_url':image_url,'caption':caption,'access_token':access_token},timeout=20)
+        payload=r.json() if r.content else {}
+        creation_id=payload.get('id')
+        if r.status_code not in (200,201) or not creation_id:
+            return False,'Instagram rejected the image/caption: '+safe(payload.get('error',{}).get('message'),'Unknown error')
+        publish_url=f'https://graph.facebook.com/v21.0/{account_id}/media_publish'
+        r2=requests.post(publish_url,data={'creation_id':creation_id,'access_token':access_token},timeout=20)
+        payload2=r2.json() if r2.content else {}
+        media_id=payload2.get('id')
+        if r2.status_code not in (200,201) or not media_id:
+            return False,'Instagram rejected publishing: '+safe(payload2.get('error',{}).get('message'),'Unknown error')
+        return True,media_id
+    except Exception as e:
+        return False,'Connection to Instagram failed: '+str(e)
+
+def fetch_instagram_permalink(media_id):
+    media_id=safe(media_id).strip()
+    if not media_id:
+        return ''
+    try:
+        access_token=st.secrets.get('INSTAGRAM_ACCESS_TOKEN','')
+    except Exception:
+        access_token=''
+    if not access_token:
+        return ''
+    try:
+        r=requests.get(f'https://graph.facebook.com/v21.0/{media_id}',params={'fields':'permalink','access_token':access_token},timeout=10)
+        if r.status_code==200:
+            return safe(r.json().get('permalink'))
+    except Exception:
+        pass
+    return ''
 
 def suggest_price_range_from_discogs(release_id):
     # Discogs' price_suggestions endpoint returns a suggested price per

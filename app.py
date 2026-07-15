@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.44 YOUTUBE UPLOAD CONNECTION'
+APP_VERSION='V25.43.45 SHARE BUTTONS AND GRADED PRICING'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -78,6 +78,23 @@ def supabase_config():
     return url,anon
 CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies']
 GRADE_SCALE=['Mint','Near Mint','VG+','VG','Good+','Good','Fair','Poor']
+GRADE_INDEX={g:i for i,g in enumerate(GRADE_SCALE)}
+GRADE_PRICE_MULTIPLIERS={'Mint':1.35,'Near Mint':1.20,'VG+':1.00,'VG':0.80,'Good+':0.65,'Good':0.50,'Fair':0.35,'Poor':0.20}
+DISCOGS_GRADE_ALIASES={'Mint':'Mint (M)','Near Mint':'Near Mint (NM or M-)','VG+':'Very Good Plus (VG+)','VG':'Very Good (VG)','Good+':'Good Plus (G+)','Good':'Good (G)','Fair':'Fair (F)','Poor':'Poor (P)'}
+def grade_price_multiplier(media_grade, sleeve_grade=None):
+    # Media condition drives resale value more than sleeve condition, so
+    # sleeve only pulls the estimate down a little when it's worse.
+    mg_mult=GRADE_PRICE_MULTIPLIERS.get(safe(media_grade),1.0)
+    if not safe(sleeve_grade):
+        return mg_mult
+    sg_mult=GRADE_PRICE_MULTIPLIERS.get(safe(sleeve_grade),mg_mult)
+    return round(mg_mult*0.7+sg_mult*0.3,4)
+def worse_grade(media_grade, sleeve_grade=None):
+    if not safe(sleeve_grade):
+        return media_grade
+    mg_idx=GRADE_INDEX.get(safe(media_grade),0)
+    sg_idx=GRADE_INDEX.get(safe(sleeve_grade),mg_idx)
+    return GRADE_SCALE[max(mg_idx,sg_idx)]
 SUPABASE_STATUS={'last_read':'Not run','last_write':'Not run','last_error':''}
 AUTH_STATUS={'last_error':'','last_buyer_save_error':'','last_seller_save_error':'','last_link_error':''}
 def supabase_key_type():
@@ -344,6 +361,40 @@ def apply_pending_marketplace_navigation(marketplace_menu):
     pending=st.session_state.pop('pending_marketplace_navigation',None)
     if pending in marketplace_menu:
         st.session_state['marketplace_navigation']=pending
+def app_public_url():
+    try:
+        return safe(st.secrets.get('APP_PUBLIC_URL','')).rstrip('/')
+    except Exception:
+        return ''
+def share_block(item_kind, item_id, item_label):
+    base=app_public_url()
+    if not base:
+        return
+    param='view_product' if item_kind=='product' else 'view_article'
+    link=f'{base}/?{param}={int(item_id)}'
+    share_text=f'Check this out on House Of Wax: {safe(item_label)}'
+    with st.expander('Share'):
+        st.text_input('Link to this page',value=link,key=f'share_link_{item_kind}_{item_id}')
+        sc1,sc2,sc3,sc4=st.columns(4)
+        sc1.link_button('WhatsApp',f'https://wa.me/?text={quote_plus(share_text+" "+link)}')
+        sc2.link_button('Email',f'mailto:?subject={quote_plus(safe(item_label,"House Of Wax"))}&body={quote_plus(share_text+chr(10)+link)}')
+        sc3.link_button('X',f'https://twitter.com/intent/tweet?text={quote_plus(share_text)}&url={quote_plus(link)}')
+        sc4.link_button('Facebook',f'https://www.facebook.com/sharer/sharer.php?u={quote_plus(link)}')
+def apply_share_deep_link():
+    if st.session_state.get('share_deep_link_applied'):
+        return
+    shared_product=safe(st.query_params.get('view_product')).strip()
+    shared_article=safe(st.query_params.get('view_article')).strip()
+    if not (shared_product or shared_article):
+        return
+    st.session_state['share_deep_link_applied']=True
+    st.session_state['house_of_wax_area']='House Of Wax Marketplace'
+    if shared_product.isdigit():
+        st.session_state['product_id']=int(shared_product)
+        request_marketplace_navigation('Search Music')
+    elif shared_article.isdigit():
+        st.session_state['selected_knowledge_id']=int(shared_article)
+        request_marketplace_navigation('Knowledge Hub')
 def set_pending_action(action_type, product=None):
     product_id=int(product.get('id') or 0) if product is not None else int(st.session_state.get('product_id') or 0)
     seller_id=int(product.get('seller_id') or 0) if product is not None else 0
@@ -1178,8 +1229,9 @@ def setup():
     old_v25_43_41_announcement='V25.43.41'+' email notifications active'
     old_v25_43_42_announcement='V25.43.42'+' verified domain sender active'
     old_v25_43_43_announcement='V25.43.43'+' Instagram auto-posting active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement]:
-        set_setting('announcement','V25.43.44 YouTube upload connection active')
+    old_v25_43_44_announcement='V25.43.44'+' YouTube upload connection active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement]:
+        set_setting('announcement','V25.43.45 Share buttons and graded pricing active')
 setup()
 recovery_token_bridge()
 
@@ -2743,6 +2795,8 @@ def product_detail(pid):
         render_listing_photo_gallery(pid,primary_image,'public')
     with rcol:
         st.title(f"{safe(p['artist'])} — {safe(p['title'])}"); st.write('**Price:** '+money(p['price'])); st.write('**Shipping:** '+money(p['shipping_price']))
+        if is_public:
+            share_block('product',int(pid),f"{safe(p['artist'])} — {safe(p['title'])}")
         status_label=listing_availability_label(p)
         if status_label!='Available':
             st.warning(status_label)
@@ -3132,6 +3186,7 @@ def knowledge_hub():
             st.session_state.pop('selected_knowledge_id',None); st.rerun()
         st.title(safe(post['title']))
         st.caption(f"{safe(post['category'])} • {safe(post['level'])} • For {safe(post['audience'])}")
+        share_block('article',int(post['id']),safe(post['title']))
         if safe(post['image_url']): safe_image(safe(post['image_url']),width='stretch',fallback_text='Post image unavailable.')
         if safe(post.get('video_url')):
             try:
@@ -4086,7 +4141,7 @@ def upload_video_to_youtube(video_bytes, mime_type, title, description, privacy_
     except Exception as e:
         return False,'Connection to YouTube failed: '+str(e)
 
-def suggest_price_range_from_discogs(release_id):
+def suggest_price_range_from_discogs(release_id, media_grade=None, sleeve_grade=None):
     # Discogs' price_suggestions endpoint returns a suggested price per
     # condition grade (Mint, Near Mint, VG+, etc.), but it only works if
     # the Discogs account behind DISCOGS_TOKEN has complete seller
@@ -4112,11 +4167,23 @@ def suggest_price_range_from_discogs(release_id):
         values=list(by_grade.values())
         if not values:
             return None
+        if safe(media_grade):
+            target_grade=worse_grade(media_grade,sleeve_grade)
+            target_value=by_grade.get(DISCOGS_GRADE_ALIASES.get(target_grade,''))
+            if target_value:
+                grade_idx=GRADE_INDEX.get(target_grade,0)
+                next_worse=GRADE_SCALE[grade_idx+1] if grade_idx+1<len(GRADE_SCALE) else None
+                low_value=by_grade.get(DISCOGS_GRADE_ALIASES.get(next_worse,'')) if next_worse else None
+                low=low_value if low_value else round(target_value*0.85,2)
+                return {'low':min(low,target_value),'high':max(low,target_value),'source':f'Discogs marketplace, priced for {target_grade} condition','by_grade':by_grade,'grade_used':target_grade}
+            mult=grade_price_multiplier(media_grade,sleeve_grade)
+            mid=(min(values)+max(values))/2
+            return {'low':round(mid*mult*0.85,2),'high':round(mid*mult*1.15,2),'source':'Discogs marketplace (adjusted for your condition; exact grade data unavailable)','by_grade':by_grade,'grade_used':target_grade}
         return {'low':min(values),'high':max(values),'source':'Discogs marketplace (real listings, varies by condition)','by_grade':by_grade}
     except Exception:
         return None
 
-def suggest_price_range_from_how_history(artist):
+def suggest_price_range_from_how_history(artist, media_grade=None, sleeve_grade=None):
     artist_clean=safe(artist).strip().lower()
     if not artist_clean:
         return None
@@ -4135,16 +4202,21 @@ def suggest_price_range_from_how_history(artist):
         prices=prices[prices>0]
         if len(prices)<2:
             return None
-        return {'low':float(prices.quantile(0.25)),'high':float(prices.quantile(0.75)),'count':int(len(prices)),'source':f'{len(prices)} similar item(s) {label}'}
+        low=float(prices.quantile(0.25)); high=float(prices.quantile(0.75))
+        if safe(media_grade):
+            mult=grade_price_multiplier(media_grade,sleeve_grade)
+            low=round(low*mult,2); high=round(high*mult,2)
+            label=f'{label}, adjusted for your condition'
+        return {'low':low,'high':high,'count':int(len(prices)),'source':f'{len(prices)} similar item(s) {label}'}
     except Exception:
         return None
 
-def suggest_seller_price_range(artist, discogs_release_id=None):
+def suggest_seller_price_range(artist, discogs_release_id=None, media_grade=None, sleeve_grade=None):
     if discogs_release_id:
-        result=suggest_price_range_from_discogs(discogs_release_id)
+        result=suggest_price_range_from_discogs(discogs_release_id,media_grade,sleeve_grade)
         if result:
             return result
-    return suggest_price_range_from_how_history(artist)
+    return suggest_price_range_from_how_history(artist,media_grade,sleeve_grade)
 
 def barcode_length_status(barcode):
     code=normalize_barcode(barcode)
@@ -5479,7 +5551,6 @@ def upload_product(sid,key):
     defaults=v24_listing_defaults()
     selected_match=st.session_state.get('v24_autofill_listing',{})
     discogs_release_id=safe(selected_match.get('external_id')) if safe(selected_match.get('source'))=='Discogs' else ''
-    price_suggestion=suggest_seller_price_range(defaults.get('artist'),discogs_release_id) if defaults.get('artist') else None
     seller=get_seller(int(sid))
     seller_status=normalize_seller_status(seller.get('status') if seller is not None else '')
     is_approved=seller_can_publish(seller)
@@ -5493,6 +5564,15 @@ def upload_product(sid,key):
         source_bits=[v for v in [defaults.get('artist'),defaults.get('title'),defaults.get('label'),defaults.get('release_year')] if safe(v)]
         if source_bits:
             st.info('House Of Wax search/database fields are prefilled below. Review them before submitting.')
+    st.markdown('#### Condition')
+    st.caption('Set this first so House Of Wax can suggest a price range for your specific condition -- better condition supports a higher price.')
+    cg1,cg2=st.columns(2)
+    mg=cg1.selectbox('Condition - required',GRADE_SCALE,key=f'upload_mg_{key}',help='Tell buyers the condition of the copy you are selling.')
+    sg=cg2.selectbox('Sleeve/packaging condition - optional',GRADE_SCALE,key=f'upload_sg_{key}')
+    price_suggestion=suggest_seller_price_range(defaults.get('artist'),discogs_release_id,mg,sg) if defaults.get('artist') else None
+    if price_suggestion:
+        grade_note=f" for {price_suggestion['grade_used']} condition" if price_suggestion.get('grade_used') else ''
+        st.info(f"Suggested price range{grade_note}: {money(price_suggestion['low'])}–{money(price_suggestion['high'])}, based on {price_suggestion['source']}. You set the final price.")
     with st.form(key):
         st.markdown('#### Step 1: Find the item')
         st.caption('Search by barcode, artist/title, or item name. If this is a record, CD, or cassette, House Of Wax will try to find the album information for you.')
@@ -5522,13 +5602,9 @@ def upload_product(sid,key):
             st.info('For most music listings, the album cover image is enough to get started. Your own photos are optional.')
         else:
             st.info('For unique or non-music items, adding your own photo is recommended.')
-        c10,c11=st.columns(2)
-        mg=c10.selectbox('Condition - required',GRADE_SCALE,help='Tell buyers the condition of the copy you are selling.')
-        sg=c11.selectbox('Sleeve/packaging condition - optional',GRADE_SCALE)
+        st.caption(f"Condition: {safe(mg)} • Sleeve/packaging: {safe(sg)} (set above)")
         notes=st.text_area('Seller notes - optional',help='Optional. Add anything buyers should know.')
         desc=st.text_area('Extra description - optional',help='Optional. Add anything buyers should know.')
-        if price_suggestion:
-            st.info(f"Suggested price range: {money(price_suggestion['low'])}–{money(price_suggestion['high'])}, based on {price_suggestion['source']}. You set the final price.")
         c10,c11,c12=st.columns(3)
         price_text=c10.text_input('Price - required',help='Type your asking price. Examples: 10, 10.00, or $10.00.',placeholder='10.00')
         qty_text=c11.text_input('Quantity - required',value='1',help='Type the number of copies/items you have.')
@@ -7757,6 +7833,7 @@ if safe(st.query_params.get('recovery_token')):
     password_reset_completion_screen()
     st.stop()
 testing_mode=app_mode()
+apply_share_deep_link()
 area_options=['House Of Wax Marketplace']
 if is_admin_unlocked():
     area_options.append('House Of Wax Admin')

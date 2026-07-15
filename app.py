@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.43 INSTAGRAM AUTO-POSTING'
+APP_VERSION='V25.43.44 YOUTUBE UPLOAD CONNECTION'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1177,8 +1177,9 @@ def setup():
     old_v25_43_40_announcement='V25.43.40'+' barcode tip and price suggestions active'
     old_v25_43_41_announcement='V25.43.41'+' email notifications active'
     old_v25_43_42_announcement='V25.43.42'+' verified domain sender active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement]:
-        set_setting('announcement','V25.43.43 Instagram auto-posting active')
+    old_v25_43_43_announcement='V25.43.43'+' Instagram auto-posting active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement]:
+        set_setting('announcement','V25.43.44 YouTube upload connection active')
 setup()
 recovery_token_bridge()
 
@@ -3223,7 +3224,7 @@ def content_admin():
     header()
     st.header('House Of Wax Content Admin')
     st.write('Create House Of Wax educational content only. This is for teaching and brand authority, not seller promotion.')
-    tabs=st.tabs(['Article creator','Glossary builder','Social copy generator','Draft library','Content calendar','Reports','Instagram Posting'])
+    tabs=st.tabs(['Article creator','Glossary builder','Social copy generator','Draft library','Content calendar','Reports','Instagram Posting','YouTube Posting'])
     with tabs[0]:
         with st.form('knowledge_article_form'):
             title=st.text_input('Article title')
@@ -3356,6 +3357,24 @@ def content_admin():
                     permalink=fetch_instagram_permalink(result)
                     if permalink:
                         st.markdown(f'[View the post]({permalink})')
+                else:
+                    st.error(result)
+    with tabs[7]:
+        st.subheader('Upload to YouTube')
+        if not youtube_configured():
+            st.warning('YouTube is not connected yet. Add YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, and YOUTUBE_REFRESH_TOKEN in Secrets.')
+        else:
+            st.caption("Uploads default to Private. YouTube will likely reject Public until this API project passes Google's compliance audit -- the connection itself is ready and will not need to be redone once that's approved.")
+            video_file=st.file_uploader('Video file',type=['mp4','mov','m4v','webm'],key='yt_video_file')
+            yt_title=st.text_input('Video title',key='yt_title')
+            yt_description=st.text_area('Video description',key='yt_description',height=120)
+            yt_privacy=st.selectbox('Visibility',['private','unlisted','public'],key='yt_privacy',help='Public will likely be rejected by YouTube until the app passes Google\'s audit.')
+            if st.button('Upload to YouTube',disabled=not(video_file and yt_title)):
+                with st.spinner('Uploading to YouTube...'):
+                    ok,result=upload_video_to_youtube(video_file.getvalue(),safe(video_file.type) or 'video/mp4',yt_title,yt_description,yt_privacy)
+                if ok:
+                    st.success('Uploaded to YouTube.')
+                    st.markdown(f'[View the video](https://youtu.be/{result})')
                 else:
                     st.error(result)
 
@@ -4015,6 +4034,57 @@ def fetch_instagram_permalink(media_id):
     except Exception:
         pass
     return ''
+
+def youtube_configured():
+    try:
+        return bool(st.secrets.get('YOUTUBE_CLIENT_ID','')) and bool(st.secrets.get('YOUTUBE_CLIENT_SECRET','')) and bool(st.secrets.get('YOUTUBE_REFRESH_TOKEN',''))
+    except Exception:
+        return False
+
+def get_youtube_access_token():
+    # YouTube's refresh token grants a fresh, short-lived access token per
+    # upload rather than being used directly -- this exchanges it each time.
+    try:
+        client_id=st.secrets.get('YOUTUBE_CLIENT_ID','')
+        client_secret=st.secrets.get('YOUTUBE_CLIENT_SECRET','')
+        refresh_token=st.secrets.get('YOUTUBE_REFRESH_TOKEN','')
+    except Exception:
+        return ''
+    if not (client_id and client_secret and refresh_token):
+        return ''
+    try:
+        r=requests.post('https://oauth2.googleapis.com/token',data={'client_id':client_id,'client_secret':client_secret,'refresh_token':refresh_token,'grant_type':'refresh_token'},timeout=15)
+        if r.status_code==200:
+            return safe(r.json().get('access_token'))
+    except Exception:
+        pass
+    return ''
+
+def upload_video_to_youtube(video_bytes, mime_type, title, description, privacy_status='private'):
+    # Until this API project passes Google's compliance audit, YouTube
+    # restricts uploaded videos to private/unlisted regardless of the
+    # requested privacyStatus -- 'public' will likely be rejected until then.
+    if not video_bytes:
+        return False,'A video file is required.'
+    access_token=get_youtube_access_token()
+    if not access_token:
+        return False,'YouTube is not connected. Add YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, and YOUTUBE_REFRESH_TOKEN in Secrets, and make sure the refresh token has not expired.'
+    metadata={'snippet':{'title':safe(title)[:100],'description':safe(description),'categoryId':'10'},'status':{'privacyStatus':privacy_status}}
+    try:
+        init_headers={'Authorization':f'Bearer {access_token}','Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':mime_type,'X-Upload-Content-Length':str(len(video_bytes))}
+        r=requests.post('https://www.googleapis.com/upload/youtube/v3/videos',params={'uploadType':'resumable','part':'snippet,status'},headers=init_headers,json=metadata,timeout=20)
+        if r.status_code not in (200,201) or 'Location' not in r.headers:
+            payload=r.json() if r.content else {}
+            return False,'YouTube rejected the upload request: '+safe(payload.get('error',{}).get('message'),'Unknown error')
+        upload_url=r.headers['Location']
+        r2=requests.put(upload_url,headers={'Content-Type':mime_type},data=video_bytes,timeout=300)
+        payload2=r2.json() if r2.content else {}
+        video_id=payload2.get('id')
+        if r2.status_code not in (200,201) or not video_id:
+            return False,'YouTube rejected the video file: '+safe(payload2.get('error',{}).get('message'),'Unknown error')
+        return True,video_id
+    except Exception as e:
+        return False,'Connection to YouTube failed: '+str(e)
 
 def suggest_price_range_from_discogs(release_id):
     # Discogs' price_suggestions endpoint returns a suggested price per

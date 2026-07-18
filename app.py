@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.47 PUBLIC PRIVACY POLICY PAGE'
+APP_VERSION='V25.43.48 PUBLIC TERMS OF SERVICE PAGE'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -762,6 +762,27 @@ def public_privacy_policy():
     st.write('We may update this policy as House Of Wax changes. The date above reflects the most recent update.')
     st.markdown('### Contact us')
     st.write('Questions about this policy or your data can be sent to hello@shophouseofwax.com.')
+def public_terms_of_service():
+    header()
+    st.header('House Of Wax Terms of Service')
+    st.caption('Last updated: July 2026')
+    st.write('These terms govern your use of House Of Wax. By creating an account or using the site, you agree to them.')
+    st.markdown('### What House Of Wax is')
+    st.write('House Of Wax is a marketplace and education platform for vinyl records, music collectibles, and culture goods, connecting independent sellers with buyers.')
+    st.markdown('### Accounts')
+    st.write('You agree to provide accurate account information and are responsible for activity under your account. Sellers are responsible for the accuracy, legality, condition, pricing, images, and descriptions of the items they list.')
+    st.markdown('### Buying and selling')
+    st.write('Buy and Make an Offer send a request to the seller, not a completed payment -- House Of Wax does not process payments directly. Sellers and buyers are expected to communicate honestly and follow through on agreed transactions.')
+    st.markdown('### Prohibited listings')
+    st.write('Counterfeit, stolen, unsafe, illegal, misleading, or hateful items are not allowed. This list is general and non-exhaustive. House Of Wax may investigate reports and may hide, restrict, or remove listings or accounts that violate these terms.')
+    st.markdown('### Content you post')
+    st.write('You keep ownership of photos, descriptions, and other content you post, and you grant House Of Wax permission to display it on the platform and in House Of Wax marketing, including social media. You are responsible for making sure you have the right to post what you upload.')
+    st.markdown('### No warranty')
+    st.write('House Of Wax is provided as-is. We do not guarantee the accuracy of listings, the conduct of buyers or sellers, or that the service will be uninterrupted or error-free.')
+    st.markdown('### Changes to these terms')
+    st.write('We may update these terms as House Of Wax changes. The date above reflects the most recent update.')
+    st.markdown('### Contact us')
+    st.write('Questions about these terms can be sent to hello@shophouseofwax.com.')
 def conn(): return sqlite3.connect(DB)
 def run(sql,p=()):
     c=conn(); c.execute(sql,p); c.commit(); c.close()
@@ -1255,8 +1276,9 @@ def setup():
     old_v25_43_44_announcement='V25.43.44'+' YouTube upload connection active'
     old_v25_43_45_announcement='V25.43.45'+' Share buttons and graded pricing active'
     old_v25_43_46_announcement='V25.43.46'+' Seller website link fix active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement]:
-        set_setting('announcement','V25.43.47 Public privacy policy page active')
+    old_v25_43_47_announcement='V25.43.47'+' Public privacy policy page active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement]:
+        set_setting('announcement','V25.43.48 Public terms of service page active')
 setup()
 recovery_token_bridge()
 
@@ -7864,6 +7886,9 @@ if safe(st.query_params.get('recovery_token')):
 if safe(st.query_params.get('legal'))=='privacy':
     public_privacy_policy()
     st.stop()
+if safe(st.query_params.get('legal'))=='terms':
+    public_terms_of_service()
+    st.stop()
 testing_mode=app_mode()
 apply_share_deep_link()
 area_options=['House Of Wax Marketplace']
@@ -7889,7 +7914,7 @@ else:
     if pending_admin_nav in admin_menu:
         st.session_state['admin_navigation']=pending_admin_nav
     menu=st.sidebar.radio('Admin navigation',admin_menu,key='admin_navigation')
-st.sidebar.caption('[Privacy Policy](?legal=privacy)')
+st.sidebar.caption('[Privacy Policy](?legal=privacy) · [Terms of Service](?legal=terms)')
 if area=='House Of Wax Marketplace':
     mobile_navigation_bar()
 if area=='House Of Wax Marketplace' and menu=='Search Music' and ('seller_id' in st.session_state or 'product_id' in st.session_state):

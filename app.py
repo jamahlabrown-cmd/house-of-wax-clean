@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.46 SELLER WEBSITE LINK FIX'
+APP_VERSION='V25.43.47 PUBLIC PRIVACY POLICY PAGE'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -739,6 +739,29 @@ def password_reset_completion_screen():
                 st.rerun()
             else:
                 st.error(msg)
+def public_privacy_policy():
+    header()
+    st.header('House Of Wax Privacy Policy')
+    st.caption('Last updated: July 2026')
+    st.write('This policy explains what information House Of Wax collects, how it is used, and who it is shared with.')
+    st.markdown('### Information we collect')
+    st.write('When you create an account, we collect your name, email address, and optionally your phone number, city, and state. Sellers additionally provide a store name, bio, and any listing details, photos, and pricing they choose to publish. If you contact a seller, submit an offer, or sign up for our newsletter, we collect the information included in that message or signup.')
+    st.markdown('### How we use it')
+    st.write('We use this information to operate the marketplace: creating your account, displaying your listings or purchase activity, connecting buyers and sellers, sending account-related and newsletter emails, and improving the platform. We do not sell your personal information to third parties.')
+    st.markdown('### Payments')
+    st.write('House Of Wax does not process payments directly. Buy and Make an Offer actions send a request to the seller; no card or financial account information is collected or stored by House Of Wax.')
+    st.markdown('### Third-party services we use')
+    st.write('We use Supabase for database and file storage, Resend for sending account and newsletter emails, and public music databases (Discogs, MusicBrainz, iTunes, Cover Art Archive) to help identify records and albums -- these lookups do not send your personal information to those services. House Of Wax administrators may use the Meta Graph API and YouTube Data API to publish House Of Wax content to Instagram and YouTube; these connections are used for publishing content, not for collecting visitor data.')
+    st.markdown('### Cookies and sessions')
+    st.write('We use browser session storage to keep you signed in while you use House Of Wax. We do not use third-party advertising or tracking cookies.')
+    st.markdown('### Your choices')
+    st.write('You can update your account information at any time from My Account. To request a copy of your data or ask us to delete your account, contact us at the email below.')
+    st.markdown('### Children\'s privacy')
+    st.write('House Of Wax is not directed at children under 13, and we do not knowingly collect personal information from children under 13.')
+    st.markdown('### Changes to this policy')
+    st.write('We may update this policy as House Of Wax changes. The date above reflects the most recent update.')
+    st.markdown('### Contact us')
+    st.write('Questions about this policy or your data can be sent to hello@shophouseofwax.com.')
 def conn(): return sqlite3.connect(DB)
 def run(sql,p=()):
     c=conn(); c.execute(sql,p); c.commit(); c.close()
@@ -1231,8 +1254,9 @@ def setup():
     old_v25_43_43_announcement='V25.43.43'+' Instagram auto-posting active'
     old_v25_43_44_announcement='V25.43.44'+' YouTube upload connection active'
     old_v25_43_45_announcement='V25.43.45'+' Share buttons and graded pricing active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement]:
-        set_setting('announcement','V25.43.46 Seller website link fix active')
+    old_v25_43_46_announcement='V25.43.46'+' Seller website link fix active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement]:
+        set_setting('announcement','V25.43.47 Public privacy policy page active')
 setup()
 recovery_token_bridge()
 
@@ -7837,6 +7861,9 @@ restore_session_from_query_params()
 if safe(st.query_params.get('recovery_token')):
     password_reset_completion_screen()
     st.stop()
+if safe(st.query_params.get('legal'))=='privacy':
+    public_privacy_policy()
+    st.stop()
 testing_mode=app_mode()
 apply_share_deep_link()
 area_options=['House Of Wax Marketplace']
@@ -7862,6 +7889,7 @@ else:
     if pending_admin_nav in admin_menu:
         st.session_state['admin_navigation']=pending_admin_nav
     menu=st.sidebar.radio('Admin navigation',admin_menu,key='admin_navigation')
+st.sidebar.caption('[Privacy Policy](?legal=privacy)')
 if area=='House Of Wax Marketplace':
     mobile_navigation_bar()
 if area=='House Of Wax Marketplace' and menu=='Search Music' and ('seller_id' in st.session_state or 'product_id' in st.session_state):

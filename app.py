@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.48 PUBLIC TERMS OF SERVICE PAGE'
+APP_VERSION='V25.43.49 FACEBOOK PAGE POSTING'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1277,8 +1277,9 @@ def setup():
     old_v25_43_45_announcement='V25.43.45'+' Share buttons and graded pricing active'
     old_v25_43_46_announcement='V25.43.46'+' Seller website link fix active'
     old_v25_43_47_announcement='V25.43.47'+' Public privacy policy page active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement]:
-        set_setting('announcement','V25.43.48 Public terms of service page active')
+    old_v25_43_48_announcement='V25.43.48'+' Public terms of service page active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement]:
+        set_setting('announcement','V25.43.49 Facebook Page posting active')
 setup()
 recovery_token_bridge()
 
@@ -3330,7 +3331,7 @@ def content_admin():
     header()
     st.header('House Of Wax Content Admin')
     st.write('Create House Of Wax educational content only. This is for teaching and brand authority, not seller promotion.')
-    tabs=st.tabs(['Article creator','Glossary builder','Social copy generator','Draft library','Content calendar','Reports','Instagram Posting','YouTube Posting'])
+    tabs=st.tabs(['Article creator','Glossary builder','Social copy generator','Draft library','Content calendar','Reports','Instagram Posting','YouTube Posting','Facebook Posting'])
     with tabs[0]:
         with st.form('knowledge_article_form'):
             title=st.text_input('Article title')
@@ -3481,6 +3482,49 @@ def content_admin():
                 if ok:
                     st.success('Uploaded to YouTube.')
                     st.markdown(f'[View the video](https://youtu.be/{result})')
+                else:
+                    st.error(result)
+    with tabs[8]:
+        st.subheader('Post to Facebook')
+        if not facebook_configured():
+            st.warning('Facebook is not connected yet. Add FACEBOOK_PAGE_ACCESS_TOKEN and FACEBOOK_PAGE_ID in Secrets.')
+        else:
+            st.caption('Posts go live immediately on the connected House Of Wax Facebook Page.')
+            fb_source=st.radio('Image source',['No image (text post)','Paste an image URL','Use a knowledge article image','Use a product listing image'],horizontal=True,key='fb_source')
+            fb_image_url=''
+            fb_default_message=''
+            if fb_source=='Paste an image URL':
+                fb_image_url=st.text_input('Image URL',key='fb_manual_image_url').strip()
+            elif fb_source=='Use a knowledge article image':
+                fb_posts=table('knowledge_posts')
+                fb_posts=fb_posts[fb_posts['image_url'].astype(str).str.len()>0] if not fb_posts.empty else fb_posts
+                if fb_posts.empty:
+                    st.info('No knowledge articles with images yet.')
+                else:
+                    fb_pid=st.selectbox('Choose article',fb_posts['id'].tolist(),format_func=lambda i: safe(fb_posts[fb_posts['id']==i].iloc[0]['title']) or f'Article {i}',key='fb_article_pick')
+                    fb_post=fb_posts[fb_posts['id']==fb_pid].iloc[0]
+                    fb_image_url=safe(fb_post['image_url'])
+                    fb_pack=make_social_pack(fb_post['title'],fb_post['category'],fb_post['summary'],fb_post['body'],fb_post['house_tip'])
+                    fb_default_message=fb_pack['Facebook educational post']
+            elif fb_source=='Use a product listing image':
+                fb_prods=table('products')
+                if not fb_prods.empty:
+                    fb_prods=fb_prods[fb_prods['listing_status'].isin(PUBLIC_LISTING_STATUSES) & (fb_prods['image_url'].astype(str).str.len()>0)]
+                if fb_prods.empty:
+                    st.info('No live listings with images yet.')
+                else:
+                    fb_prid=st.selectbox('Choose listing',fb_prods['id'].tolist(),format_func=lambda i: (safe(fb_prods[fb_prods['id']==i].iloc[0]['artist'])+' — '+safe(fb_prods[fb_prods['id']==i].iloc[0]['title'])).strip(' —') or f'Listing {i}',key='fb_product_pick')
+                    fb_prod=fb_prods[fb_prods['id']==fb_prid].iloc[0]
+                    fb_image_url=safe(fb_prod['image_url'])
+                    fb_default_message=f"{safe(fb_prod['artist'])} — {safe(fb_prod['title'])}\n\n{safe(fb_prod['description'])[:200]}\n\nFind it on House Of Wax."
+            if fb_image_url:
+                safe_image(fb_image_url,width='stretch',fallback_text='Image preview unavailable.')
+            fb_message=st.text_area('Message',value=fb_default_message,height=140,key='fb_message_box')
+            if st.button('Post to Facebook now',disabled=not(fb_message.strip() or fb_image_url)):
+                ok,result=post_to_facebook_page(fb_message,fb_image_url)
+                if ok:
+                    st.success('Posted to Facebook.')
+                    st.markdown(f'[View the post](https://facebook.com/{result})')
                 else:
                     st.error(result)
 
@@ -4140,6 +4184,39 @@ def fetch_instagram_permalink(media_id):
     except Exception:
         pass
     return ''
+
+def facebook_configured():
+    try:
+        return bool(st.secrets.get('FACEBOOK_PAGE_ACCESS_TOKEN','')) and bool(st.secrets.get('FACEBOOK_PAGE_ID',''))
+    except Exception:
+        return False
+
+def post_to_facebook_page(message, image_url=None):
+    try:
+        access_token=st.secrets.get('FACEBOOK_PAGE_ACCESS_TOKEN','')
+        page_id=st.secrets.get('FACEBOOK_PAGE_ID','')
+    except Exception:
+        access_token=''; page_id=''
+    if not access_token or not page_id:
+        return False,'Facebook is not connected. Add FACEBOOK_PAGE_ACCESS_TOKEN and FACEBOOK_PAGE_ID in Secrets.'
+    image_url=safe(image_url).strip()
+    try:
+        if image_url:
+            url=f'https://graph.facebook.com/v21.0/{page_id}/photos'
+            payload={'url':image_url,'caption':safe(message),'access_token':access_token}
+        else:
+            if not safe(message).strip():
+                return False,'A message is required when not posting an image.'
+            url=f'https://graph.facebook.com/v21.0/{page_id}/feed'
+            payload={'message':safe(message),'access_token':access_token}
+        r=requests.post(url,data=payload,timeout=20)
+        result=r.json() if r.content else {}
+        post_id=result.get('post_id') or result.get('id')
+        if r.status_code not in (200,201) or not post_id:
+            return False,'Facebook rejected the post: '+safe(result.get('error',{}).get('message'),'Unknown error')
+        return True,post_id
+    except Exception as e:
+        return False,'Connection to Facebook failed: '+str(e)
 
 def youtube_configured():
     try:

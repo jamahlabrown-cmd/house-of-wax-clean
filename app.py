@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.54 CLEANUP: DEAD ORDERS/FEEDBACK SYSTEM REMOVED'
+APP_VERSION='V25.43.55 FIX: BUYER ACCOUNT WAS UNREACHABLE'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1295,8 +1295,9 @@ def setup():
     old_v25_43_51_announcement='V25.43.51'+' Want List with match notifications active'
     old_v25_43_52_announcement='V25.43.52'+' Seller written reviews active'
     old_v25_43_53_announcement='V25.43.53'+' Buyer-facing sold price history active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement]:
-        set_setting('announcement','V25.43.54 Dead orders/feedback system removed active')
+    old_v25_43_54_announcement='V25.43.54'+' Dead orders/feedback system removed active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement]:
+        set_setting('announcement','V25.43.55 Buyer account reachability fix active')
 setup()
 recovery_token_bridge()
 
@@ -2127,10 +2128,7 @@ def account_page():
                 st.success('Buyer profile linked.')
                 if buyer is not None:
                     st.write(f"**Buyer profile:** {safe(buyer.get('name'))} | {safe(buyer.get('email'))}")
-                if st.button('Open buyer profile, inquiries, and purchase requests',key='account_open_buyer_dashboard',width='stretch'):
-                    st.session_state['pending_my_house_workspace']='Buyer Profile'
-                    request_marketplace_navigation('My House of Wax')
-                    st.rerun()
+                buyer_workspace_tabs(buyer_id)
             else:
                 st.warning('Buyer profile is missing. The app will try to repair it now.')
                 if st.button('Repair buyer profile link',key='account_repair_buyer_profile'):
@@ -3800,110 +3798,94 @@ def seller_stores():
             st.write(safe(s['store_bio']))
             if badges(int(s['id'])): st.info('Badges: '+badges(int(s['id'])))
             if st.button('Open public profile',key=f"openseller{int(s['id'])}"): st.session_state['seller_id']=int(s['id']); st.rerun()
-def buyer_dashboard():
-    header(); marketplace_context('House Of Wax Marketplace → My Account'); st.header('My Account')
-    st.write('View your profile, questions, and purchase requests.')
-    prototype_role_notice()
-    if is_admin_unlocked():
-        st.caption(f'Active storage mode: {active_storage_label()}')
-    if not is_admin_unlocked():
-        if not is_authenticated():
-            st.warning('Sign in as a Buyer to view your buyer dashboard.')
-            account_page()
-            return
-        bid=ensure_linked_buyer_profile()
-        if not bid:
-            st.error('No buyer profile is linked to this account. Use Account to claim or create a buyer profile.')
-            claim_existing_profile_section()
-            return
-        st.session_state['buyer_id']=bid
-        b=get_buyer(bid)
-        if b is None:
-            st.error('Linked buyer profile was not found.')
-            return
-        st.success(f"Loaded your buyer profile: {safe(b['name'])} | {safe(b['email'])}")
-        tabs=st.tabs(['My Profile','My Inquiries','My Purchase Requests','My Want List','Sign Out'])
-        with tabs[0]:
-            with st.form('bp_auth'):
-                name=st.text_input('Name',value=safe(b['name']))
-                phone=st.text_input('Phone',value=safe(b.get('phone')))
-                city=st.text_input('City',value=safe(b.get('city')))
-                state=st.text_input('State',value=safe(b.get('state')))
-                bio=st.text_area('Bio',value=safe(b['bio']))
-                sub=st.form_submit_button('Save buyer profile')
-            if sub:
-                AUTH_STATUS['last_buyer_save_error']=''
-                ok=core_update('buyers',{'name':name,'phone':phone,'city':city,'state':state,'bio':bio},{'id':bid},'UPDATE buyers SET name=?,phone=?,city=?,state=?,bio=? WHERE id=?',(name,phone,city,state,bio,bid))
-                reloaded=get_buyer(bid)
-                if ok and reloaded is not None:
-                    st.success('Buyer profile saved and reloaded.')
-                    st.write(f"Saved profile: {safe(reloaded.get('name'))} | {safe(reloaded.get('email'))}")
-                else:
-                    AUTH_STATUS['last_buyer_save_error']=safe(SUPABASE_STATUS.get('last_error'),'Buyer profile save failed.')
-                    st.error('Buyer profile did not save. Supabase error: '+AUTH_STATUS['last_buyer_save_error'])
-        inquiries,purchases=buyer_activity_tables(bid)
-        with tabs[1]:
-            st.subheader('My Inquiries')
-            if inquiries.empty:
-                st.info('No questions sent yet.')
-            else:
-                cols=[c for c in ['id','store_name','artist','title','preferred_contact_method','message','status','created_at'] if c in inquiries.columns]
-                st.dataframe(inquiries[cols],width='stretch')
-        with tabs[2]:
-            st.subheader('My Purchase Requests')
-            if purchases.empty:
-                st.info('No purchase requests sent yet.')
-            else:
-                cols=[c for c in ['id','store_name','artist','title','fulfillment_preference','offer_price','buyer_message','status','created_at'] if c in purchases.columns]
-                st.dataframe(purchases[cols],width='stretch')
-                countered=purchases[purchases['status']=='Seller Countered'] if 'status' in purchases.columns else purchases.iloc[0:0]
-                if not countered.empty:
-                    st.markdown('#### Seller counter-offers awaiting your response')
-                    for _,cr in countered.iterrows():
-                        crid=int(cr['id'])
-                        with st.container(border=True):
-                            st.write(f"**{safe(cr.get('artist'))} — {safe(cr.get('title'))}** from {safe(cr.get('store_name'))}")
-                            st.write(f"Your offer: {money(cr.get('offer_price'))} → Seller's counter: {money(cr.get('counter_price'))}")
-                            if safe(cr.get('counter_message')):
-                                st.caption(safe(cr.get('counter_message')))
-                            cc1,cc2=st.columns(2)
-                            if cc1.button('Accept Counter',key=f'buyer_accept_counter_{crid}',width='stretch'):
-                                core_update('purchase_requests',{'status':'Seller Accepted','offer_price':float(cr.get('counter_price') or 0),'updated_at':now()},{'id':crid},'UPDATE purchase_requests SET status=?,offer_price=?,updated_at=? WHERE id=?',('Seller Accepted',float(cr.get('counter_price') or 0),now(),crid))
-                                st.success('Counter accepted. The seller will follow up on pickup/payment.')
-                                st.rerun()
-                            if cc2.button('Decline Counter',key=f'buyer_decline_counter_{crid}',width='stretch'):
-                                core_update('purchase_requests',{'status':'Closed','updated_at':now()},{'id':crid},'UPDATE purchase_requests SET status=?,updated_at=? WHERE id=?',('Closed',now(),crid))
-                                st.info('Counter declined.')
-                                st.rerun()
-                sold=purchases[purchases['status']=='Sold'] if 'status' in purchases.columns else purchases.iloc[0:0]
-                to_review=sold[~sold['id'].apply(lambda i: buyer_already_reviewed(int(i)))] if not sold.empty else sold
-                if not to_review.empty:
-                    st.markdown('#### Leave a review')
-                    for _,sr in to_review.iterrows():
-                        srid=int(sr['id'])
-                        with st.container(border=True):
-                            st.write(f"**{safe(sr.get('artist'))} — {safe(sr.get('title'))}** from {safe(sr.get('store_name'))}")
-                            with st.form(f'review_form_{srid}'):
-                                rating=st.slider('Rating',1,5,5,key=f'review_rating_{srid}')
-                                review_text=st.text_area('Your review - optional',key=f'review_text_{srid}')
-                                display_name=st.text_input('Display name shown on your review',value=safe(b.get('name')),key=f'review_name_{srid}')
-                                review_submitted=st.form_submit_button('Submit review')
-                            if review_submitted:
-                                rvid=add_seller_review(sr.get('seller_id'),bid,srid,sr.get('product_id'),rating,review_text,display_name)
-                                if rvid or not hosted_enabled():
-                                    st.success('Review posted. Thank you.')
-                                    st.rerun()
-                                else:
-                                    st.error('Review could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
-        with tabs[3]:
-            want_list_manager(bid)
-        with tabs[4]:
-            st.write('Signed in as '+auth_user_email())
-            if st.button('Sign Out',key='buyer_account_sign_out'):
-                auth_sign_out()
-                st.success('Signed out.')
-                st.rerun()
+def buyer_workspace_tabs(bid):
+    # The reachable home for a signed-in buyer's own profile, inquiries,
+    # purchase requests, and Want List -- called directly from account_page()'s
+    # Buying tab. This used to only be reachable through buyer_dashboard() via
+    # a "My House of Wax" navigation target that was never actually wired
+    # into the live sidebar menu, silently stranding every signed-in buyer.
+    st.session_state['buyer_id']=bid
+    b=get_buyer(bid)
+    if b is None:
+        st.error('Linked buyer profile was not found.')
         return
+    tabs=st.tabs(['My Profile','My Inquiries','My Purchase Requests','My Want List'])
+    with tabs[0]:
+        with st.form('bp_auth'):
+            name=st.text_input('Name',value=safe(b['name']))
+            phone=st.text_input('Phone',value=safe(b.get('phone')))
+            city=st.text_input('City',value=safe(b.get('city')))
+            state=st.text_input('State',value=safe(b.get('state')))
+            bio=st.text_area('Bio',value=safe(b['bio']))
+            sub=st.form_submit_button('Save buyer profile')
+        if sub:
+            AUTH_STATUS['last_buyer_save_error']=''
+            ok=core_update('buyers',{'name':name,'phone':phone,'city':city,'state':state,'bio':bio},{'id':bid},'UPDATE buyers SET name=?,phone=?,city=?,state=?,bio=? WHERE id=?',(name,phone,city,state,bio,bid))
+            reloaded=get_buyer(bid)
+            if ok and reloaded is not None:
+                st.success('Buyer profile saved and reloaded.')
+                st.write(f"Saved profile: {safe(reloaded.get('name'))} | {safe(reloaded.get('email'))}")
+            else:
+                AUTH_STATUS['last_buyer_save_error']=safe(SUPABASE_STATUS.get('last_error'),'Buyer profile save failed.')
+                st.error('Buyer profile did not save. Supabase error: '+AUTH_STATUS['last_buyer_save_error'])
+    inquiries,purchases=buyer_activity_tables(bid)
+    with tabs[1]:
+        st.subheader('My Inquiries')
+        if inquiries.empty:
+            st.info('No questions sent yet.')
+        else:
+            cols=[c for c in ['id','store_name','artist','title','preferred_contact_method','message','status','created_at'] if c in inquiries.columns]
+            st.dataframe(inquiries[cols],width='stretch')
+    with tabs[2]:
+        st.subheader('My Purchase Requests')
+        if purchases.empty:
+            st.info('No purchase requests sent yet.')
+        else:
+            cols=[c for c in ['id','store_name','artist','title','fulfillment_preference','offer_price','buyer_message','status','created_at'] if c in purchases.columns]
+            st.dataframe(purchases[cols],width='stretch')
+            countered=purchases[purchases['status']=='Seller Countered'] if 'status' in purchases.columns else purchases.iloc[0:0]
+            if not countered.empty:
+                st.markdown('#### Seller counter-offers awaiting your response')
+                for _,cr in countered.iterrows():
+                    crid=int(cr['id'])
+                    with st.container(border=True):
+                        st.write(f"**{safe(cr.get('artist'))} — {safe(cr.get('title'))}** from {safe(cr.get('store_name'))}")
+                        st.write(f"Your offer: {money(cr.get('offer_price'))} → Seller's counter: {money(cr.get('counter_price'))}")
+                        if safe(cr.get('counter_message')):
+                            st.caption(safe(cr.get('counter_message')))
+                        cc1,cc2=st.columns(2)
+                        if cc1.button('Accept Counter',key=f'buyer_accept_counter_{crid}',width='stretch'):
+                            core_update('purchase_requests',{'status':'Seller Accepted','offer_price':float(cr.get('counter_price') or 0),'updated_at':now()},{'id':crid},'UPDATE purchase_requests SET status=?,offer_price=?,updated_at=? WHERE id=?',('Seller Accepted',float(cr.get('counter_price') or 0),now(),crid))
+                            st.success('Counter accepted. The seller will follow up on pickup/payment.')
+                            st.rerun()
+                        if cc2.button('Decline Counter',key=f'buyer_decline_counter_{crid}',width='stretch'):
+                            core_update('purchase_requests',{'status':'Closed','updated_at':now()},{'id':crid},'UPDATE purchase_requests SET status=?,updated_at=? WHERE id=?',('Closed',now(),crid))
+                            st.info('Counter declined.')
+                            st.rerun()
+            sold=purchases[purchases['status']=='Sold'] if 'status' in purchases.columns else purchases.iloc[0:0]
+            to_review=sold[~sold['id'].apply(lambda i: buyer_already_reviewed(int(i)))] if not sold.empty else sold
+            if not to_review.empty:
+                st.markdown('#### Leave a review')
+                for _,sr in to_review.iterrows():
+                    srid=int(sr['id'])
+                    with st.container(border=True):
+                        st.write(f"**{safe(sr.get('artist'))} — {safe(sr.get('title'))}** from {safe(sr.get('store_name'))}")
+                        with st.form(f'review_form_{srid}'):
+                            rating=st.slider('Rating',1,5,5,key=f'review_rating_{srid}')
+                            review_text=st.text_area('Your review - optional',key=f'review_text_{srid}')
+                            display_name=st.text_input('Display name shown on your review',value=safe(b.get('name')),key=f'review_name_{srid}')
+                            review_submitted=st.form_submit_button('Submit review')
+                        if review_submitted:
+                            rvid=add_seller_review(sr.get('seller_id'),bid,srid,sr.get('product_id'),rating,review_text,display_name)
+                            if rvid or not hosted_enabled():
+                                st.success('Review posted. Thank you.')
+                                st.rerun()
+                            else:
+                                st.error('Review could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
+    with tabs[3]:
+        want_list_manager(bid)
+
+def buyer_dashboard_admin_lookup():
     st.caption('Admin/testing buyer profile inspection is enabled.')
     buyers=table('buyers')
     if buyers.empty:
@@ -8047,57 +8029,6 @@ def barcode_diagnostics_page():
                 st.write(safe(m.get('external_url')))
 
 
-def my_house_of_wax():
-    header()
-    marketplace_context('House Of Wax Marketplace → My House of Wax')
-    st.header('My House of Wax')
-    pending_workspace=st.session_state.pop('pending_my_house_workspace',None)
-    role=current_account_role()
-    st.write('This is your buyer/seller area for using the marketplace.')
-    prototype_role_notice()
-    st.caption(f'Current role: {role}')
-    if role=='Buyer':
-        st.info('Buyer path: manage your buyer profile, browse Marketplace, and check inquiries or requests.')
-        st.info('Browse and search listings from all approved sellers.')
-        workspace_options=['Buyer Profile','Browse Marketplace','My Inquiries / Requests','Tester Feedback']
-    elif role=='Seller':
-        st.info('Seller path: start with Seller Dashboard, then add inventory or check My Inventory.')
-        workspace_options=['Seller Dashboard','Add Inventory','My Inventory','My Store Profile','Buyer Requests','Seller Messages/Inquiries','Tester Feedback']
-    else:
-        st.info('My House of Wax is the Marketplace buyer/seller area. Use the separate House Of Wax Admin section in the sidebar for seller approval, moderation, tester feedback review, diagnostics, and database status.')
-        workspace_options=['Browse Marketplace','Tester Feedback']
-    if pending_workspace in workspace_options:
-        st.session_state['my_house_workspace']=pending_workspace
-    section=st.radio('Choose your workspace',workspace_options,key='my_house_workspace')
-
-    if section=='Tester Feedback':
-        tester_feedback_form('my_house')
-    elif section=='Buyer Profile':
-        buyer_dashboard()
-    elif section=='Browse Marketplace':
-        marketplace()
-    elif section=='My Inquiries / Requests':
-        buyer_dashboard()
-    elif section=='Seller Dashboard':
-        seller_dashboard()
-    elif section=='Add Inventory':
-        st.session_state['pending_seller_tools_primary_section']='Add Inventory'
-        seller_dashboard()
-    elif section=='My Inventory':
-        st.session_state['pending_seller_tools_primary_section']='My Inventory'
-        seller_dashboard()
-    elif section=='My Store Profile':
-        st.session_state['pending_seller_tools_primary_section']='My Store Profile'
-        seller_dashboard()
-    elif section=='Buyer Requests':
-        st.session_state['pending_seller_tools_primary_section']='Buyer Requests'
-        seller_dashboard()
-    elif section=='Seller Messages/Inquiries':
-        st.session_state['pending_seller_tools_primary_section']='Seller Messages/Inquiries'
-        seller_dashboard()
-
-
-
 def app_mode():
     role=current_account_role()
     st.sidebar.caption('Account role: '+safe(role,'Public'))
@@ -8151,7 +8082,7 @@ else:
     pending_seller_apps=pending_seller_application_count()
     st.sidebar.markdown('### House Of Wax Admin'+(f' ⚠️ {pending_seller_apps} pending' if pending_seller_apps else ''))
     st.sidebar.caption('Platform management: seller approval, moderation, reports, tester feedback, database status, Supabase diagnostics, and testing.')
-    admin_menu=['Admin Dashboard','User Directory','Seller Applications','Moderation Center','Content Admin','Homepage Editor','Tester Feedback','Database Status / Diagnostics','Test Setup']
+    admin_menu=['Admin Dashboard','User Directory','Buyer Lookup','Seller Applications','Moderation Center','Content Admin','Homepage Editor','Legal / Policies','Tester Feedback','Database Status / Diagnostics','Test Setup']
     pending_admin_nav=st.session_state.pop('pending_admin_navigation',None)
     if pending_admin_nav in admin_menu:
         st.session_state['admin_navigation']=pending_admin_nav
@@ -8178,10 +8109,8 @@ if area=='House Of Wax Marketplace':
     elif menu=='Business Plan / Funding Roadmap': business_plan_funding_roadmap()
     elif menu=='About': about_house_of_wax()
     elif menu=='Trust & Safety': trust_safety()
-    elif menu=='Legal / Policies': legal_policies()
     elif menu=='Payment / Checkout Prep': payment_checkout_prep()
     elif menu=='Contact / Newsletter': contact_newsletter()
-    elif menu=='My House of Wax': my_house_of_wax()
 else:
     if menu=='Admin Dashboard':
         admin()
@@ -8191,6 +8120,19 @@ else:
         if is_admin_unlocked():
             admin_user_directory()
         else:
+            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+    elif menu=='Buyer Lookup':
+        header()
+        admin_context('House Of Wax Admin -> Buyer Lookup')
+        if is_admin_unlocked():
+            buyer_dashboard_admin_lookup()
+        else:
+            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+    elif menu=='Legal / Policies':
+        if is_admin_unlocked():
+            legal_policies()
+        else:
+            header()
             st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
     elif menu=='Seller Applications':
         header()

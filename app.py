@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.53 BUYER-FACING SOLD PRICE HISTORY'
+APP_VERSION='V25.43.54 CLEANUP: DEAD ORDERS/FEEDBACK SYSTEM REMOVED'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1294,8 +1294,9 @@ def setup():
     old_v25_43_50_announcement='V25.43.50'+' Session token auto-refresh fix active'
     old_v25_43_51_announcement='V25.43.51'+' Want List with match notifications active'
     old_v25_43_52_announcement='V25.43.52'+' Seller written reviews active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement]:
-        set_setting('announcement','V25.43.53 Buyer-facing sold price history active')
+    old_v25_43_53_announcement='V25.43.53'+' Buyer-facing sold price history active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement]:
+        set_setting('announcement','V25.43.54 Dead orders/feedback system removed active')
 setup()
 recovery_token_bridge()
 
@@ -1917,11 +1918,6 @@ def create_buyer(email,name='Test Buyer'):
         return int(pid)
     reread=hosted_select('buyers',{'email':email},limit=1) if hosted_enabled() else df('SELECT id FROM buyers WHERE lower(email)=lower(?)',(email,))
     return int(reread.iloc[0]['id']) if not reread.empty else 0
-def update_rating(kind,i):
-    r=df("SELECT AVG(rating) avg FROM feedback WHERE reviewee_type=? AND reviewee_id=? AND public='Yes'",(kind,int(i)))
-    if not r.empty and not pd.isna(r.iloc[0]['avg']):
-        score=round(float(r.iloc[0]['avg'])*20,1)
-        run(('UPDATE sellers SET rating=? WHERE id=?' if kind=='Seller' else 'UPDATE buyers SET rating=? WHERE id=?'),(score,int(i)))
 def barcode_lookup(code):
     if not code: return {}
     r=hosted_select('products',{'barcode':code.strip()},order='created_at.desc',limit=1) if hosted_enabled() else df('''SELECT barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,description,price,shipping_price,image_url FROM products WHERE barcode=? ORDER BY created_at DESC LIMIT 1''',(code.strip(),))
@@ -2063,19 +2059,6 @@ def seller_pick(key,label='Seller account',preferred_id=None):
         preferred=0
     index=ids.index(preferred) if preferred in ids else 0
     return int(st.selectbox(label,opts,index=index,key=key).split('|')[0].strip())
-def feedback_public(kind,i):
-    r=df("SELECT * FROM feedback WHERE reviewee_type=? AND reviewee_id=? AND public='Yes' ORDER BY created_at DESC",(kind,int(i)))
-    if r.empty: st.info('No public feedback yet.'); return
-    st.metric('Public feedback score',f"{round(r['rating'].mean(),2)} / 5")
-    for _,x in r.iterrows():
-        with st.container(border=True): st.write(f"⭐ **{x['rating']} / 5**"); st.caption(f"{safe(x['reviewer_type'])} review • {safe(x['created_at'])}"); st.write(safe(x['comment'],'No comment.'))
-def buyer_profile_public(bid):
-    b=get_buyer(bid)
-    if b is None: bid=ensure_buyer(); b=get_buyer(bid)
-    st.subheader(f"Buyer trust profile: {safe(b['name'])}")
-    c1,c2,c3,c4=st.columns(4); c1.metric('Status',safe(b['status'])); c2.metric('Rating',f"{b['rating']}%"); c3.metric('Purchases',int(b['completed_purchases'] or 0)); c4.metric('Unpaid orders',int(b['unpaid_orders'] or 0))
-    st.write(f"**Bio:** {safe(b['bio'],'No buyer bio yet.')}"); feedback_public('Buyer',bid)
-
 def apply_to_become_seller(store_name='', owner_name=''):
     if not is_authenticated():
         AUTH_STATUS['last_link_error']='Sign in before applying to become a seller.'
@@ -2893,6 +2876,11 @@ def product_detail(pid):
         if status_label!='Available':
             st.warning(status_label)
         for label,col in [('Category','category'),('Format','format'),('Label','label'),('Release year','release_year'),('Barcode / UPC / EAN','barcode'),('Catalog #','catalog_number'),('Matrix / runout','matrix_runout'),('Condition','media_grade')]: st.write(f"**{label}:** {safe(p[col],'Not listed')}")
+        if safe(p.get('external_release_url')):
+            release_url=safe(p.get('external_release_url')).strip()
+            if not release_url.startswith(('http://','https://')):
+                release_url='https://'+release_url
+            st.link_button('View release info',release_url)
         if s is not None:
             st.write('**Seller:** '+safe(s.get('store_name')))
             render_seller_trust_badges(int(s['id']),'public')
@@ -3945,7 +3933,7 @@ def buyer_dashboard():
         existing=hosted_select('buyers',{'email':email.strip().lower()},limit=1) if hosted_enabled() else df('SELECT id FROM buyers WHERE lower(email)=lower(?)',(email.strip(),))
         bid=int(existing.iloc[0]['id']) if not existing.empty else st.session_state.get('buyer_id',ensure_buyer())
     b=get_buyer(bid); st.success(f"Loaded buyer: {safe(b['name'])} | {safe(b['email'])}")
-    tabs=st.tabs(['Profile','Inquiries / Purchase Requests','Orders','Messages','Following','Leave seller feedback','Public feedback'])
+    tabs=st.tabs(['Profile','Inquiries / Purchase Requests','Messages','Following'])
     with tabs[0]:
         with st.form('bp'):
             name=st.text_input('Name',value=safe(b['name']))
@@ -3964,21 +3952,14 @@ def buyer_dashboard():
                 AUTH_STATUS['last_buyer_save_error']=safe(SUPABASE_STATUS.get('last_error'),'Buyer profile save failed.')
                 st.error('Buyer profile did not save. Supabase error: '+AUTH_STATUS['last_buyer_save_error'])
     with tabs[1]: buyer_request_history(bid)
-    with tabs[2]: st.dataframe(df('SELECT * FROM orders WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),width='stretch')
-    with tabs[3]: st.dataframe(df('SELECT * FROM messages WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),width='stretch')
-    with tabs[4]:
+    with tabs[2]: st.dataframe(df('SELECT * FROM messages WHERE buyer_id=? ORDER BY created_at DESC',(bid,)),width='stretch')
+    with tabs[3]:
         follows=hosted_select('seller_followers',{'buyer_id':bid}) if hosted_enabled() else df('SELECT * FROM seller_followers WHERE buyer_id=?',(bid,))
         if follows.empty:
             st.dataframe(follows,width='stretch')
         else:
             sellers_ref=table('sellers')[['id','store_name','rating']].rename(columns={'id':'seller_id'})
             st.dataframe(follows.merge(sellers_ref,on='seller_id',how='left'),width='stretch')
-    with tabs[5]:
-        orders=df("SELECT * FROM orders WHERE buyer_id=? AND status='Completed' ORDER BY created_at DESC",(bid,)); st.dataframe(orders,width='stretch')
-        if not orders.empty:
-            oid=st.selectbox('Completed order',orders['id'].tolist()); o=orders[orders['id']==oid].iloc[0]; rating=st.slider('Seller rating',1,5,5); comment=st.text_area('Public seller feedback')
-            if st.button('Submit public seller feedback'): run("INSERT INTO feedback(order_id,reviewer_type,reviewer_id,reviewee_type,reviewee_id,rating,comment,public,created_at) VALUES(?,'Buyer',?,'Seller',?,?,?,'Yes',?)",(int(oid),bid,int(o['seller_id']),int(rating),comment,now())); update_rating('Seller',int(o['seller_id'])); st.success('Feedback posted.')
-    with tabs[6]: buyer_profile_public(bid)
 
 # ---------- V24 Barcode Lookup + Auto-Fill ----------
 MUSIC_CATEGORIES=['Vinyl Records','CDs','Cassettes','Albums','Music Releases']
@@ -6508,7 +6489,7 @@ def seller_dashboard():
         return
     seller_inventory_visibility_summary(sid)
     st.caption('My Store Profile, Add Inventory, My Inventory, and Seller Messages/Inquiries and Buyer Requests are in the radio above. The tabs below cover everything else.')
-    tabs=st.tabs(['Policies','Barcode scanner','Bulk import','Gallery','Orders','Messages','Announcements','Events/drops','Badges','Leave buyer feedback','Public feedback'])
+    tabs=st.tabs(['Policies','Barcode scanner','Bulk import','Gallery','Messages','Announcements','Events/drops','Badges'])
     with tabs[0]:
         p=hosted_select('seller_policies',{'seller_id':sid},limit=1) if hosted_enabled() else df('SELECT * FROM seller_policies WHERE seller_id=?',(sid,)); pol=p.iloc[0] if not p.empty else {}
         with st.form('policy'):
@@ -6580,16 +6561,8 @@ def seller_dashboard():
                         st.success('Gallery image added.')
                     else:
                         st.error('Gallery image could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
-    with tabs[4]:
-        orders=df('SELECT o.*,b.name buyer_name,b.email buyer_email,b.rating buyer_rating FROM orders o LEFT JOIN buyers b ON o.buyer_id=b.id WHERE o.seller_id=? ORDER BY o.created_at DESC',(sid,)); st.dataframe(orders,width='stretch')
-        if not orders.empty:
-            bids=orders['buyer_id'].dropna().astype(int).unique().tolist(); bp=st.selectbox('View buyer public trust profile',bids); buyer_profile_public(int(bp)); oid=st.selectbox('Order ID',orders['id'].tolist()); status=st.selectbox('Order status',['New','Contacted','Invoice Sent','Paid','Shipped','Completed','Cancelled','Disputed'])
-            if st.button('Update order'):
-                run('UPDATE orders SET status=?,updated_at=? WHERE id=? AND seller_id=?',(status,now(),int(oid),sid))
-                if status=='Completed': row=orders[orders['id']==oid].iloc[0]; run('UPDATE sellers SET completed_sales=completed_sales+1 WHERE id=?',(sid,)); run('UPDATE buyers SET completed_purchases=completed_purchases+1 WHERE id=?',(int(row['buyer_id']),))
-                st.success('Order updated.')
-    with tabs[5]: st.dataframe(df('SELECT * FROM messages WHERE seller_id=? ORDER BY created_at DESC',(sid,)),width='stretch')
-    with tabs[6]:
+    with tabs[4]: st.dataframe(df('SELECT * FROM messages WHERE seller_id=? ORDER BY created_at DESC',(sid,)),width='stretch')
+    with tabs[5]:
         with st.form('ann'): title=st.text_input('Announcement title'); body=st.text_area('Announcement body'); sub=st.form_submit_button('Post announcement')
         if sub:
             data={'seller_id':sid,'title':title,'body':body,'status':'Active','created_at':now()}
@@ -6599,7 +6572,7 @@ def seller_dashboard():
             else:
                 st.error('Announcement could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
         st.dataframe(hosted_select('store_announcements',{'seller_id':sid}) if hosted_enabled() else df('SELECT * FROM store_announcements WHERE seller_id=?',(sid,)),width='stretch')
-    with tabs[7]:
+    with tabs[6]:
         with st.form('ev'): title=st.text_input('Drop/event title'); typ=st.selectbox('Type',['Record Drop','Auction Drop','Sale','Live Event','Other']); date=st.text_input('Date/time'); desc=st.text_area('Description'); sub=st.form_submit_button('Save event')
         if sub:
             data={'seller_id':sid,'event_title':title,'event_type':typ,'event_date':date,'description':desc,'status':'Active','created_at':now()}
@@ -6608,13 +6581,7 @@ def seller_dashboard():
                 st.success('Saved.')
             else:
                 st.error('Event could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
-    with tabs[8]: st.write(badges(sid) or 'No badges yet.'); st.dataframe(hosted_select('seller_badges',{'seller_id':sid}) if hosted_enabled() else df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),width='stretch')
-    with tabs[9]:
-        orders=df("SELECT * FROM orders WHERE seller_id=? AND status='Completed'",(sid,)); st.dataframe(orders,width='stretch')
-        if not orders.empty:
-            oid=st.selectbox('Completed order',orders['id'].tolist(),key='sellerfb'); o=orders[orders['id']==oid].iloc[0]; rating=st.slider('Buyer rating',1,5,5); comment=st.text_area('Public buyer feedback')
-            if st.button('Submit public buyer feedback'): run("INSERT INTO feedback(order_id,reviewer_type,reviewer_id,reviewee_type,reviewee_id,rating,comment,public,created_at) VALUES(?,'Seller',?,'Buyer',?,?,?,'Yes',?)",(int(oid),sid,int(o['buyer_id']),int(rating),comment,now())); update_rating('Buyer',int(o['buyer_id'])); st.success('Feedback posted.')
-    with tabs[10]: feedback_public('Seller',sid)
+    with tabs[7]: st.write(badges(sid) or 'No badges yet.'); st.dataframe(hosted_select('seller_badges',{'seller_id':sid}) if hosted_enabled() else df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),width='stretch')
 def auctions():
     header(); st.header('Auctions'); sid=seller_pick('auction_seller'); prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved','Public')",(sid,))
     if not prods.empty:
@@ -7107,7 +7074,7 @@ def admin():
     with tabs[0]:
         if st.button('Create/repair House Of Wax Official seller'):
             sid=ensure_house_of_wax_official(); st.success(f'House Of Wax Official seller ready. Seller ID {sid}')
-        c1,c2,c3,c4=st.columns(4); c1.metric('Buyers',len(table('buyers'))); c2.metric('Sellers',len(table('sellers'))); c3.metric('Products',len(table('products'))); c4.metric('Orders',len(table('orders')))
+        c1,c2,c3,c4=st.columns(4); c1.metric('Buyers',len(table('buyers'))); c2.metric('Sellers',len(table('sellers'))); c3.metric('Products',len(table('products'))); c4.metric('Seller reviews',len(table('seller_reviews')))
         st.info('User Directory, Seller Applications, Moderation Center, Tester Feedback, and Database Status now live only in the sidebar Admin navigation (left side) — they were duplicated here and in the sidebar before, so this tab set was trimmed to remove the second copy.')
         with st.expander('Music Data Sources Roadmap',expanded=False):
             st.write('Future source/partner work should support both new and old music without making House Of Wax dependent on one outside source.')
@@ -7135,11 +7102,11 @@ def admin():
                 st.error('Badge could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
         if st.button('Create seller spotlight culture post'):
             s=get_seller(sid); run("INSERT INTO culture_posts(title,category,author,body,image_url,status,created_at) VALUES(?,'Seller Spotlight','House Of Wax',?,?,'Published',?)",(f"Seller Spotlight: {safe(s['store_name'])}",safe(s['seller_story'],safe(s['store_bio'])),safe(s['banner_url']) or safe(s['logo_url']),now())); st.success('Spotlight created.')
-        st.subheader('Messages'); st.dataframe(table('messages'),width='stretch'); st.subheader('Feedback'); st.dataframe(table('feedback'),width='stretch')
+        st.subheader('Messages'); st.dataframe(table('messages'),width='stretch')
     with tabs[6]:
-        rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','listing_reports','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(rep); st.dataframe(data,width='stretch'); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
+        rep=st.selectbox('Report',['buyers','sellers','products','product_gallery','listing_reports','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar','want_list','seller_reviews']); data=table(rep); st.dataframe(data,width='stretch'); st.download_button('Download CSV',data.to_csv(index=False),file_name=f'{rep}.csv')
     with tabs[7]:
-        t=st.selectbox('Table',['buyers','sellers','products','product_gallery','listing_reports','orders','feedback','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar']); data=table(t); st.dataframe(data,width='stretch')
+        t=st.selectbox('Table',['buyers','sellers','products','product_gallery','listing_reports','messages','listing_inquiries','purchase_requests','seller_followers','seller_badges','store_announcements','seller_events','auctions','bids','listing_flags','culture_posts','knowledge_posts','glossary_terms','content_drafts','content_calendar','want_list','seller_reviews']); data=table(t); st.dataframe(data,width='stretch')
         if not data.empty:
             rid=st.selectbox('Row ID',data['id'].tolist()); confirm=st.checkbox('Confirm delete')
             if st.button('Delete row') and confirm: run(f'DELETE FROM {t} WHERE id=?',(int(rid),)); st.success('Deleted.')
@@ -7230,15 +7197,7 @@ def legal_policies():
     st.write('Sellers agree not to knowingly post counterfeit, stolen, misleading, illegal, hateful, violent, or prohibited items. Sellers must describe items honestly and respond to buyer questions in good faith.')
     st.write('Buyers should review the listing details, condition notes, seller information, and photos or cover art before requesting to buy. Buyers can report listings or sellers that appear misleading or against platform rules.')
 
-    st.markdown('### Privacy Policy Draft')
-    policy_draft_notice()
-    st.write('House Of Wax may collect buyer contact info, seller contact info, listing information, uploaded photos, inquiries, purchase requests, admin/reviewer notes, and basic account or role information as the platform develops.')
-    st.write('Production launch needs real privacy handling, secure storage, permission controls, data retention rules, and clear user-facing privacy language. This prototype does not claim production-grade security.')
-
-    st.markdown('### Terms of Use Draft')
-    policy_draft_notice()
-    for item in ['Use accurate information.','Do not misuse the platform.','Do not submit fake, stolen, unsafe, counterfeit, or misleading listings.','House Of Wax may investigate reports and may hide, restrict, or remove listings or sellers that violate platform rules.','This prototype is not the final production marketplace.']:
-        st.write(f'- {item}')
+    st.info('The real Privacy Policy and Terms of Service are live at ?legal=privacy and ?legal=terms -- edit those pages directly rather than this draft section.')
 
     st.markdown('### Seller Agreement Draft')
     policy_draft_notice()

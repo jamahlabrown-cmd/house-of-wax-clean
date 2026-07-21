@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.52 SELLER WRITTEN REVIEWS'
+APP_VERSION='V25.43.53 BUYER-FACING SOLD PRICE HISTORY'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1293,8 +1293,9 @@ def setup():
     old_v25_43_49_announcement='V25.43.49'+' Facebook Page posting active'
     old_v25_43_50_announcement='V25.43.50'+' Session token auto-refresh fix active'
     old_v25_43_51_announcement='V25.43.51'+' Want List with match notifications active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement]:
-        set_setting('announcement','V25.43.52 Seller written reviews active')
+    old_v25_43_52_announcement='V25.43.52'+' Seller written reviews active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement]:
+        set_setting('announcement','V25.43.53 Buyer-facing sold price history active')
 setup()
 recovery_token_bridge()
 
@@ -2873,6 +2874,19 @@ def product_detail(pid):
         render_listing_photo_gallery(pid,primary_image,'public')
     with rcol:
         st.title(f"{safe(p['artist'])} — {safe(p['title'])}"); st.write('**Price:** '+money(p['price'])); st.write('**Shipping:** '+money(p['shipping_price']))
+        sold_comps=sold_price_history(p['artist'],exclude_product_id=int(pid))
+        if not sold_comps.empty:
+            comp_prices=sold_comps['price'].dropna().astype(float)
+            comp_prices=comp_prices[comp_prices>0]
+            if not comp_prices.empty:
+                # st.expander's label renders as markdown, where a bare $ is
+                # read as LaTeX math delimiters -- escape it or "$12-$18"
+                # renders as a garbled equation instead of a price range.
+                price_range=f"{money(comp_prices.min())}–{money(comp_prices.max())}".replace('$','\\$')
+                with st.expander(f"Recently sold: {len(comp_prices)} similar copy(ies), {price_range}"):
+                    st.caption(f"Other {safe(p['artist'])} copies sold on House Of Wax — use this to gauge a fair price.")
+                    for _,comp in sold_comps.iterrows():
+                        st.write(f"**{safe(comp.get('title'))}** • {safe(comp.get('media_grade'),'Condition not listed')} • {money(comp.get('price'))} • {safe(comp.get('updated_at'))[:10]}")
         if is_public:
             share_block('product',int(pid),f"{safe(p['artist'])} — {safe(p['title'])}")
         status_label=listing_availability_label(p)
@@ -4483,6 +4497,23 @@ def suggest_price_range_from_discogs(release_id, media_grade=None, sleeve_grade=
         return {'low':min(values),'high':max(values),'source':'Discogs marketplace (real listings, varies by condition)','by_grade':by_grade}
     except Exception:
         return None
+
+def sold_price_history(artist, exclude_product_id=None, limit=8):
+    # Buyer-facing counterpart to suggest_price_range_from_how_history --
+    # sellers already see this signal when pricing a new listing, buyers
+    # browsing a listing get none of it without this.
+    artist_clean=safe(artist).strip().lower()
+    if not artist_clean:
+        return pd.DataFrame()
+    sold=hosted_select('products',{'listing_status':'Sold'}) if hosted_enabled() else df("SELECT * FROM products WHERE listing_status='Sold'")
+    if sold.empty or 'artist' not in sold.columns:
+        return pd.DataFrame()
+    matches=sold[sold['artist'].fillna('').str.strip().str.lower()==artist_clean]
+    if exclude_product_id and 'id' in matches.columns:
+        matches=matches[matches['id'].astype(int)!=int(exclude_product_id)]
+    if 'updated_at' in matches.columns:
+        matches=matches.sort_values('updated_at',ascending=False)
+    return matches.head(limit)
 
 def suggest_price_range_from_how_history(artist, media_grade=None, sleeve_grade=None):
     artist_clean=safe(artist).strip().lower()

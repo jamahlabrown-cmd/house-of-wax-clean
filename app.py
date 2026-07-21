@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.51 WANT LIST WITH MATCH NOTIFICATIONS'
+APP_VERSION='V25.43.52 SELLER WRITTEN REVIEWS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -76,7 +76,7 @@ def supabase_config():
         url=url[:-8].rstrip('/')
     anon=safe(config_value('SUPABASE_ANON_KEY'))
     return url,anon
-CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies','want_list']
+CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies','want_list','seller_reviews']
 GRADE_SCALE=['Mint','Near Mint','VG+','VG','Good+','Good','Fair','Poor']
 GRADE_INDEX={g:i for i,g in enumerate(GRADE_SCALE)}
 GRADE_PRICE_MULTIPLIERS={'Mint':1.35,'Near Mint':1.20,'VG+':1.00,'VG':0.80,'Good+':0.65,'Good':0.50,'Fair':0.35,'Poor':0.20}
@@ -1104,6 +1104,7 @@ def setup():
     cur.execute('''CREATE TABLE IF NOT EXISTS listing_inquiries(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,message TEXT,status TEXT DEFAULT 'New',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS purchase_requests(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,fulfillment_preference TEXT,offer_price REAL DEFAULT 0,buyer_message TEXT,status TEXT DEFAULT 'New',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS want_list(id INTEGER PRIMARY KEY AUTOINCREMENT,buyer_id INTEGER,artist TEXT,title TEXT,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS seller_reviews(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,buyer_id INTEGER,purchase_request_id INTEGER,product_id INTEGER,rating INTEGER,review_text TEXT,buyer_display_name TEXT,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS tester_feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,tester_name TEXT,tester_type TEXT,page_flow TEXT,worked_well TEXT,confusing TEXT,felt_broken TEXT,missing TEXT,ease_rating INTEGER,would_use_again TEXT,open_notes TEXT,status TEXT DEFAULT 'New',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS listing_reports(id INTEGER PRIMARY KEY AUTOINCREMENT,listing_id INTEGER,seller_id INTEGER,reporter_name TEXT,reporter_contact TEXT,reason TEXT,details TEXT,status TEXT DEFAULT 'Open',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_followers(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,buyer_id INTEGER,created_at TEXT)''')
@@ -1291,8 +1292,9 @@ def setup():
     old_v25_43_48_announcement='V25.43.48'+' Public terms of service page active'
     old_v25_43_49_announcement='V25.43.49'+' Facebook Page posting active'
     old_v25_43_50_announcement='V25.43.50'+' Session token auto-refresh fix active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement]:
-        set_setting('announcement','V25.43.51 Want List with match notifications active')
+    old_v25_43_51_announcement='V25.43.51'+' Want List with match notifications active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement]:
+        set_setting('announcement','V25.43.52 Seller written reviews active')
 setup()
 recovery_token_bridge()
 
@@ -2820,7 +2822,6 @@ def seller_profile(sid):
     st.write('**Location:** '+safe(location,'Not listed'))
     st.write('**Favorite genres/categories:** '+safe(s['specialties'],'Not listed'))
     st.write('**Contact preference:** '+safe(s.get('contact_preference'),'Use House Of Wax messages when available.'))
-    st.caption('Reviews coming soon. Ratings will appear after completed buyer transactions.')
     with st.expander('Report Seller',expanded=False):
         st.caption('Use this if a seller appears misleading, unsafe, abusive, or against House Of Wax platform rules.')
         report_listing_form(None,s,f'seller_{sid}')
@@ -2831,7 +2832,19 @@ def seller_profile(sid):
         if safe(p.get('shipping_policy')): st.write('**Shipping:** '+safe(p.get('shipping_policy')))
         if safe(p.get('return_policy')): st.write('**Returns:** '+safe(p.get('return_policy')))
         if safe(p.get('local_pickup_policy')): st.write('**Pickup / meetups:** '+safe(p.get('local_pickup_policy')))
-    st.subheader('Public seller feedback'); feedback_public('Seller',sid)
+    st.subheader('Reviews')
+    reviews=seller_reviews(sid)
+    if reviews.empty:
+        st.info('No reviews yet. Reviews appear here once a buyer completes a purchase and leaves feedback.')
+    else:
+        summary=seller_review_summary(sid)
+        st.metric('Average rating',f"{summary['average']} / 5",help=f"Based on {summary['count']} review(s)")
+        for _,rv in reviews.iterrows():
+            with st.container(border=True):
+                st.write('⭐ '*int(rv.get('rating') or 0)+f" ({int(rv.get('rating') or 0)}/5)")
+                st.caption(f"{safe(rv.get('buyer_display_name'),'A House Of Wax buyer')} • {safe(rv.get('created_at'))}")
+                if safe(rv.get('review_text')):
+                    st.write(safe(rv.get('review_text')))
     st.subheader('Public inventory')
     prods=hosted_select('products',{'seller_id':int(sid)},in_filters={'listing_status':public_listing_query_statuses()},order='created_at.desc') if hosted_enabled() else df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Live','Active','Approved','Public','Pending Pickup/Payment','Pending','Sold') ORDER BY created_at DESC",(sid,))
     if prods.empty: st.info('No public inventory yet. Draft, Hidden, Under Review, and Removed listings stay private or unavailable inside Seller Tools.')
@@ -3860,6 +3873,26 @@ def buyer_dashboard():
                                 core_update('purchase_requests',{'status':'Closed','updated_at':now()},{'id':crid},'UPDATE purchase_requests SET status=?,updated_at=? WHERE id=?',('Closed',now(),crid))
                                 st.info('Counter declined.')
                                 st.rerun()
+                sold=purchases[purchases['status']=='Sold'] if 'status' in purchases.columns else purchases.iloc[0:0]
+                to_review=sold[~sold['id'].apply(lambda i: buyer_already_reviewed(int(i)))] if not sold.empty else sold
+                if not to_review.empty:
+                    st.markdown('#### Leave a review')
+                    for _,sr in to_review.iterrows():
+                        srid=int(sr['id'])
+                        with st.container(border=True):
+                            st.write(f"**{safe(sr.get('artist'))} — {safe(sr.get('title'))}** from {safe(sr.get('store_name'))}")
+                            with st.form(f'review_form_{srid}'):
+                                rating=st.slider('Rating',1,5,5,key=f'review_rating_{srid}')
+                                review_text=st.text_area('Your review - optional',key=f'review_text_{srid}')
+                                display_name=st.text_input('Display name shown on your review',value=safe(b.get('name')),key=f'review_name_{srid}')
+                                review_submitted=st.form_submit_button('Submit review')
+                            if review_submitted:
+                                rvid=add_seller_review(sr.get('seller_id'),bid,srid,sr.get('product_id'),rating,review_text,display_name)
+                                if rvid or not hosted_enabled():
+                                    st.success('Review posted. Thank you.')
+                                    st.rerun()
+                                else:
+                                    st.error('Review could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
         with tabs[3]:
             want_list_manager(bid)
         with tabs[4]:
@@ -4223,6 +4256,25 @@ def want_list_manager(buyer_id):
             if c2.button('Remove',key=f'remove_want_{wid}'):
                 remove_want(wid)
                 st.rerun()
+
+def add_seller_review(seller_id, buyer_id, purchase_request_id, product_id, rating, review_text, buyer_display_name):
+    data={'seller_id':int(seller_id),'buyer_id':int(buyer_id),'purchase_request_id':int(purchase_request_id),'product_id':int(product_id) if product_id else None,'rating':int(rating),'review_text':safe(review_text).strip(),'buyer_display_name':safe(buyer_display_name),'created_at':now(),'updated_at':now()}
+    return core_insert('seller_reviews',data,"""INSERT INTO seller_reviews(seller_id,buyer_id,purchase_request_id,product_id,rating,review_text,buyer_display_name,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)""",(data['seller_id'],data['buyer_id'],data['purchase_request_id'],data['product_id'],data['rating'],data['review_text'],data['buyer_display_name'],data['created_at'],data['updated_at']))
+
+def seller_reviews(seller_id):
+    if not seller_id:
+        return pd.DataFrame()
+    return hosted_select('seller_reviews',{'seller_id':seller_id},order='created_at.desc') if hosted_enabled() else df('SELECT * FROM seller_reviews WHERE seller_id=? ORDER BY created_at DESC',(seller_id,))
+
+def buyer_already_reviewed(purchase_request_id):
+    existing=hosted_select('seller_reviews',{'purchase_request_id':purchase_request_id},limit=1) if hosted_enabled() else df('SELECT id FROM seller_reviews WHERE purchase_request_id=?',(purchase_request_id,))
+    return not existing.empty
+
+def seller_review_summary(seller_id):
+    reviews=seller_reviews(seller_id)
+    if reviews.empty:
+        return None
+    return {'average':round(float(reviews['rating'].mean()),1),'count':int(len(reviews))}
 
 def send_email(to_email, subject, html_body):
     # Fails quietly and returns False on any problem -- email is a nice-to-have

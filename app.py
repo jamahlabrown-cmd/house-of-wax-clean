@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.50 SESSION TOKEN AUTO-REFRESH FIX'
+APP_VERSION='V25.43.51 WANT LIST WITH MATCH NOTIFICATIONS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -76,7 +76,7 @@ def supabase_config():
         url=url[:-8].rstrip('/')
     anon=safe(config_value('SUPABASE_ANON_KEY'))
     return url,anon
-CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies']
+CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies','want_list']
 GRADE_SCALE=['Mint','Near Mint','VG+','VG','Good+','Good','Fair','Poor']
 GRADE_INDEX={g:i for i,g in enumerate(GRADE_SCALE)}
 GRADE_PRICE_MULTIPLIERS={'Mint':1.35,'Near Mint':1.20,'VG+':1.00,'VG':0.80,'Good+':0.65,'Good':0.50,'Fair':0.35,'Poor':0.20}
@@ -1103,6 +1103,7 @@ def setup():
     cur.execute('''CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,sender_type TEXT,subject TEXT,message TEXT,status TEXT DEFAULT 'New',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS listing_inquiries(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,message TEXT,status TEXT DEFAULT 'New',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS purchase_requests(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,fulfillment_preference TEXT,offer_price REAL DEFAULT 0,buyer_message TEXT,status TEXT DEFAULT 'New',created_at TEXT,updated_at TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS want_list(id INTEGER PRIMARY KEY AUTOINCREMENT,buyer_id INTEGER,artist TEXT,title TEXT,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS tester_feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,tester_name TEXT,tester_type TEXT,page_flow TEXT,worked_well TEXT,confusing TEXT,felt_broken TEXT,missing TEXT,ease_rating INTEGER,would_use_again TEXT,open_notes TEXT,status TEXT DEFAULT 'New',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS listing_reports(id INTEGER PRIMARY KEY AUTOINCREMENT,listing_id INTEGER,seller_id INTEGER,reporter_name TEXT,reporter_contact TEXT,reason TEXT,details TEXT,status TEXT DEFAULT 'Open',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_followers(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,buyer_id INTEGER,created_at TEXT)''')
@@ -1289,8 +1290,9 @@ def setup():
     old_v25_43_47_announcement='V25.43.47'+' Public privacy policy page active'
     old_v25_43_48_announcement='V25.43.48'+' Public terms of service page active'
     old_v25_43_49_announcement='V25.43.49'+' Facebook Page posting active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement]:
-        set_setting('announcement','V25.43.50 Session token auto-refresh fix active')
+    old_v25_43_50_announcement='V25.43.50'+' Session token auto-refresh fix active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement]:
+        set_setting('announcement','V25.43.51 Want List with match notifications active')
 setup()
 recovery_token_bridge()
 
@@ -3805,7 +3807,7 @@ def buyer_dashboard():
             st.error('Linked buyer profile was not found.')
             return
         st.success(f"Loaded your buyer profile: {safe(b['name'])} | {safe(b['email'])}")
-        tabs=st.tabs(['My Profile','My Inquiries','My Purchase Requests','Sign Out'])
+        tabs=st.tabs(['My Profile','My Inquiries','My Purchase Requests','My Want List','Sign Out'])
         with tabs[0]:
             with st.form('bp_auth'):
                 name=st.text_input('Name',value=safe(b['name']))
@@ -3859,6 +3861,8 @@ def buyer_dashboard():
                                 st.info('Counter declined.')
                                 st.rerun()
         with tabs[3]:
+            want_list_manager(bid)
+        with tabs[4]:
             st.write('Signed in as '+auth_user_email())
             if st.button('Sign Out',key='buyer_account_sign_out'):
                 auth_sign_out()
@@ -4113,6 +4117,112 @@ def send_seller_approved_email(email, store_name):
 <p>Sign in and open Seller Dashboard to accept the seller rules and start publishing listings.</p>
 <p>&mdash; House Of Wax</p>"""
     send_email(email,"You're approved to sell on House Of Wax",body_html)
+
+def add_want(buyer_id, artist, title=''):
+    artist=safe(artist).strip()
+    if not buyer_id or not artist:
+        return 0
+    data={'buyer_id':int(buyer_id),'artist':artist,'title':safe(title).strip(),'status':'Active','created_at':now(),'updated_at':now()}
+    return core_insert('want_list',data,"""INSERT INTO want_list(buyer_id,artist,title,status,created_at,updated_at) VALUES(?,?,?,?,?,?)""",(data['buyer_id'],data['artist'],data['title'],data['status'],data['created_at'],data['updated_at']))
+
+def buyer_want_list(buyer_id):
+    if not buyer_id:
+        return pd.DataFrame()
+    return hosted_select('want_list',{'buyer_id':buyer_id,'status':'Active'},order='created_at.desc') if hosted_enabled() else df("SELECT * FROM want_list WHERE buyer_id=? AND status='Active' ORDER BY created_at DESC",(buyer_id,))
+
+def remove_want(want_id):
+    if hosted_enabled():
+        return hosted_delete('want_list',{'id':int(want_id)})
+    run('DELETE FROM want_list WHERE id=?',(int(want_id),))
+    return True
+
+def want_list_live_matches(artist, title=''):
+    # Checked at the moment a buyer adds a want, so they get an immediate
+    # answer instead of only finding out the next time something matches.
+    artist_clean=safe(artist).strip().lower()
+    if not artist_clean:
+        return pd.DataFrame()
+    live=hosted_select('products',{},in_filters={'listing_status':PUBLIC_LISTING_STATUSES}) if hosted_enabled() else df('SELECT * FROM products')
+    if live.empty or 'artist' not in live.columns:
+        return pd.DataFrame()
+    if not hosted_enabled():
+        live=live[live['listing_status'].isin(PUBLIC_LISTING_STATUSES)] if 'listing_status' in live.columns else live
+    matches=live[live['artist'].fillna('').str.strip().str.lower()==artist_clean]
+    title_clean=safe(title).strip().lower()
+    if title_clean and 'title' in matches.columns:
+        matches=matches[matches['title'].fillna('').str.strip().str.lower()==title_clean]
+    return matches
+
+def find_want_list_matches_for_notify(artist, title=''):
+    # Cross-buyer lookup (does this new listing match ANY buyer's want, not
+    # just the seller's own) needs to see other buyers' rows despite RLS
+    # normally scoping want_list to its owner -- routed through a
+    # security-definer RPC (find_want_list_matches) the same way
+    # is_admin_user() safely bypasses RLS elsewhere in this app.
+    artist_clean=safe(artist).strip()
+    if not artist_clean:
+        return []
+    if hosted_enabled():
+        try:
+            url,anon=supabase_config()
+            r=requests.post(f'{url}/rest/v1/rpc/find_want_list_matches',headers=hosted_headers(),json={'p_artist':artist_clean,'p_title':safe(title).strip()},timeout=10)
+            return r.json() if r.status_code==200 and r.content else []
+        except Exception:
+            return []
+    rows=df("SELECT w.buyer_id,b.email,b.name,w.title as want_title FROM want_list w JOIN buyers b ON b.id=w.buyer_id WHERE w.status='Active' AND lower(w.artist)=lower(?) AND (w.title IS NULL OR w.title='' OR lower(w.title)=lower(?))",(artist_clean,safe(title).strip()))
+    return rows.to_dict('records') if not rows.empty else []
+
+def send_want_list_match_email(email, name, artist, title_wanted, product):
+    greeting=f"Hi {safe(name)}," if safe(name) else "Hi,"
+    want_desc=f"{html.escape(safe(artist))} — {html.escape(safe(title_wanted))}" if safe(title_wanted) else html.escape(safe(artist))
+    body_html=f"""<p>{greeting}</p>
+<p>Something on your House Of Wax Want List just got listed:</p>
+<p><strong>{html.escape(safe(product.get('artist')))} — {html.escape(safe(product.get('title')))}</strong><br>
+Condition: {html.escape(safe(product.get('media_grade'),'Not listed'))} &bull; Price: {money(product.get('price'))}</p>
+<p>You were watching for: {want_desc}</p>
+<p>Sign in to House Of Wax and check My Account &rarr; My Want List, or head to Search Music to find it.</p>
+<p>&mdash; House Of Wax</p>"""
+    send_email(email,f"It's here: {safe(product.get('artist'))} just got listed",body_html)
+
+def notify_want_list_matches(product):
+    matches=find_want_list_matches_for_notify(product.get('artist'),product.get('title'))
+    for m in matches:
+        email=safe(m.get('email'))
+        if email:
+            send_want_list_match_email(email,safe(m.get('name')),product.get('artist'),m.get('want_title'),product)
+
+def want_list_manager(buyer_id):
+    st.subheader('My Want List')
+    st.caption("Tell House Of Wax what you're hunting for. We'll email you the moment a matching copy gets listed.")
+    with st.form('add_want_form'):
+        w_artist=st.text_input('Artist / Brand')
+        w_title=st.text_input('Title - optional (leave blank to be notified about anything by this artist)')
+        submitted=st.form_submit_button('Add to Want List')
+    if submitted:
+        if not safe(w_artist).strip():
+            st.warning('Artist is required.')
+        else:
+            wid=add_want(buyer_id,w_artist,w_title)
+            if wid or not hosted_enabled():
+                st.success(f'Added to your Want List: {safe(w_artist)}'+(f' — {safe(w_title)}' if safe(w_title).strip() else '')+'.')
+                existing=want_list_live_matches(w_artist,w_title)
+                if not existing.empty:
+                    st.info(f"Good news — {len(existing)} matching listing(s) are already live. Check Search Music.")
+            else:
+                st.error('Could not save to your Want List. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
+    wants=buyer_want_list(buyer_id)
+    if wants.empty:
+        st.info('Nothing on your Want List yet.')
+        return
+    st.markdown('#### Currently watching for')
+    for _,w in wants.iterrows():
+        wid=int(w['id'])
+        with st.container(border=True):
+            c1,c2=st.columns([4,1])
+            c1.write(f"**{safe(w.get('artist'))}**"+(f" — {safe(w.get('title'))}" if safe(w.get('title')) else " — any title"))
+            if c2.button('Remove',key=f'remove_want_{wid}'):
+                remove_want(wid)
+                st.rerun()
 
 def send_email(to_email, subject, html_body):
     # Fails quietly and returns False on any problem -- email is a nice-to-have
@@ -5843,6 +5953,8 @@ def upload_product(sid,key):
         if not pid and hosted_enabled():
             st.error('This listing could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error')+' Nothing was published -- please try again.')
             return
+        if listing_status=='Live':
+            notify_want_list_matches(product_data)
         if saved_main:
             core_insert('product_gallery',{'product_id':int(pid),'image_url':saved_main,'caption':'Main listing photo - seller uploaded exact item photo','created_at':now()},'INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),saved_main,'Main listing photo - seller uploaded exact item photo',now()))
         for i,path in enumerate(saved_supporting,1):

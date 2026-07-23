@@ -13,7 +13,11 @@ Deploy this on its own (Railway/Render/etc), not on Streamlit Cloud -- Streamlit
 can't serve real-time endpoints to the embedded widget the way this needs.
 
 Required environment variables:
-  HEYGEN_API_KEY       HeyGen API key (Developers -> Overview -> Create API Key)
+  HEYGEN_API_KEY       HeyGen API key (developers.heygen.com -> Overview -> Create
+                         API Key) -- used for voices/text-to-speech only.
+  LIVEAVATAR_API_KEY     A separate LiveAvatar API key from app.liveavatar.com/developers
+                         -- LiveAvatar is a distinct product from HeyGen's main API and
+                         does not accept HEYGEN_API_KEY.
   HEYGEN_AVATAR_ID      The LiveAvatar's ID (Avatar -> Avatars -> your avatar ->
                          Copy avatar look ID)
   HEYGEN_VOICE_ID        A HeyGen voice ID for the avatar to speak with (Voices
@@ -49,6 +53,10 @@ app.add_middleware(
 )
 
 HEYGEN_API_KEY = os.environ["HEYGEN_API_KEY"]
+# LiveAvatar (api.liveavatar.com, session tokens) is a distinct product from
+# HeyGen's main API (api.heygen.com, voices/TTS) and needs its own separate
+# key from app.liveavatar.com/developers -- HEYGEN_API_KEY does not work there.
+LIVEAVATAR_API_KEY = os.environ["LIVEAVATAR_API_KEY"]
 HEYGEN_AVATAR_ID = os.environ["HEYGEN_AVATAR_ID"]
 # Optional at startup so GET /voices can be called to pick a real value before
 # HEYGEN_VOICE_ID is set -- /ask raises a clear error if it's still empty.
@@ -153,7 +161,7 @@ async def get_token():
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.post(
                 "https://api.liveavatar.com/v1/sessions/token",
-                headers={"x-api-key": HEYGEN_API_KEY, "content-type": "application/json"},
+                headers={"x-api-key": LIVEAVATAR_API_KEY, "content-type": "application/json"},
                 json={"mode": "LITE", "avatar_id": HEYGEN_AVATAR_ID, "is_sandbox": False},
             )
             body_text = r.text

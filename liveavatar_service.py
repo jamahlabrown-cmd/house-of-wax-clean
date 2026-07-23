@@ -50,7 +50,9 @@ app.add_middleware(
 
 HEYGEN_API_KEY = os.environ["HEYGEN_API_KEY"]
 HEYGEN_AVATAR_ID = os.environ["HEYGEN_AVATAR_ID"]
-HEYGEN_VOICE_ID = os.environ["HEYGEN_VOICE_ID"]
+# Optional at startup so GET /voices can be called to pick a real value before
+# HEYGEN_VOICE_ID is set -- /ask raises a clear error if it's still empty.
+HEYGEN_VOICE_ID = os.environ.get("HEYGEN_VOICE_ID", "")
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
 SUPABASE_ANON_KEY = os.environ["SUPABASE_ANON_KEY"]
@@ -103,6 +105,8 @@ async def knowledge_hub_context() -> str:
 
 async def text_to_speech_base64(text: str) -> str:
     """Generate speech audio for text via HeyGen's voice API, returned as base64."""
+    if not HEYGEN_VOICE_ID:
+        raise RuntimeError("HEYGEN_VOICE_ID is not set -- call GET /voices to find one")
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.post(
             "https://api.heygen.com/v3/voices/speech",

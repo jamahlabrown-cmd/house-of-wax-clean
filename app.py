@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.58 FIX: PUBLIC PRODUCTS VISIBILITY (ANON SELECT PERMISSION)'
+APP_VERSION='V25.43.59 FIX: AVATAR WIDGET USES REAL LIVEAVATAR SDK + TTS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1312,8 +1312,9 @@ def setup():
     old_v25_43_55_announcement='V25.43.55'+' Buyer account reachability fix active'
     old_v25_43_56_announcement='V25.43.56'+' 6 more dead menu pages removed active'
     old_v25_43_57_announcement='V25.43.57'+' AI avatar assistant scaffolding added (off by default) active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement]:
-        set_setting('announcement','V25.43.58 Fix: public products visibility (anon select permission) active')
+    old_v25_43_58_announcement='V25.43.58'+' Fix: public products visibility (anon select permission) active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement]:
+        set_setting('announcement','V25.43.59 Fix: avatar widget uses real LiveAvatar SDK + TTS active')
 setup()
 recovery_token_bridge()
 
@@ -4449,7 +4450,6 @@ def render_liveavatar_widget():
     if not liveavatar_enabled():
         return
     backend_url=safe(st.secrets.get('LIVEAVATAR_BACKEND_URL','')).rstrip('/')
-    avatar_id=safe(st.secrets.get('LIVEAVATAR_AVATAR_ID',''))
     st.markdown('### Ask House Of Wax')
     st.caption('Talk to our AI assistant about grading, buying, or selling.')
     st.components.v1.html(f"""
@@ -4463,27 +4463,22 @@ def render_liveavatar_widget():
     </div>
 
     <script type="module">
-      import StreamingAvatar, {{ AvatarQuality, StreamingEvents, TaskType }}
-        from "https://esm.sh/@heygen/liveavatar-web-sdk";
+      import {{ LiveAvatarSession, SessionEvent }} from "https://esm.sh/@heygen/liveavatar-web-sdk";
 
       const statusEl = document.getElementById("avatarStatus");
-      let avatar;
+      let session;
 
       async function init() {{
         try {{
           const tokenRes = await fetch("{backend_url}/get-token", {{ method: "POST" }});
           if (!tokenRes.ok) throw new Error("token request failed");
-          const {{ token }} = await tokenRes.json();
+          const {{ session_token }} = await tokenRes.json();
 
-          avatar = new StreamingAvatar({{ token }});
-          avatar.on(StreamingEvents.STREAM_READY, (event) => {{
-            document.getElementById("avatarVideo").srcObject = event.detail;
+          session = new LiveAvatarSession(session_token, {{ apiUrl: "https://api.heygen.com", voiceChat: false }});
+          session.on(SessionEvent.SESSION_STREAM_READY, () => {{
+            session.attach(document.getElementById("avatarVideo"));
           }});
-
-          await avatar.createStartAvatar({{
-            quality: AvatarQuality.High,
-            avatarName: "{avatar_id}",
-          }});
+          await session.start();
         }} catch (err) {{
           statusEl.textContent = "The avatar assistant is unavailable right now.";
         }}
@@ -4500,8 +4495,8 @@ def render_liveavatar_widget():
             headers: {{ "Content-Type": "application/json" }},
             body: JSON.stringify({{ question }}),
           }});
-          const {{ answer }} = await res.json();
-          if (avatar) await avatar.speak({{ text: answer, taskType: TaskType.REPEAT }});
+          const {{ answer, audio }} = await res.json();
+          if (session && audio) await session.repeatAudio(audio);
           statusEl.textContent = "";
         }} catch (err) {{
           statusEl.textContent = "Sorry, that didn't go through -- try again.";

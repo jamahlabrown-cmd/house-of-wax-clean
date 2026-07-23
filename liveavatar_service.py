@@ -2,14 +2,23 @@
 House Of Wax — LiveAvatar backend service.
 
 Separate FastAPI service (not part of the Streamlit app) that:
-  - issues short-lived HeyGen streaming tokens, keeping HEYGEN_API_KEY off the browser
-  - answers visitor questions with Claude, grounded in published Knowledge Hub content
+  - issues short-lived HeyGen LiveAvatar session tokens (LITE mode), keeping
+    HEYGEN_API_KEY off the browser
+  - answers visitor questions with Claude, grounded in published Knowledge Hub
+    content, then converts the answer to speech via HeyGen's voice API (LITE
+    mode brings your own conversational stack -- HeyGen only handles the
+    video/audio streaming, not the text-to-speech step)
 
-Deploy this on its own (Railway/Render/etc), not on Streamlit Cloud — Streamlit
+Deploy this on its own (Railway/Render/etc), not on Streamlit Cloud -- Streamlit
 can't serve real-time endpoints to the embedded widget the way this needs.
 
 Required environment variables:
   HEYGEN_API_KEY       HeyGen API key (Developers -> Overview -> Create API Key)
+  HEYGEN_AVATAR_ID      The LiveAvatar's ID (Avatar -> Avatars -> your avatar ->
+                         Copy avatar look ID)
+  HEYGEN_VOICE_ID        A HeyGen voice ID for the avatar to speak with (Voices
+                         tab in HeyGen, or GET /voices on this service to list
+                         real options once deployed)
   ANTHROPIC_API_KEY    Anthropic API key (console.anthropic.com), separate from claude.ai
   SUPABASE_URL         Same Supabase project the main app uses
   SUPABASE_ANON_KEY    Same anon key the main app uses (read-only use here)
@@ -21,6 +30,7 @@ Optional:
   LIVEAVATAR_ENABLED    "false" disables both endpoints immediately (a hard kill switch
                          independent of the app's own admin toggle). Defaults to "true".
 """
+import base64
 import os
 import time
 
@@ -34,11 +44,13 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[os.environ.get("ALLOWED_ORIGIN", "*")],
-    allow_methods=["POST"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
 HEYGEN_API_KEY = os.environ["HEYGEN_API_KEY"]
+HEYGEN_AVATAR_ID = os.environ["HEYGEN_AVATAR_ID"]
+HEYGEN_VOICE_ID = os.environ["HEYGEN_VOICE_ID"]
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
 SUPABASE_ANON_KEY = os.environ["SUPABASE_ANON_KEY"]
@@ -89,8 +101,41 @@ async def knowledge_hub_context() -> str:
         return _context_cache["text"]
 
 
+async def text_to_speech_base64(text: str) -> str:
+    """Generate speech audio for text via HeyGen's voice API, returned as base64."""
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(
+            "https://api.heygen.com/v3/voices/speech",
+            headers={"x-api-key": HEYGEN_API_KEY, "content-type": "application/json"},
+            json={"text": text, "voice_id": HEYGEN_VOICE_ID},
+        )
+        r.raise_for_status()
+        audio_url = r.json()["data"]["audio_url"]
+        audio_res = await client.get(audio_url)
+        audio_res.raise_for_status()
+    return base64.b64encode(audio_res.content).decode("ascii")
+
+
+class VoicesResponse(BaseModel):
+    voices: list
+
+
+@app.get("/voices", response_model=VoicesResponse)
+async def voices():
+    """Lists real HeyGen voice IDs to help pick a HEYGEN_VOICE_ID value. Safe to remove later."""
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.get(
+            "https://api.heygen.com/v2/voices",
+            headers={"x-api-key": HEYGEN_API_KEY},
+        )
+        r.raise_for_status()
+        data = r.json()
+    return {"voices": data.get("data", {}).get("voices", [])[:40]}
+
+
 class TokenResponse(BaseModel):
-    token: str
+    session_token: str
+    session_id: str
 
 
 @app.post("/get-token", response_model=TokenResponse)
@@ -99,12 +144,13 @@ async def get_token():
         raise HTTPException(503, "The avatar assistant is currently disabled.")
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.post(
-            "https://api.heygen.com/v1/streaming.create_token",
-            headers={"x-api-key": HEYGEN_API_KEY},
+            "https://api.heygen.com/v1/sessions/token",
+            headers={"x-api-key": HEYGEN_API_KEY, "content-type": "application/json"},
+            json={"mode": "LITE", "avatar_id": HEYGEN_AVATAR_ID, "is_sandbox": False},
         )
         r.raise_for_status()
-        data = r.json()
-    return {"token": data["data"]["token"]}
+        data = r.json()["data"]
+    return {"session_token": data["session_token"], "session_id": data["session_id"]}
 
 
 class AskRequest(BaseModel):
@@ -113,6 +159,7 @@ class AskRequest(BaseModel):
 
 class AskResponse(BaseModel):
     answer: str
+    audio: str = ""
 
 
 @app.post("/ask", response_model=AskResponse)
@@ -152,7 +199,13 @@ async def ask(payload: AskRequest):
         if not answer_text:
             answer_text = "Sorry, I don't have a good answer for that one -- try asking about grading, buying, or selling on House Of Wax."
     except Exception as exc:
-        print(f"[liveavatar_service] /ask failed: {exc}")
-        answer_text = "Sorry, I'm having trouble answering right now -- try again in a moment."
+        print(f"[liveavatar_service] /ask (Claude) failed: {exc}")
+        return {"answer": "Sorry, I'm having trouble answering right now -- try again in a moment.", "audio": ""}
 
-    return {"answer": answer_text}
+    try:
+        audio_b64 = await text_to_speech_base64(answer_text)
+    except Exception as exc:
+        print(f"[liveavatar_service] /ask (text-to-speech) failed: {exc}")
+        audio_b64 = ""
+
+    return {"answer": answer_text, "audio": audio_b64}

@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.60 FIX: LIVEAVATAR SESSIONS USE CORRECT API DOMAIN'
+APP_VERSION='V25.43.61 REPLACE LIVE AVATAR WITH INSTANT FAQ VIDEO CLIPS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -76,7 +76,7 @@ def supabase_config():
         url=url[:-8].rstrip('/')
     anon=safe(config_value('SUPABASE_ANON_KEY'))
     return url,anon
-CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies','want_list','seller_reviews']
+CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies','want_list','seller_reviews','avatar_faq_videos']
 GRADE_SCALE=['Mint','Near Mint','VG+','VG','Good+','Good','Fair','Poor']
 GRADE_INDEX={g:i for i,g in enumerate(GRADE_SCALE)}
 GRADE_PRICE_MULTIPLIERS={'Mint':1.35,'Near Mint':1.20,'VG+':1.00,'VG':0.80,'Good+':0.65,'Good':0.50,'Fair':0.35,'Poor':0.20}
@@ -1118,6 +1118,7 @@ def setup():
     cur.execute('''CREATE TABLE IF NOT EXISTS purchase_requests(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,fulfillment_preference TEXT,offer_price REAL DEFAULT 0,buyer_message TEXT,status TEXT DEFAULT 'New',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS want_list(id INTEGER PRIMARY KEY AUTOINCREMENT,buyer_id INTEGER,artist TEXT,title TEXT,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_reviews(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,buyer_id INTEGER,purchase_request_id INTEGER,product_id INTEGER,rating INTEGER,review_text TEXT,buyer_display_name TEXT,created_at TEXT,updated_at TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS avatar_faq_videos(id INTEGER PRIMARY KEY AUTOINCREMENT,question TEXT,video_url TEXT,display_order INTEGER DEFAULT 0,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS tester_feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,tester_name TEXT,tester_type TEXT,page_flow TEXT,worked_well TEXT,confusing TEXT,felt_broken TEXT,missing TEXT,ease_rating INTEGER,would_use_again TEXT,open_notes TEXT,status TEXT DEFAULT 'New',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS listing_reports(id INTEGER PRIMARY KEY AUTOINCREMENT,listing_id INTEGER,seller_id INTEGER,reporter_name TEXT,reporter_contact TEXT,reason TEXT,details TEXT,status TEXT DEFAULT 'Open',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_followers(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,buyer_id INTEGER,created_at TEXT)''')
@@ -1314,8 +1315,9 @@ def setup():
     old_v25_43_57_announcement='V25.43.57'+' AI avatar assistant scaffolding added (off by default) active'
     old_v25_43_58_announcement='V25.43.58'+' Fix: public products visibility (anon select permission) active'
     old_v25_43_59_announcement='V25.43.59'+' Fix: avatar widget uses real LiveAvatar SDK + TTS active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement]:
-        set_setting('announcement','V25.43.60 Fix: LiveAvatar sessions use correct api.liveavatar.com domain active')
+    old_v25_43_60_announcement='V25.43.60'+' Fix: LiveAvatar sessions use correct api.liveavatar.com domain active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement]:
+        set_setting('announcement','V25.43.61 Replaced live avatar with instant FAQ video clips active')
 setup()
 recovery_token_bridge()
 
@@ -3638,7 +3640,7 @@ def home():
     if a.button('Explore Marketplace'): request_marketplace_navigation('Search Music'); st.rerun()
     if b.button('Visit Knowledge Hub'): request_marketplace_navigation('Knowledge Hub'); st.rerun()
     if c.button("Read This Week's Feature"): request_marketplace_navigation('Knowledge Hub'); st.rerun()
-    render_liveavatar_widget()
+    render_avatar_faq_widget()
     with st.expander('Tester Start Here',expanded=True):
         tester_start_here('home')
     st.info('Looking for music? Open Search Music and type an artist or album name.')
@@ -4438,76 +4440,24 @@ def upload_video_to_youtube(video_bytes, mime_type, title, description, privacy_
     except Exception as e:
         return False,'Connection to YouTube failed: '+str(e)
 
-def liveavatar_configured():
-    try:
-        return bool(st.secrets.get('LIVEAVATAR_BACKEND_URL','')) and bool(st.secrets.get('LIVEAVATAR_AVATAR_ID',''))
-    except Exception:
-        return False
+def avatar_faq_configured():
+    return True
 
-def liveavatar_enabled():
-    return liveavatar_configured() and setting('liveavatar_enabled','false')=='true'
+def avatar_faq_enabled():
+    return avatar_faq_configured() and setting('avatar_faq_enabled','false')=='true'
 
-def render_liveavatar_widget():
-    if not liveavatar_enabled():
+def render_avatar_faq_widget():
+    if not avatar_faq_enabled():
         return
-    backend_url=safe(st.secrets.get('LIVEAVATAR_BACKEND_URL','')).rstrip('/')
+    videos=hosted_select('avatar_faq_videos',{'status':'Active'},order='display_order.asc') if hosted_enabled() else df("SELECT * FROM avatar_faq_videos WHERE status='Active' ORDER BY display_order")
+    if videos.empty:
+        return
     st.markdown('### Ask House Of Wax')
-    st.caption('Talk to our AI assistant about grading, buying, or selling.')
-    st.components.v1.html(f"""
-    <div id="avatar-container">
-      <video id="avatarVideo" autoplay playsinline style="width:100%;max-width:400px;border-radius:8px;"></video>
-      <div style="display:flex;gap:8px;margin-top:8px;">
-        <input id="questionInput" placeholder="Ask about grading, buying, selling..." style="flex:1;padding:6px;"/>
-        <button id="askButton">Ask</button>
-      </div>
-      <div id="avatarStatus" style="font-size:12px;color:#888;margin-top:4px;"></div>
-    </div>
-
-    <script type="module">
-      import {{ LiveAvatarSession, SessionEvent }} from "https://esm.sh/@heygen/liveavatar-web-sdk";
-
-      const statusEl = document.getElementById("avatarStatus");
-      let session;
-
-      async function init() {{
-        try {{
-          const tokenRes = await fetch("{backend_url}/get-token", {{ method: "POST" }});
-          if (!tokenRes.ok) throw new Error("token request failed");
-          const {{ session_token }} = await tokenRes.json();
-
-          session = new LiveAvatarSession(session_token, {{ apiUrl: "https://api.liveavatar.com", voiceChat: false }});
-          session.on(SessionEvent.SESSION_STREAM_READY, () => {{
-            session.attach(document.getElementById("avatarVideo"));
-          }});
-          await session.start();
-        }} catch (err) {{
-          statusEl.textContent = "The avatar assistant is unavailable right now.";
-        }}
-      }}
-
-      document.getElementById("askButton").onclick = async () => {{
-        const input = document.getElementById("questionInput");
-        const question = input.value;
-        if (!question.trim()) return;
-        statusEl.textContent = "Thinking...";
-        try {{
-          const res = await fetch("{backend_url}/ask", {{
-            method: "POST",
-            headers: {{ "Content-Type": "application/json" }},
-            body: JSON.stringify({{ question }}),
-          }});
-          const {{ answer, audio }} = await res.json();
-          if (session && audio) await session.repeatAudio(audio);
-          statusEl.textContent = "";
-        }} catch (err) {{
-          statusEl.textContent = "Sorry, that didn't go through -- try again.";
-        }}
-        input.value = "";
-      }};
-
-      init();
-    </script>
-    """, height=520)
+    st.caption('Watch quick video answers to common questions, in our own words.')
+    labels=[safe(v['question']) for _,v in videos.iterrows()]
+    picked=st.radio('Pick a question',labels,key='avatar_faq_pick',horizontal=False,label_visibility='collapsed')
+    row=videos.iloc[labels.index(picked)]
+    st.video(safe(row['video_url']))
 
 def suggest_price_range_from_discogs(release_id, media_grade=None, sleeve_grade=None):
     # Discogs' price_suggestions endpoint returns a suggested price per
@@ -7148,15 +7098,33 @@ def admin():
             sid=ensure_house_of_wax_official(); st.success(f'House Of Wax Official seller ready. Seller ID {sid}')
         c1,c2,c3,c4=st.columns(4); c1.metric('Buyers',len(table('buyers'))); c2.metric('Sellers',len(table('sellers'))); c3.metric('Products',len(table('products'))); c4.metric('Seller reviews',len(table('seller_reviews')))
         st.info('User Directory, Seller Applications, Moderation Center, Tester Feedback, and Database Status now live only in the sidebar Admin navigation (left side) — they were duplicated here and in the sidebar before, so this tab set was trimmed to remove the second copy.')
-        with st.expander('AI Avatar Assistant (Home page)',expanded=False):
-            if liveavatar_configured():
-                st.success('Backend and avatar are configured in Secrets.')
-                live=setting('liveavatar_enabled','false')=='true'
-                new_live=st.toggle('Show the avatar assistant on the Home page',value=live,key='liveavatar_admin_toggle')
-                if new_live!=live:
-                    set_setting('liveavatar_enabled','true' if new_live else 'false'); st.rerun()
-            else:
-                st.warning('Not configured yet. Add LIVEAVATAR_BACKEND_URL and LIVEAVATAR_AVATAR_ID in Secrets once the backend service and HeyGen avatar are ready — the widget stays hidden until both are set.')
+        with st.expander('Avatar FAQ Videos (Home page)',expanded=False):
+            st.caption('Short pre-recorded video answers to common questions, played instantly on Home — no live AI call, so there is no wait.')
+            live=setting('avatar_faq_enabled','false')=='true'
+            new_live=st.toggle('Show the avatar FAQ section on the Home page',value=live,key='avatar_faq_admin_toggle')
+            if new_live!=live:
+                set_setting('avatar_faq_enabled','true' if new_live else 'false'); st.rerun()
+            existing=table('avatar_faq_videos')
+            if not existing.empty:
+                st.dataframe(existing[[c for c in ['id','question','video_url','display_order','status'] if c in existing.columns]],width='stretch')
+                del_id=st.selectbox('Remove a video',['']+existing['id'].astype(int).tolist(),key='avatar_faq_delete_pick')
+                if del_id and st.button('Delete selected video',key='avatar_faq_delete_btn'):
+                    ok=hosted_delete('avatar_faq_videos',{'id':int(del_id)}) if hosted_enabled() else (run('DELETE FROM avatar_faq_videos WHERE id=?',(int(del_id),)) or True)
+                    if ok: st.success('Deleted.'); st.rerun()
+            st.markdown('**Add a new FAQ video**')
+            q=st.text_input('Question (as visitors will see it)',key='avatar_faq_new_question')
+            v=st.text_input('Video URL (from HeyGen, or any hosted video link)',key='avatar_faq_new_url')
+            order=st.number_input('Display order',min_value=0,value=int(existing['display_order'].max())+1 if not existing.empty and 'display_order' in existing.columns else 0,step=1,key='avatar_faq_new_order')
+            if st.button('Add FAQ video',key='avatar_faq_add_btn'):
+                if not q.strip() or not v.strip():
+                    st.error('Question and video URL are both required.')
+                else:
+                    data={'question':q.strip(),'video_url':v.strip(),'display_order':int(order),'status':'Active','created_at':now(),'updated_at':now()}
+                    new_id=core_insert('avatar_faq_videos',data,"INSERT INTO avatar_faq_videos(question,video_url,display_order,status,created_at,updated_at) VALUES(?,?,?,'Active',?,?)",(q.strip(),v.strip(),int(order),now(),now()))
+                    if new_id or not hosted_enabled():
+                        st.success('FAQ video added.'); st.rerun()
+                    else:
+                        st.error('Could not save. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
         with st.expander('Music Data Sources Roadmap',expanded=False):
             st.write('Future source/partner work should support both new and old music without making House Of Wax dependent on one outside source.')
             for item in [

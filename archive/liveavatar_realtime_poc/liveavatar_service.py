@@ -180,7 +180,6 @@ class AskRequest(BaseModel):
 class AskResponse(BaseModel):
     answer: str
     audio: str = ""
-    timing: str = ""  # TEMP diagnostic, remove once perf is confirmed
 
 
 @app.post("/ask", response_model=AskResponse)
@@ -193,7 +192,6 @@ async def ask(payload: AskRequest):
     if len(question) > MAX_QUESTION_LENGTH:
         question = question[:MAX_QUESTION_LENGTH]
 
-    t_start = time.time()  # TEMP diagnostic
     context = await knowledge_hub_context()
     system_prompt = PERSONA + ("\n\n" + context if context else "")
 
@@ -224,14 +222,10 @@ async def ask(payload: AskRequest):
         print(f"[liveavatar_service] /ask (Claude) failed: {exc}")
         return {"answer": "Sorry, I'm having trouble answering right now -- try again in a moment.", "audio": ""}
 
-    t_claude = time.time()  # TEMP diagnostic
     try:
         audio_b64 = await text_to_speech_base64(answer_text)
     except Exception as exc:
         print(f"[liveavatar_service] /ask (text-to-speech) failed: {exc!r}")
         audio_b64 = ""
-    t_tts = time.time()  # TEMP diagnostic
 
-    timing = f"claude={t_claude-t_start:.1f}s tts={t_tts-t_claude:.1f}s total={t_tts-t_start:.1f}s answer_len={len(answer_text)}"  # TEMP diagnostic
-    print(f"[liveavatar_service] timing: {timing}")  # TEMP diagnostic
-    return {"answer": answer_text, "audio": audio_b64, "timing": timing}
+    return {"answer": answer_text, "audio": audio_b64}

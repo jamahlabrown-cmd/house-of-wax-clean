@@ -152,7 +152,7 @@ async def get_token():
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.post(
-                "https://api.heygen.com/v1/sessions/token",
+                "https://api.liveavatar.com/v1/sessions/token",
                 headers={"x-api-key": HEYGEN_API_KEY, "content-type": "application/json"},
                 json={"mode": "LITE", "avatar_id": HEYGEN_AVATAR_ID, "is_sandbox": False},
             )

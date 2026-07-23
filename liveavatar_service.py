@@ -114,10 +114,18 @@ async def text_to_speech_base64(text: str) -> str:
             json={"text": text, "voice_id": HEYGEN_VOICE_ID},
         )
         r.raise_for_status()
-        audio_url = r.json()["data"]["audio_url"]
+        speech_payload = r.json()
+        audio_url = speech_payload["data"]["audio_url"]
         audio_res = await client.get(audio_url)
         audio_res.raise_for_status()
+        _last_tts_debug["value"] = (  # TEMP diagnostic
+            f"speech_payload={speech_payload} | audio_bytes={len(audio_res.content)} "
+            f"| content_type={audio_res.headers.get('content-type')}"
+        )
     return base64.b64encode(audio_res.content).decode("ascii")
+
+
+_last_tts_debug = {"value": ""}  # TEMP diagnostic
 
 
 class VoicesResponse(BaseModel):
@@ -210,9 +218,10 @@ async def ask(payload: AskRequest):
     tts_error = ""
     try:
         audio_b64 = await text_to_speech_base64(answer_text)
+        tts_error = _last_tts_debug["value"]  # TEMP diagnostic, remove once TTS is confirmed working
     except Exception as exc:
         print(f"[liveavatar_service] /ask (text-to-speech) failed: {exc}")
         audio_b64 = ""
-        tts_error = str(exc)  # TEMP diagnostic, remove once TTS is confirmed working
+        tts_error = f"EXC: {exc}"  # TEMP diagnostic, remove once TTS is confirmed working
 
     return {"answer": answer_text, "audio": audio_b64, "tts_error": tts_error}

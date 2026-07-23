@@ -164,6 +164,7 @@ class AskRequest(BaseModel):
 class AskResponse(BaseModel):
     answer: str
     audio: str = ""
+    tts_error: str = ""  # TEMP diagnostic, remove once TTS is confirmed working
 
 
 @app.post("/ask", response_model=AskResponse)
@@ -206,10 +207,12 @@ async def ask(payload: AskRequest):
         print(f"[liveavatar_service] /ask (Claude) failed: {exc}")
         return {"answer": "Sorry, I'm having trouble answering right now -- try again in a moment.", "audio": ""}
 
+    tts_error = ""
     try:
         audio_b64 = await text_to_speech_base64(answer_text)
     except Exception as exc:
         print(f"[liveavatar_service] /ask (text-to-speech) failed: {exc}")
         audio_b64 = ""
+        tts_error = str(exc)  # TEMP diagnostic, remove once TTS is confirmed working
 
-    return {"answer": answer_text, "audio": audio_b64}
+    return {"answer": answer_text, "audio": audio_b64, "tts_error": tts_error}

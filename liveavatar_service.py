@@ -148,15 +148,21 @@ class TokenResponse(BaseModel):
 async def get_token():
     if not enabled():
         raise HTTPException(503, "The avatar assistant is currently disabled.")
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(
-            "https://api.heygen.com/v1/sessions/token",
-            headers={"x-api-key": HEYGEN_API_KEY, "content-type": "application/json"},
-            json={"mode": "LITE", "avatar_id": HEYGEN_AVATAR_ID, "is_sandbox": False},
-        )
-        r.raise_for_status()
-        data = r.json()["data"]
-    return {"session_token": data["session_token"], "session_id": data["session_id"]}
+    body_text = ""
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                "https://api.heygen.com/v1/sessions/token",
+                headers={"x-api-key": HEYGEN_API_KEY, "content-type": "application/json"},
+                json={"mode": "LITE", "avatar_id": HEYGEN_AVATAR_ID, "is_sandbox": False},
+            )
+            body_text = r.text
+            r.raise_for_status()
+            data = r.json()["data"]
+        return {"session_token": data["session_token"], "session_id": data["session_id"]}
+    except Exception as exc:
+        print(f"[liveavatar_service] /get-token failed: {exc!r} | response_body={body_text}")
+        raise HTTPException(502, f"Could not start avatar session: {exc} | {body_text}")
 
 
 class AskRequest(BaseModel):

@@ -107,29 +107,19 @@ async def text_to_speech_base64(text: str) -> str:
     """Generate speech audio for text via HeyGen's voice API, returned as base64."""
     if not HEYGEN_VOICE_ID:
         raise RuntimeError("HEYGEN_VOICE_ID is not set -- call GET /voices to find one")
+    # HeyGen's speech generation + audio fetch can take longer than a typical
+    # request timeout for longer answers -- 30s was cutting it off mid-flight.
     async with httpx.AsyncClient(timeout=60) as client:
-        t0 = time.time()  # TEMP diagnostic
         r = await client.post(
             "https://api.heygen.com/v3/voices/speech",
             headers={"x-api-key": HEYGEN_API_KEY, "content-type": "application/json"},
             json={"text": text, "voice_id": HEYGEN_VOICE_ID},
         )
         r.raise_for_status()
-        speech_payload = r.json()
-        t1 = time.time()  # TEMP diagnostic
-        audio_url = speech_payload["data"]["audio_url"]
+        audio_url = r.json()["data"]["audio_url"]
         audio_res = await client.get(audio_url)
         audio_res.raise_for_status()
-        t2 = time.time()  # TEMP diagnostic
-        _last_tts_debug["value"] = (  # TEMP diagnostic
-            f"speech_gen={t1-t0:.1f}s payload={speech_payload} | "
-            f"audio_fetch={t2-t1:.1f}s bytes={len(audio_res.content)} "
-            f"content_type={audio_res.headers.get('content-type')}"
-        )
     return base64.b64encode(audio_res.content).decode("ascii")
-
-
-_last_tts_debug = {"value": ""}  # TEMP diagnostic
 
 
 class VoicesResponse(BaseModel):
@@ -176,7 +166,6 @@ class AskRequest(BaseModel):
 class AskResponse(BaseModel):
     answer: str
     audio: str = ""
-    tts_error: str = ""  # TEMP diagnostic, remove once TTS is confirmed working
 
 
 @app.post("/ask", response_model=AskResponse)
@@ -219,13 +208,10 @@ async def ask(payload: AskRequest):
         print(f"[liveavatar_service] /ask (Claude) failed: {exc}")
         return {"answer": "Sorry, I'm having trouble answering right now -- try again in a moment.", "audio": ""}
 
-    tts_error = ""
     try:
         audio_b64 = await text_to_speech_base64(answer_text)
-        tts_error = _last_tts_debug["value"]  # TEMP diagnostic, remove once TTS is confirmed working
     except Exception as exc:
         print(f"[liveavatar_service] /ask (text-to-speech) failed: {exc!r}")
         audio_b64 = ""
-        tts_error = f"{type(exc).__name__}: {exc!r}"  # TEMP diagnostic, remove once TTS is confirmed working
 
-    return {"answer": answer_text, "audio": audio_b64, "tts_error": tts_error}
+    return {"answer": answer_text, "audio": audio_b64}

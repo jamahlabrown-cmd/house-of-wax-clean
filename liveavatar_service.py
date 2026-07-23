@@ -107,7 +107,8 @@ async def text_to_speech_base64(text: str) -> str:
     """Generate speech audio for text via HeyGen's voice API, returned as base64."""
     if not HEYGEN_VOICE_ID:
         raise RuntimeError("HEYGEN_VOICE_ID is not set -- call GET /voices to find one")
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=60) as client:
+        t0 = time.time()  # TEMP diagnostic
         r = await client.post(
             "https://api.heygen.com/v3/voices/speech",
             headers={"x-api-key": HEYGEN_API_KEY, "content-type": "application/json"},
@@ -115,12 +116,15 @@ async def text_to_speech_base64(text: str) -> str:
         )
         r.raise_for_status()
         speech_payload = r.json()
+        t1 = time.time()  # TEMP diagnostic
         audio_url = speech_payload["data"]["audio_url"]
         audio_res = await client.get(audio_url)
         audio_res.raise_for_status()
+        t2 = time.time()  # TEMP diagnostic
         _last_tts_debug["value"] = (  # TEMP diagnostic
-            f"speech_payload={speech_payload} | audio_bytes={len(audio_res.content)} "
-            f"| content_type={audio_res.headers.get('content-type')}"
+            f"speech_gen={t1-t0:.1f}s payload={speech_payload} | "
+            f"audio_fetch={t2-t1:.1f}s bytes={len(audio_res.content)} "
+            f"content_type={audio_res.headers.get('content-type')}"
         )
     return base64.b64encode(audio_res.content).decode("ascii")
 

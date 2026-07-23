@@ -220,8 +220,8 @@ async def ask(payload: AskRequest):
         audio_b64 = await text_to_speech_base64(answer_text)
         tts_error = _last_tts_debug["value"]  # TEMP diagnostic, remove once TTS is confirmed working
     except Exception as exc:
-        print(f"[liveavatar_service] /ask (text-to-speech) failed: {exc}")
+        print(f"[liveavatar_service] /ask (text-to-speech) failed: {exc!r}")
         audio_b64 = ""
-        tts_error = f"EXC: {exc}"  # TEMP diagnostic, remove once TTS is confirmed working
+        tts_error = f"{type(exc).__name__}: {exc!r}"  # TEMP diagnostic, remove once TTS is confirmed working
 
     return {"answer": answer_text, "audio": audio_b64, "tts_error": tts_error}

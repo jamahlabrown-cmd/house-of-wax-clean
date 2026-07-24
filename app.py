@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.72 ASK HOUSE OF WAX AI: ONE Q&A + WEB-SOURCED DEBATE ANSWERS'
+APP_VERSION='V25.43.73 ASK HOUSE OF WAX AI: FASTER, TIGHTER, LEADS WITH REAL ANSWER'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1362,8 +1362,9 @@ def setup():
     old_v25_43_69_announcement='V25.43.69'+' Account/seller pages drop go-to nav bar too active'
     old_v25_43_70_announcement='V25.43.70'+' Account/seller pages drop admin debug banner too active'
     old_v25_43_71_announcement='V25.43.71'+' Add Ask House Of Wax AI chat (Knowledge Hub) active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement]:
-        set_setting('announcement','V25.43.72 Ask House Of Wax AI: one Q&A + web-sourced debate answers active')
+    old_v25_43_72_announcement='V25.43.72'+' Ask House Of Wax AI: one Q&A + web-sourced debate answers active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement]:
+        set_setting('announcement','V25.43.73 Ask House Of Wax AI: faster, tighter, leads with real answer active')
 setup()
 recovery_token_bridge()
 
@@ -3351,27 +3352,32 @@ def ask_house_of_wax_ai(question):
         'knowledgeable, collector-to-collector tone, drawing on your own broad knowledge of vinyl grading, '
         'pressings, record labels, music history, and collecting -- not just what House Of Wax has published.\n\n'
         'Some questions have a factual answer (how to grade a record, what a matrix number is) -- just '
-        'answer those directly. Others are matters of opinion with no single correct answer -- "who is the '
-        'best lyricist of all time," "what is the greatest album ever pressed," and similar. For those, use '
-        'web search to find and quote real, named sources: magazine rankings (e.g. Rolling Stone, Pitchfork, '
-        'NME), critic reviews, reader or fan surveys, industry awards. Name the source, and where you can, '
-        "say something concrete about how the ranking was produced (a critic panel vs. a reader poll vs. "
-        "sales or streaming data) so the reader can judge the opinion's basis for themselves -- a reader "
-        'poll reflects who voted, not an objective truth. Where sources disagree, say so plainly; that '
-        'disagreement is the point, not a flaw to smooth over. Present opinion questions as material for '
-        "debate, not as a settled verdict -- House Of Wax wants to spark the argument, not end it.\n\n"
+        'answer those directly, in one or two sentences.\n\n'
+        'Others are matters of opinion -- "who is the best lyricist of all time," "what is the greatest '
+        'album ever pressed," and similar. For those: lead with a real, direct answer. Name the specific '
+        'artist, record, or pick that is most consistently cited in serious critical and historical '
+        'discussion -- draw that from your own knowledge first, the same way you would if a knowledgeable '
+        'friend asked you in a record shop. Do not open with a disclaimer about subjectivity and do not '
+        'bury the answer in hedging. Then use web search once, briefly, to attach one real named source to '
+        'that answer -- a magazine ranking, a critic, a reader poll -- so it is not just your own unsourced '
+        'opinion. If a well-known rival pick exists, name it in a single clause, not a paragraph. The '
+        'methodology caveat (critic panel vs. reader poll vs. sales data) gets at most one short sentence, '
+        'only if it changes how the reader should weigh the source -- it is a footnote, not the main event. '
+        "House Of Wax wants to spark the argument by giving a real answer worth arguing with, not by "
+        'refusing to pick one.\n\n'
         'Only answer questions about House Of Wax, vinyl grading, buying/selling on the marketplace, or '
         'general music and record-collecting topics. If asked about something else, politely steer back to '
-        'House Of Wax and collecting. Keep answers concise -- a few sentences to a short paragraph, unless '
-        'the question genuinely calls for more.'
+        'House Of Wax and collecting. Keep every answer tight -- a few sentences, a short paragraph at most. '
+        'Never spend more words on caveats and methodology than on the actual answer.'
     )
     try:
         client=anthropic.Anthropic(api_key=api_key)
         response=client.messages.create(
             model='claude-sonnet-5',
-            max_tokens=700,
+            max_tokens=500,
             system=system_prompt,
-            tools=[{'type':'web_search_20260209','name':'web_search','max_uses':4}],
+            thinking={'type':'disabled'},
+            tools=[{'type':'web_search_20260209','name':'web_search','max_uses':2}],
             messages=[{'role':'user','content':question}],
         )
         answer=''.join(block.text for block in response.content if block.type=='text').strip()

@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.65 TESTER FEEDBACK: SELLERS CAN NOW DELETE DRAFT/HIDDEN LISTINGS'
+APP_VERSION='V25.43.66 TESTER FEEDBACK: DUPLICATE LISTING WARNINGS + PHOTO STATUS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1340,8 +1340,9 @@ def setup():
     old_v25_43_62_announcement='V25.43.62'+' Tester feedback: page-crash recovery + fuller mobile nav active'
     old_v25_43_63_announcement='V25.43.63'+' Tester feedback: barcode clarity + seller dashboard declutter active'
     old_v25_43_64_announcement='V25.43.64'+' Tester feedback: share button visibility active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement]:
-        set_setting('announcement','V25.43.65 Tester feedback: sellers can delete Draft/Hidden listings active')
+    old_v25_43_65_announcement='V25.43.65'+' Tester feedback: sellers can delete Draft/Hidden listings active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement]:
+        set_setting('announcement','V25.43.66 Tester feedback: duplicate listing warnings + photo status active')
 setup()
 recovery_token_bridge()
 
@@ -6049,6 +6050,15 @@ def upload_product(sid,key):
         if publish_listing and not rules_ok:
             st.error('Accept seller rules before publishing.')
             return
+        existing_seller_listings=hosted_select('products',{'seller_id':int(sid)},select='*') if hosted_enabled() else df('SELECT * FROM products WHERE seller_id=?',(sid,))
+        possible_duplicates=pd.DataFrame()
+        if not existing_seller_listings.empty:
+            active=existing_seller_listings[~existing_seller_listings['listing_status'].fillna('').isin(['Sold','Removed by House Of Wax'])]
+            clean_barcode=normalize_barcode(barcode)
+            if clean_barcode:
+                possible_duplicates=active[active['barcode'].fillna('').apply(normalize_barcode)==clean_barcode]
+            elif safe(artist) and safe(title):
+                possible_duplicates=active[(active['artist'].fillna('').str.strip().str.lower()==safe(artist).strip().lower()) & (active['title'].fillna('').str.strip().str.lower()==safe(title).strip().lower())]
         saved_main=save_file(main_img,'product_images')
         saved_supporting=save_files(supporting_imgs,'product_images')
         saved_condition=save_files(condition_imgs,'product_images')
@@ -6083,6 +6093,9 @@ def upload_product(sid,key):
             st.info(f'Inventory saved as {listing_status}. You can add optional photos later.')
         else:
             st.success(f'Inventory saved as {listing_status}.')
+        if not possible_duplicates.empty:
+            dupe_ids=', '.join(f"#{int(i)}" for i in possible_duplicates['id'].tolist())
+            st.warning(f"Heads up: you already have {len(possible_duplicates)} other listing(s) for this same item ({dupe_ids}) in My Inventory. If this was accidental, delete or update one of them so buyers don't see duplicates.")
         st.session_state['last_saved_listing_id']=int(pid or 0)
         st.session_state['last_saved_listing_seller_id']=int(sid)
         st.session_state['last_saved_listing_status']=listing_status
@@ -6396,8 +6409,16 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
             st.session_state['pending_seller_tools_primary_section']='Add Inventory'
             st.rerun()
         return
-    cols=[c for c in ['id','title','artist','price','quantity','listing_status','created_at','reviewer_notes'] if c in prods.columns]
+    prods=prods.reset_index(drop=True)
+    prods['Photos']=prods['id'].apply(lambda i: 'Yes' if has_listing_photos(int(i)) else 'No (auto image)')
+    active_mask=~prods['listing_status'].fillna('').isin(['Sold','Removed by House Of Wax'])
+    clean_barcodes=prods['barcode'].fillna('').apply(normalize_barcode)
+    dup_barcode_set=set(clean_barcodes[active_mask & (clean_barcodes!='')].value_counts().loc[lambda s: s>1].index)
+    prods['Possible duplicate']=[('Yes' if a and b in dup_barcode_set else '') for a,b in zip(active_mask,clean_barcodes)]
+    cols=[c for c in ['id','title','artist','price','quantity','listing_status','Photos','Possible duplicate','created_at','reviewer_notes'] if c in prods.columns]
     st.dataframe(prods[cols],width='stretch')
+    if (prods['Possible duplicate']=='Yes').any():
+        st.caption('Rows marked "Possible duplicate" share a barcode with another active listing in your inventory.')
     pid=st.selectbox('Listing ID',prods['id'].tolist(),key=f'{key_prefix}_listing_id')
     row=prods[prods['id']==pid].iloc[0]
     st.write(f"**Selected item:** {safe(row.get('title'),'Untitled')} • {safe(row.get('artist'),'No artist/brand')} • {money(row.get('price'))}")

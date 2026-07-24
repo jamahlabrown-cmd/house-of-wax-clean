@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.70 ACCOUNT/SELLER PAGES DROP ADMIN DEBUG BANNER TOO'
+APP_VERSION='V25.43.71 ADD ASK HOUSE OF WAX AI CHAT (KNOWLEDGE HUB)'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1359,8 +1359,9 @@ def setup():
     old_v25_43_67_announcement='V25.43.67'+' Seller-direct PayPal payments (House Of Wax stays hands-off) active'
     old_v25_43_68_announcement='V25.43.68'+' Account/seller pages drop homepage promo badges active'
     old_v25_43_69_announcement='V25.43.69'+' Account/seller pages drop go-to nav bar too active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement]:
-        set_setting('announcement','V25.43.70 Account/seller pages drop admin debug banner too active')
+    old_v25_43_70_announcement='V25.43.70'+' Account/seller pages drop admin debug banner too active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement]:
+        set_setting('announcement','V25.43.71 Add Ask House Of Wax AI chat (Knowledge Hub) active')
 setup()
 recovery_token_bridge()
 
@@ -3326,12 +3327,78 @@ def knowledge_center_education_hub():
     with st.expander('Tester Feedback',expanded=False):
         tester_feedback_form('knowledge_center')
 
+def anthropic_configured():
+    try:
+        return bool(st.secrets.get('ANTHROPIC_API_KEY',''))
+    except Exception:
+        return False
+
+def knowledge_hub_ai_enabled():
+    return anthropic_configured() and setting('knowledge_hub_ai_enabled','true')=='true'
+
+def ask_house_of_wax_ai(messages):
+    api_key=safe(st.secrets.get('ANTHROPIC_API_KEY',''))
+    if not api_key:
+        return "The AI assistant isn't set up yet."
+    # Deliberately not grounded in our own Knowledge Hub articles -- answer
+    # from Claude's own broad knowledge of vinyl, grading, pressings, music
+    # history, and collecting, which reaches far further than anything we
+    # could write ourselves. This is the House Of Wax voice on top of that
+    # knowledge, not a search over our own content.
+    system_prompt=(
+        'You are the voice of House Of Wax, a marketplace for vinyl records and music collectibles. '
+        'Answer visitor questions in a friendly, knowledgeable, collector-to-collector tone, drawing on '
+        'your own broad knowledge of vinyl grading, pressings, record labels, music history, and '
+        'collecting -- not just what House Of Wax has published. Only answer questions about House Of '
+        'Wax, vinyl grading, buying/selling on the marketplace, or general record-collecting topics. If '
+        'asked about something else, politely steer back to House Of Wax and collecting. Keep answers '
+        'concise -- a few sentences, unless more detail is truly needed.'
+    )
+    try:
+        r=requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={'x-api-key':api_key,'anthropic-version':'2023-06-01','content-type':'application/json'},
+            json={'model':'claude-sonnet-5','max_tokens':400,'system':system_prompt,'messages':messages[-10:]},
+            timeout=30,
+        )
+        r.raise_for_status()
+        data=r.json()
+        answer=''.join(block['text'] for block in data['content'] if block['type']=='text').strip()
+        return answer or "Sorry, I don't have a good answer for that one -- try asking about grading, buying, or selling on House Of Wax."
+    except Exception as e:
+        print(f'[ask_house_of_wax_ai] failed: {e}')
+        return "Sorry, I'm having trouble answering right now -- try again in a moment."
+
+def render_knowledge_hub_ai_chat():
+    if not knowledge_hub_ai_enabled():
+        return
+    st.markdown('### Ask House Of Wax')
+    st.caption('Type any question about grading, buying, selling, or collecting -- answered instantly, drawing on far more than our own articles could ever cover.')
+    if 'kh_chat_history' not in st.session_state:
+        st.session_state['kh_chat_history']=[]
+    for msg in st.session_state['kh_chat_history']:
+        with st.chat_message(msg['role']):
+            st.write(msg['content'])
+    question=st.chat_input('Ask a question about House Of Wax or collecting...')
+    if question:
+        question=question.strip()[:500]
+        st.session_state['kh_chat_history'].append({'role':'user','content':question})
+        with st.chat_message('user'):
+            st.write(question)
+        with st.chat_message('assistant'):
+            with st.spinner('Thinking...'):
+                answer=ask_house_of_wax_ai(st.session_state['kh_chat_history'])
+            st.write(answer)
+        st.session_state['kh_chat_history'].append({'role':'assistant','content':answer})
+
 def knowledge_hub():
     seed_knowledge()
     header()
     marketplace_context('House Of Wax Marketplace → Knowledge Hub')
     st.header('Knowledge Hub')
     st.write("Everything you need to buy and sell smarter — grading, pressings, barcodes and matrix numbers, trust, and the stories behind the music. Written by House Of Wax, not sponsored by sellers.")
+    render_knowledge_hub_ai_chat()
+    groove_divider()
     knowledge_center_education_hub()
     groove_divider()
     st.markdown('## Article Library + Glossary')
@@ -7240,6 +7307,16 @@ def admin():
                         st.success('FAQ video added.'); st.rerun()
                     else:
                         st.error('Could not save. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
+        with st.expander('Ask House Of Wax AI Chat (Knowledge Hub)',expanded=False):
+            st.caption("Instant text answers to visitor questions, drawing on Claude's own broad knowledge of vinyl, grading, and collecting -- not limited to what's published in your Knowledge Hub articles. No new articles required for every question.")
+            if anthropic_configured():
+                st.success('Anthropic API key found in Secrets.')
+                live=setting('knowledge_hub_ai_enabled','true')=='true'
+                new_live=st.toggle('Show the AI chat on the Knowledge Hub page',value=live,key='kh_ai_admin_toggle')
+                if new_live!=live:
+                    set_setting('knowledge_hub_ai_enabled','true' if new_live else 'false'); st.rerun()
+            else:
+                st.warning('Not configured yet. Add ANTHROPIC_API_KEY in Secrets to turn this on -- the chat stays hidden until it is set.')
         with st.expander('Music Data Sources Roadmap',expanded=False):
             st.write('Future source/partner work should support both new and old music without making House Of Wax dependent on one outside source.')
             for item in [

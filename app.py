@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.61 REPLACE LIVE AVATAR WITH INSTANT FAQ VIDEO CLIPS'
+APP_VERSION='V25.43.62 TESTER FEEDBACK: PAGE-CRASH RECOVERY + FULLER MOBILE NAV'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1080,27 +1080,34 @@ def admin_access_warning():
 
 def mobile_navigation_bar():
     st.markdown('### Go to')
-    buttons=['Search Music','My Account']
-    if has_seller_capability():
-        buttons.append('My Store')
-    if is_authenticated():
-        buttons.append('Sign Out')
-    cols=st.columns(len(buttons))
-    for i,label in enumerate(buttons):
+    st.caption('Every page lives here — the » icon in the top-left corner also opens the full menu, if you prefer.')
+    primary=['Home','Search Music','Knowledge Hub','My Account']
+    cols=st.columns(len(primary))
+    for i,label in enumerate(primary):
         with cols[i]:
-            if label=='Search Music' and st.button('Search Music',key='mobile_nav_search_music',width='stretch'):
-                request_marketplace_navigation('Search Music',clear_product=True,clear_seller=True)
+            if st.button(label,key=f'mobile_nav_{label.lower().replace(" ","_")}',width='stretch'):
+                clear_product=label=='Search Music'; clear_seller=label=='Search Music'
+                request_marketplace_navigation(label,clear_product=clear_product,clear_seller=clear_seller)
                 st.rerun()
-            elif label=='My Account' and st.button('My Account',key='mobile_nav_my_account',width='stretch'):
-                request_marketplace_navigation('My Account')
-                st.rerun()
-            elif label=='My Store' and st.button('My Store',key='mobile_nav_my_store',width='stretch'):
-                request_marketplace_navigation('Seller Dashboard')
-                st.rerun()
-            elif label=='Sign Out' and st.button('Sign Out',key='mobile_nav_sign_out',width='stretch'):
-                auth_sign_out()
-                request_marketplace_navigation('Home')
-                st.rerun()
+    secondary=['Seller Stores']
+    if has_seller_capability():
+        secondary.append('My Store')
+    if is_authenticated():
+        secondary.append('Sign Out')
+    if secondary:
+        cols2=st.columns(len(secondary))
+        for i,label in enumerate(secondary):
+            with cols2[i]:
+                if label=='Seller Stores' and st.button('Seller Stores',key='mobile_nav_seller_stores',width='stretch'):
+                    request_marketplace_navigation('Seller Stores')
+                    st.rerun()
+                elif label=='My Store' and st.button('My Store',key='mobile_nav_my_store',width='stretch'):
+                    request_marketplace_navigation('Seller Dashboard')
+                    st.rerun()
+                elif label=='Sign Out' and st.button('Sign Out',key='mobile_nav_sign_out',width='stretch'):
+                    auth_sign_out()
+                    request_marketplace_navigation('Home')
+                    st.rerun()
 
 # ---------- Database ----------
 def setup():
@@ -1316,8 +1323,9 @@ def setup():
     old_v25_43_58_announcement='V25.43.58'+' Fix: public products visibility (anon select permission) active'
     old_v25_43_59_announcement='V25.43.59'+' Fix: avatar widget uses real LiveAvatar SDK + TTS active'
     old_v25_43_60_announcement='V25.43.60'+' Fix: LiveAvatar sessions use correct api.liveavatar.com domain active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement]:
-        set_setting('announcement','V25.43.61 Replaced live avatar with instant FAQ video clips active')
+    old_v25_43_61_announcement='V25.43.61'+' Replaced live avatar with instant FAQ video clips active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement]:
+        set_setting('announcement','V25.43.62 Tester feedback: page-crash recovery + fuller mobile nav active')
 setup()
 recovery_token_bridge()
 
@@ -7732,77 +7740,90 @@ if area=='House Of Wax Marketplace' and menu=='Search Music' and ('seller_id' in
         st.session_state.pop('seller_id',None)
         st.session_state.pop('product_id',None)
         st.rerun()
-if area=='House Of Wax Marketplace':
-    if menu=='Home': home()
-    elif menu=='Search Music': marketplace()
-    elif menu=='Seller Stores': seller_stores()
-    elif menu=='My Account':
-        account_page()
-    elif menu=='Seller Dashboard': seller_dashboard()
-    elif menu=='Knowledge Hub': knowledge_hub()
-    elif menu=='Account': account_page()
-    elif menu=='Seller Onboarding': seller_onboarding()
-else:
-    if menu=='Admin Dashboard':
-        admin()
-    elif menu=='User Directory':
-        header()
-        admin_context('House Of Wax Admin -> User Directory')
-        if is_admin_unlocked():
-            admin_user_directory()
-        else:
-            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
-    elif menu=='Buyer Lookup':
-        header()
-        admin_context('House Of Wax Admin -> Buyer Lookup')
-        if is_admin_unlocked():
-            buyer_dashboard_admin_lookup()
-        else:
-            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
-    elif menu=='Legal / Policies':
-        if is_admin_unlocked():
-            legal_policies()
-        else:
+try:
+    if area=='House Of Wax Marketplace':
+        if menu=='Home': home()
+        elif menu=='Search Music': marketplace()
+        elif menu=='Seller Stores': seller_stores()
+        elif menu=='My Account':
+            account_page()
+        elif menu=='Seller Dashboard': seller_dashboard()
+        elif menu=='Knowledge Hub': knowledge_hub()
+        elif menu=='Account': account_page()
+        elif menu=='Seller Onboarding': seller_onboarding()
+    else:
+        if menu=='Admin Dashboard':
+            admin()
+        elif menu=='User Directory':
             header()
-            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
-    elif menu=='Seller Applications':
-        header()
-        admin_context('House Of Wax Admin -> Seller Applications')
-        if is_admin_unlocked():
-            admin_seller_applications()
-        else:
-            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
-    elif menu=='Moderation Center':
-        header()
-        if is_admin_unlocked():
-            listing_review_queue()
-        else:
-            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
-    elif menu=='Content Admin':
-        if is_admin_unlocked():
-            content_admin()
-        else:
+            admin_context('House Of Wax Admin -> User Directory')
+            if is_admin_unlocked():
+                admin_user_directory()
+            else:
+                st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+        elif menu=='Buyer Lookup':
             header()
-            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
-    elif menu=='Homepage Editor':
-        header()
-        admin_context('House Of Wax Admin → Homepage Editor')
-        if is_admin_unlocked():
-            homepage_editor()
-        else:
-            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
-    elif menu=='Tester Feedback':
-        header()
-        admin_context('House Of Wax Admin → Tester Feedback')
-        if is_admin_unlocked():
-            admin_tester_feedback_view()
-        else:
-            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
-    elif menu=='Database Status / Diagnostics':
-        header()
-        if is_admin_unlocked():
-            admin_database_status()
-        else:
-            st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
-    elif menu=='Test Setup':
-        test_setup()
+            admin_context('House Of Wax Admin -> Buyer Lookup')
+            if is_admin_unlocked():
+                buyer_dashboard_admin_lookup()
+            else:
+                st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+        elif menu=='Legal / Policies':
+            if is_admin_unlocked():
+                legal_policies()
+            else:
+                header()
+                st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+        elif menu=='Seller Applications':
+            header()
+            admin_context('House Of Wax Admin -> Seller Applications')
+            if is_admin_unlocked():
+                admin_seller_applications()
+            else:
+                st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+        elif menu=='Moderation Center':
+            header()
+            if is_admin_unlocked():
+                listing_review_queue()
+            else:
+                st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+        elif menu=='Content Admin':
+            if is_admin_unlocked():
+                content_admin()
+            else:
+                header()
+                st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+        elif menu=='Homepage Editor':
+            header()
+            admin_context('House Of Wax Admin → Homepage Editor')
+            if is_admin_unlocked():
+                homepage_editor()
+            else:
+                st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+        elif menu=='Tester Feedback':
+            header()
+            admin_context('House Of Wax Admin → Tester Feedback')
+            if is_admin_unlocked():
+                admin_tester_feedback_view()
+            else:
+                st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+        elif menu=='Database Status / Diagnostics':
+            header()
+            if is_admin_unlocked():
+                admin_database_status()
+            else:
+                st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+        elif menu=='Test Setup':
+            test_setup()
+except Exception as page_error:
+    # A page crashing here used to leave visitors stuck on a blank screen with
+    # no way back except fully closing the browser (reported by a tester).
+    # Guarantee something always renders, with a way out, regardless of cause.
+    st.error("Something went wrong loading this page. Your place has been reset -- try again from Home.")
+    with st.expander('Technical details'):
+        st.code(f'{type(page_error).__name__}: {page_error}')
+    if st.button('Return to Home',key='page_error_recovery_home'):
+        for stuck_key in ('product_id','seller_id','selected_knowledge_id'):
+            st.session_state.pop(stuck_key,None)
+        request_marketplace_navigation('Home')
+        st.rerun()

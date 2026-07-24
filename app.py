@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.66 TESTER FEEDBACK: DUPLICATE LISTING WARNINGS + PHOTO STATUS'
+APP_VERSION='V25.43.67 SELLER-DIRECT PAYPAL PAYMENTS (HOUSE OF WAX STAYS HANDS-OFF)'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -202,11 +202,25 @@ PRODUCTS_ANON_SAFE_SELECT=('id,seller_id,sku,barcode,catalog_number,matrix_runou
     'format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,'
     'shipping_price,image_url,reference_image_url,video_url,audio_url,external_release_url,listing_status,'
     'listing_type,created_at,updated_at')
-def hosted_select(table_name, filters=None, order=None, limit=None, in_filters=None, select='*'):
+# sellers.paypal_link is how a buyer actually pays -- a real spam/phishing
+# target if exposed to anyone via the public REST API, not just genuine
+# buyers mid-transaction. Same anon-safe-select pattern as products above.
+SELLERS_ANON_SAFE_SELECT=('id,store_name,owner_name,email,phone,city,state,website,instagram,store_bio,'
+    'seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,disputes,'
+    'strikes,auction_override,access_code,rules_accepted,rules_accepted_at,created_at')
+def hosted_select(table_name, filters=None, order=None, limit=None, in_filters=None, select=None):
     if not hosted_enabled():
         return pd.DataFrame()
-    if table_name=='products' and select=='*':
-        select=PRODUCTS_ANON_SAFE_SELECT
+    if select is None:
+        # Only swap in a restricted list when the caller didn't ask for
+        # anything specific -- an explicit select='*' means the caller
+        # already made a deliberate choice to see every column (e.g. a
+        # seller viewing their own private data) and must not be overridden.
+        select='*'
+        if table_name=='products':
+            select=PRODUCTS_ANON_SAFE_SELECT
+        elif table_name=='sellers':
+            select=SELLERS_ANON_SAFE_SELECT
     params={'select':select}
     for key,value in (filters or {}).items():
         params[key]=f'eq.{value}'
@@ -1128,7 +1142,7 @@ def setup():
     cur.execute('CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY,value TEXT)')
     cur.execute('''CREATE TABLE IF NOT EXISTS app_users(id INTEGER PRIMARY KEY AUTOINCREMENT,auth_user_id TEXT UNIQUE,email TEXT UNIQUE,display_name TEXT,account_type TEXT,buyer_id INTEGER DEFAULT 0,seller_id INTEGER DEFAULT 0,seller_application_status TEXT DEFAULT 'Not Applied',admin_access TEXT DEFAULT 'No',account_status TEXT DEFAULT 'Active',status TEXT DEFAULT 'Active',local_password_hash TEXT,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS buyers(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT,email TEXT UNIQUE,phone TEXT,city TEXT,state TEXT,bio TEXT,status TEXT DEFAULT 'Trusted Buyer',rating REAL DEFAULT 100,completed_purchases INTEGER DEFAULT 0,unpaid_orders INTEGER DEFAULT 0,disputes INTEGER DEFAULT 0,strikes INTEGER DEFAULT 0,created_at TEXT)''')
-    cur.execute('''CREATE TABLE IF NOT EXISTS sellers(id INTEGER PRIMARY KEY AUTOINCREMENT,store_name TEXT,owner_name TEXT,email TEXT UNIQUE,phone TEXT,city TEXT,state TEXT,website TEXT,instagram TEXT,store_bio TEXT,seller_story TEXT,specialties TEXT,logo_url TEXT,banner_url TEXT,status TEXT DEFAULT 'Pending Seller Approval',seller_level TEXT DEFAULT 'Verified Seller',rating REAL DEFAULT 100,completed_sales INTEGER DEFAULT 0,disputes INTEGER DEFAULT 0,strikes INTEGER DEFAULT 0,auction_override TEXT DEFAULT 'Yes',access_code TEXT,rules_accepted TEXT DEFAULT 'No',rules_accepted_at TEXT,created_at TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS sellers(id INTEGER PRIMARY KEY AUTOINCREMENT,store_name TEXT,owner_name TEXT,email TEXT UNIQUE,phone TEXT,city TEXT,state TEXT,website TEXT,instagram TEXT,store_bio TEXT,seller_story TEXT,specialties TEXT,logo_url TEXT,banner_url TEXT,status TEXT DEFAULT 'Pending Seller Approval',seller_level TEXT DEFAULT 'Verified Seller',rating REAL DEFAULT 100,completed_sales INTEGER DEFAULT 0,disputes INTEGER DEFAULT 0,strikes INTEGER DEFAULT 0,auction_override TEXT DEFAULT 'Yes',access_code TEXT,rules_accepted TEXT DEFAULT 'No',rules_accepted_at TEXT,paypal_link TEXT,created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS products(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,sku TEXT,barcode TEXT,catalog_number TEXT,matrix_runout TEXT,category TEXT,artist TEXT,title TEXT,format TEXT,label TEXT,release_year TEXT,genre TEXT,media_grade TEXT,sleeve_grade TEXT,condition_notes TEXT,description TEXT,price REAL DEFAULT 0,quantity INTEGER DEFAULT 1,shipping_price REAL DEFAULT 0,image_url TEXT,video_url TEXT,audio_url TEXT,external_release_url TEXT,listing_status TEXT DEFAULT 'Draft',listing_type TEXT DEFAULT 'Fixed Price',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS product_gallery(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,image_url TEXT,caption TEXT,created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,order_type TEXT,status TEXT DEFAULT 'New',item_price REAL DEFAULT 0,shipping_price REAL DEFAULT 0,platform_fee REAL DEFAULT 0,seller_payout REAL DEFAULT 0,buyer_message TEXT,created_at TEXT,updated_at TEXT)''')
@@ -1233,7 +1247,7 @@ def setup():
         created_at TEXT
     )""")
     c.commit(); c.close()
-    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT','reference_image_url':'TEXT'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'knowledge_posts':{'video_url':'TEXT'},'homepage_blocks':{'video_url':'TEXT'},'purchase_requests':{'counter_price':'REAL','counter_message':'TEXT'},'newsletter_signups':{'interest':'TEXT','updated_at':'TEXT'}}
+    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT','paypal_link':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT','reference_image_url':'TEXT'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'knowledge_posts':{'video_url':'TEXT'},'homepage_blocks':{'video_url':'TEXT'},'purchase_requests':{'counter_price':'REAL','counter_message':'TEXT'},'newsletter_signups':{'interest':'TEXT','updated_at':'TEXT'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
     try:
@@ -1341,8 +1355,9 @@ def setup():
     old_v25_43_63_announcement='V25.43.63'+' Tester feedback: barcode clarity + seller dashboard declutter active'
     old_v25_43_64_announcement='V25.43.64'+' Tester feedback: share button visibility active'
     old_v25_43_65_announcement='V25.43.65'+' Tester feedback: sellers can delete Draft/Hidden listings active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement]:
-        set_setting('announcement','V25.43.66 Tester feedback: duplicate listing warnings + photo status active')
+    old_v25_43_66_announcement='V25.43.66'+' Tester feedback: duplicate listing warnings + photo status active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement]:
+        set_setting('announcement','V25.43.67 Seller-direct PayPal payments (House Of Wax stays hands-off) active')
 setup()
 recovery_token_bridge()
 
@@ -1912,6 +1927,15 @@ def get_buyer(i):
 def get_seller(i):
     if hosted_enabled():
         r=hosted_select('sellers',{'id':int(i)},limit=1)
+    else:
+        r=df('SELECT * FROM sellers WHERE id=?',(int(i),))
+    return None if r.empty else r.iloc[0]
+def get_seller_full(i):
+    # Includes paypal_link -- only for the seller viewing their own profile,
+    # or a buyer who needs it to pay a seller they're already transacting
+    # with. Never use this for public seller-profile display.
+    if hosted_enabled():
+        r=hosted_select('sellers',{'id':int(i)},limit=1,select='*')
     else:
         r=df('SELECT * FROM sellers WHERE id=?',(int(i),))
     return None if r.empty else r.iloc[0]
@@ -3889,6 +3913,27 @@ def buyer_workspace_tabs(bid):
         else:
             cols=[c for c in ['id','store_name','artist','title','fulfillment_preference','offer_price','buyer_message','status','created_at'] if c in purchases.columns]
             st.dataframe(purchases[cols],width='stretch')
+            awaiting_payment=purchases[purchases['status'].isin(['Seller Accepted','Pending Pickup/Payment'])] if 'status' in purchases.columns else purchases.iloc[0:0]
+            if not awaiting_payment.empty:
+                st.markdown('#### Ready to pay')
+                st.caption("House Of Wax connects you with the seller but never handles payment -- you pay the seller directly.")
+                for _,pr in awaiting_payment.iterrows():
+                    seller=get_seller_full(int(pr['seller_id'])) if safe(pr.get('seller_id')) else None
+                    amount=float(pr.get('offer_price') or 0)
+                    with st.container(border=True):
+                        st.write(f"**{safe(pr.get('artist'))} — {safe(pr.get('title'))}** from {safe(pr.get('store_name'))}")
+                        if amount>0:
+                            st.write(f"Amount to pay: {money(amount)}")
+                        paypal=safe(seller.get('paypal_link')) if seller is not None else ''
+                        if paypal:
+                            if paypal.lower().startswith(('http://','https://')) or 'paypal.me' in paypal.lower():
+                                link=paypal if paypal.lower().startswith(('http://','https://')) else f'https://{paypal}'
+                                st.link_button('Pay with PayPal',link)
+                            else:
+                                st.info(f'Pay this seller via PayPal: {paypal}')
+                            st.caption("Payment goes directly to the seller's PayPal, not through House Of Wax. Message the seller through House Of Wax if there's a problem.")
+                        else:
+                            st.warning("This seller hasn't added their PayPal info yet. Message them through House Of Wax to arrange payment.")
             countered=purchases[purchases['status']=='Seller Countered'] if 'status' in purchases.columns else purchases.iloc[0:0]
             if not countered.empty:
                 st.markdown('#### Seller counter-offers awaiting your response')
@@ -6374,15 +6419,18 @@ def seller_store_profile_editor(sid, s, key_prefix='seller_profile'):
         story=st.text_area('Longer seller story',value=safe(s['seller_story']))
         spec=st.text_area('Favorite music genres or product categories',value=safe(s['specialties']))
         contact_pref=st.text_input('Contact preference',value=safe(s.get('contact_preference')),placeholder='Example: House Of Wax messages, Instagram DM, local pickup questions')
+        st.markdown('#### Getting paid')
+        st.caption("House Of Wax connects buyers and sellers but never handles payment directly -- you collect payment yourself through your own PayPal. Buyers see this once you accept their purchase request.")
+        paypal_link=st.text_input('PayPal email or PayPal.me link',value=safe(s.get('paypal_link')),placeholder='you@example.com or paypal.me/yourname',help="Buyers will see this once you accept a purchase request, so they know how to pay you directly.")
         logo=st.file_uploader('Logo',type=['png','jpg','jpeg','webp'])
         banner=st.file_uploader('Banner',type=['png','jpg','jpeg','webp'])
         logo_url=st.text_input('Logo URL/path',value=safe(s['logo_url']))
         banner_url=st.text_input('Banner URL/path',value=safe(s['banner_url']))
         sub=st.form_submit_button('Save profile')
     if sub:
-        data={'store_name':store,'city':city,'state':state,'store_bio':bio,'seller_story':story,'specialties':spec,'contact_preference':contact_pref,'logo_url':save_file(logo,'seller_logos') or logo_url,'banner_url':save_file(banner,'seller_banners') or banner_url,'seller_level':safe(s.get('seller_level'),'Verified Seller'),'auction_override':'Yes'}
+        data={'store_name':store,'city':city,'state':state,'store_bio':bio,'seller_story':story,'specialties':spec,'contact_preference':contact_pref,'paypal_link':paypal_link.strip(),'logo_url':save_file(logo,'seller_logos') or logo_url,'banner_url':save_file(banner,'seller_banners') or banner_url,'seller_level':safe(s.get('seller_level'),'Verified Seller'),'auction_override':'Yes'}
         AUTH_STATUS['last_seller_save_error']=''
-        ok=core_update('sellers',data,{'id':sid},"UPDATE sellers SET store_name=?,city=?,state=?,store_bio=?,seller_story=?,specialties=?,contact_preference=?,logo_url=?,banner_url=?,seller_level=?,auction_override='Yes' WHERE id=?",(store,city,state,bio,story,spec,contact_pref,data['logo_url'],data['banner_url'],data['seller_level'],sid))
+        ok=core_update('sellers',data,{'id':sid},"UPDATE sellers SET store_name=?,city=?,state=?,store_bio=?,seller_story=?,specialties=?,contact_preference=?,paypal_link=?,logo_url=?,banner_url=?,seller_level=?,auction_override='Yes' WHERE id=?",(store,city,state,bio,story,spec,contact_pref,data['paypal_link'],data['logo_url'],data['banner_url'],data['seller_level'],sid))
         reloaded=get_seller(sid)
         if ok and reloaded is not None:
             st.success('Seller profile saved and reloaded.')
@@ -6475,7 +6523,7 @@ def seller_dashboard():
             claim_existing_profile_section()
             return
         st.session_state['seller_tool_seller_id']=sid
-        s=get_seller(sid)
+        s=get_seller_full(sid)
         if s is None:
             st.error('Linked seller store was not found.')
             return
@@ -6529,7 +6577,7 @@ def seller_dashboard():
     if not sid:
         st.info('Choose an existing seller above, or create a seller store first.')
         return
-    s=get_seller(sid)
+    s=get_seller_full(sid)
     if s is None:
         st.warning('The selected seller profile was not found in the database. Choose an existing seller or create a seller store first.')
         st.session_state.pop('seller_tool_seller_id',None)

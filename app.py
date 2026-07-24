@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.80 ADD INVENTORY: REAL DISCOGS MARKET DATA (LISTINGS, HAVE/WANT, RATING)'
+APP_VERSION='V25.43.81 SELLER DASHBOARD: CUT CLUTTER FROM 14 SECTIONS TO 6'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1384,8 +1384,9 @@ def setup():
     old_v25_43_77_announcement='V25.43.77'+' Fix tester feedback/listing report inserts (RETURNING vs insert-only RLS) active'
     old_v25_43_78_announcement='V25.43.78'+' Add Inventory: fix dead MusicBrainz cover art, fall back to iTunes active'
     old_v25_43_79_announcement='V25.43.79'+' Add Inventory: price suggestions now try Discogs regardless of match source active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement]:
-        set_setting('announcement','V25.43.80 Add Inventory: real Discogs market data (listings, have/want, rating) active')
+    old_v25_43_80_announcement='V25.43.80'+' Add Inventory: real Discogs market data (listings, have/want, rating) active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement]:
+        set_setting('announcement','V25.43.81 Seller Dashboard: cut clutter from 14 sections to 6 active')
 setup()
 recovery_token_bridge()
 
@@ -6711,6 +6712,32 @@ def seller_store_profile_editor(sid, s, key_prefix='seller_profile'):
         else:
             AUTH_STATUS['last_seller_save_error']=safe(SUPABASE_STATUS.get('last_error'),'Seller profile save failed.')
             st.error('Seller profile did not save. Supabase error: '+AUTH_STATUS['last_seller_save_error'])
+    with st.expander('Shipping, returns, and grading policies'):
+        p=hosted_select('seller_policies',{'seller_id':sid},limit=1) if hosted_enabled() else df('SELECT * FROM seller_policies WHERE seller_id=?',(sid,)); pol=p.iloc[0] if not p.empty else {}
+        with st.form(f'policy_{key_prefix}'):
+            shipping=st.text_area('Shipping policy',value=safe(pol.get('shipping_policy') if len(pol) else 'Ships within 3 business days.')); returns=st.text_area('Return policy',value=safe(pol.get('return_policy') if len(pol) else 'No buyer remorse returns unless seller approves.')); grading=st.text_area('Grading policy',value=safe(pol.get('grading_policy') if len(pol) else 'Collector grading standards.')); pickup=st.text_area('Pickup / meetup / local policy notes',value=safe(pol.get('local_pickup_policy') if len(pol) else '')); sub2=st.form_submit_button('Save policies')
+        if sub2:
+            ok2=True
+            if hosted_enabled():
+                pdata={'seller_id':sid,'shipping_policy':shipping,'return_policy':returns,'grading_policy':grading,'local_pickup_policy':pickup}
+                if not p.empty:
+                    ok2=hosted_update('seller_policies',pdata,{'seller_id':sid})
+                else:
+                    # seller_policies has no id column, so hosted_insert's
+                    # id-based success signal is always 0 here even when the
+                    # insert worked -- check the request outcome directly.
+                    _,insert_detail=hosted_request('post','seller_policies',data=pdata)
+                    show_hosted_error('insert','seller_policies',insert_detail)
+                    ok2=bool(insert_detail.get('ok'))
+            else:
+                run('INSERT OR REPLACE INTO seller_policies(seller_id,shipping_policy,return_policy,grading_policy,local_pickup_policy) VALUES(?,?,?,?,?)',(sid,shipping,returns,grading,pickup))
+            if ok2:
+                st.success('Policies saved.')
+            else:
+                st.error('Policies could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
+    with st.expander('Badges earned'):
+        st.write(badges(sid) or 'No badges yet.')
+        st.dataframe(hosted_select('seller_badges',{'seller_id':sid}) if hosted_enabled() else df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),width='stretch')
 
 def seller_listings_manager(sid, key_prefix='seller_listings'):
     st.subheader('My Inventory')
@@ -6762,6 +6789,22 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
             return
         core_update('products',{'listing_status':status,'updated_at':now()},{'id':int(pid),'seller_id':int(sid)},'UPDATE products SET listing_status=?,updated_at=? WHERE id=? AND seller_id=?',(status,now(),int(pid),sid))
         st.success('Listing status updated.')
+    with st.expander('Add more photos to this listing'):
+        img=st.file_uploader('Photo',type=['png','jpg','jpeg','webp'],key=f'{key_prefix}_gallery_img_{int(pid)}')
+        url=st.text_input('Or image URL',key=f'{key_prefix}_gallery_url_{int(pid)}')
+        cap=st.text_input('Caption',key=f'{key_prefix}_gallery_cap_{int(pid)}')
+        if st.button('Add photo',key=f'{key_prefix}_gallery_add_{int(pid)}'):
+            image=save_file(img,'product_gallery') or url
+            if image:
+                gdata={'product_id':int(pid),'image_url':image,'caption':cap,'created_at':now()}
+                new_id=core_insert('product_gallery',gdata,'INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),image,cap,now()))
+                if new_id or not hosted_enabled():
+                    st.success('Photo added.')
+                else:
+                    st.error('Photo could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
+            else:
+                st.warning('Add a photo file or an image URL first.')
+        render_listing_photo_gallery(int(pid),safe(row.get('image_url')),context='seller')
     if current_status in ['Draft','Hidden']:
         with st.expander('Delete this listing'):
             st.warning('This permanently removes the listing. It cannot be undone. Only Draft and Hidden listings can be deleted -- mark a listing Hidden first if it is currently Live or Sold.')
@@ -6810,7 +6853,7 @@ def seller_dashboard():
         if not hosted_enabled():
             st.warning('For real tester data persistence, connect Supabase before collecting tester data. Local SQLite is for development and can reset on Streamlit Cloud.')
         st.info('Use My Inventory to find everything you added. Use Add Inventory to create one new item.')
-        primary_section=st.radio('Seller Tools section',['My Inventory','Add Inventory','My Store Profile','Buyer Requests','Seller Messages/Inquiries','All Seller Tools'],horizontal=True,key='seller_tools_primary_section_auth')
+        primary_section=st.radio('Seller Tools section',['My Inventory','Add Inventory','My Store Profile','Buyer Requests','Seller Messages/Inquiries','More Tools'],horizontal=True,key='seller_tools_primary_section_auth')
         if primary_section=='My Inventory':
             seller_listings_manager(sid,'primary_my_inventory')
             return
@@ -6866,7 +6909,7 @@ def seller_dashboard():
     if not hosted_enabled():
         st.warning('For real tester data persistence, connect Supabase before collecting tester data. Local SQLite is for development and can reset on Streamlit Cloud.')
     st.info('Use My Inventory to find everything you added. Use Add Inventory to create one new item.')
-    primary_section=st.radio('Seller Tools section',['My Inventory','Add Inventory','My Store Profile','Buyer Requests','Seller Messages/Inquiries','All Seller Tools'],horizontal=True,key='seller_tools_primary_section')
+    primary_section=st.radio('Seller Tools section',['My Inventory','Add Inventory','My Store Profile','Buyer Requests','Seller Messages/Inquiries','More Tools'],horizontal=True,key='seller_tools_primary_section')
     if primary_section=='My Inventory':
         seller_listings_manager(sid,'primary_my_inventory')
         return
@@ -6886,37 +6929,9 @@ def seller_dashboard():
         seller_inquiry_view(sid)
         return
     seller_inventory_visibility_summary(sid)
-    st.caption('My Store Profile, Add Inventory, My Inventory, and Seller Messages/Inquiries and Buyer Requests are in the radio above. The tabs below cover everything else.')
-    tabs=st.tabs(['Policies','Barcode scanner','Bulk import','Gallery','Messages','Announcements','Events/drops','Badges'])
+    st.caption('My Store Profile, Add Inventory, My Inventory, Seller Messages/Inquiries, and Buyer Requests are in the radio above. A few less-frequent tools are below.')
+    tabs=st.tabs(['Bulk import','Announcements','Events/drops'])
     with tabs[0]:
-        p=hosted_select('seller_policies',{'seller_id':sid},limit=1) if hosted_enabled() else df('SELECT * FROM seller_policies WHERE seller_id=?',(sid,)); pol=p.iloc[0] if not p.empty else {}
-        with st.form('policy'):
-            shipping=st.text_area('Shipping policy',value=safe(pol.get('shipping_policy') if len(pol) else 'Ships within 3 business days.')); returns=st.text_area('Return policy',value=safe(pol.get('return_policy') if len(pol) else 'No buyer remorse returns unless seller approves.')); grading=st.text_area('Grading policy',value=safe(pol.get('grading_policy') if len(pol) else 'Collector grading standards.')); pickup=st.text_area('Pickup / meetup / local policy notes',value=safe(pol.get('local_pickup_policy') if len(pol) else '')); sub=st.form_submit_button('Save policies')
-        if sub:
-            ok=True
-            if hosted_enabled():
-                data={'seller_id':sid,'shipping_policy':shipping,'return_policy':returns,'grading_policy':grading,'local_pickup_policy':pickup}
-                if not p.empty:
-                    ok=hosted_update('seller_policies',data,{'seller_id':sid})
-                else:
-                    # seller_policies has no id column, so hosted_insert's
-                    # id-based success signal is always 0 here even when the
-                    # insert worked -- check the request outcome directly.
-                    _,insert_detail=hosted_request('post','seller_policies',data=data)
-                    show_hosted_error('insert','seller_policies',insert_detail)
-                    ok=bool(insert_detail.get('ok'))
-            else:
-                run('INSERT OR REPLACE INTO seller_policies(seller_id,shipping_policy,return_policy,grading_policy,local_pickup_policy) VALUES(?,?,?,?,?)',(sid,shipping,returns,grading,pickup))
-            if ok:
-                st.success('Policies saved.')
-            else:
-                st.error('Policies could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
-    with tabs[1]:
-        st.subheader('Barcode scanner / inventory quick add')
-        st.info('Click into the barcode field and scan with a USB/Bluetooth scanner, phone keyboard scanner, or type/paste the barcode.')
-        render_barcode_lookup_widget('barcode_quick_add')
-        upload_product(sid,'barcode_quick_add')
-    with tabs[2]:
         csv=st.file_uploader('Upload CSV',type=['csv']); st.caption('Supports barcode,catalog_number,matrix_runout,artist,title,format,label,release_year,genre,price,quantity,image_url')
         if csv is not None:
             data=pd.read_csv(csv); st.dataframe(data,width='stretch')
@@ -6946,21 +6961,7 @@ def seller_dashboard():
                     st.warning(f'Imported {n} as Draft. Accept seller rules before publishing imported listings live.'+corrected_note+failed_note)
                 else:
                     st.warning(f'Imported {n} as Draft. Seller approval is required before publishing live.'+corrected_note+failed_note)
-    with tabs[3]:
-        prods=hosted_select('products',{'seller_id':int(sid)}) if hosted_enabled() else df('SELECT * FROM products WHERE seller_id=?',(sid,)); st.dataframe(prods,width='stretch')
-        if not prods.empty:
-            pid=st.selectbox('Product for gallery',prods['id'].tolist()); img=st.file_uploader('Gallery image',type=['png','jpg','jpeg','webp']); url=st.text_input('Or image URL'); cap=st.text_input('Caption')
-            if st.button('Add gallery image'):
-                image=save_file(img,'product_gallery') or url
-                if image:
-                    data={'product_id':int(pid),'image_url':image,'caption':cap,'created_at':now()}
-                    new_id=core_insert('product_gallery',data,'INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),image,cap,now()))
-                    if new_id or not hosted_enabled():
-                        st.success('Gallery image added.')
-                    else:
-                        st.error('Gallery image could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
-    with tabs[4]: st.dataframe(df('SELECT * FROM messages WHERE seller_id=? ORDER BY created_at DESC',(sid,)),width='stretch')
-    with tabs[5]:
+    with tabs[1]:
         with st.form('ann'): title=st.text_input('Announcement title'); body=st.text_area('Announcement body'); sub=st.form_submit_button('Post announcement')
         if sub:
             data={'seller_id':sid,'title':title,'body':body,'status':'Active','created_at':now()}
@@ -6970,7 +6971,7 @@ def seller_dashboard():
             else:
                 st.error('Announcement could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
         st.dataframe(hosted_select('store_announcements',{'seller_id':sid}) if hosted_enabled() else df('SELECT * FROM store_announcements WHERE seller_id=?',(sid,)),width='stretch')
-    with tabs[6]:
+    with tabs[2]:
         with st.form('ev'): title=st.text_input('Drop/event title'); typ=st.selectbox('Type',['Record Drop','Auction Drop','Sale','Live Event','Other']); date=st.text_input('Date/time'); desc=st.text_area('Description'); sub=st.form_submit_button('Save event')
         if sub:
             data={'seller_id':sid,'event_title':title,'event_type':typ,'event_date':date,'description':desc,'status':'Active','created_at':now()}
@@ -6979,7 +6980,6 @@ def seller_dashboard():
                 st.success('Saved.')
             else:
                 st.error('Event could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
-    with tabs[7]: st.write(badges(sid) or 'No badges yet.'); st.dataframe(hosted_select('seller_badges',{'seller_id':sid}) if hosted_enabled() else df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),width='stretch')
 def auctions():
     header(); st.header('Auctions'); sid=seller_pick('auction_seller'); prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved','Public')",(sid,))
     if not prods.empty:

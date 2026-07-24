@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.79 ADD INVENTORY: PRICE SUGGESTIONS NOW TRY DISCOGS REGARDLESS OF MATCH SOURCE'
+APP_VERSION='V25.43.80 ADD INVENTORY: REAL DISCOGS MARKET DATA (LISTINGS, HAVE/WANT, RATING)'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1383,8 +1383,9 @@ def setup():
     old_v25_43_76_announcement='V25.43.76'+' Ask House Of Wax AI: require a named source on opinion questions active'
     old_v25_43_77_announcement='V25.43.77'+' Fix tester feedback/listing report inserts (RETURNING vs insert-only RLS) active'
     old_v25_43_78_announcement='V25.43.78'+' Add Inventory: fix dead MusicBrainz cover art, fall back to iTunes active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement]:
-        set_setting('announcement','V25.43.79 Add Inventory: price suggestions now try Discogs regardless of match source active')
+    old_v25_43_79_announcement='V25.43.79'+' Add Inventory: price suggestions now try Discogs regardless of match source active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement]:
+        set_setting('announcement','V25.43.80 Add Inventory: real Discogs market data (listings, have/want, rating) active')
 setup()
 recovery_token_bridge()
 
@@ -4689,7 +4690,10 @@ def suggest_price_range_from_discogs(release_id, media_grade=None, sleeve_grade=
         if r.status_code!=200:
             return None
         data=r.json()
-        by_grade={grade:info.get('value') for grade,info in data.items() if isinstance(info,dict) and info.get('value')}
+        # Only trust values actually priced in USD -- the endpoint prices in
+        # whatever currency the connected Discogs account defaults to, and a
+        # non-USD value shown as a bare number reads as a wildly wrong price.
+        by_grade={grade:info.get('value') for grade,info in data.items() if isinstance(info,dict) and info.get('value') and safe(info.get('currency'),'USD')=='USD'}
         values=list(by_grade.values())
         if not values:
             return None
@@ -4706,6 +4710,69 @@ def suggest_price_range_from_discogs(release_id, media_grade=None, sleeve_grade=
             mid=(min(values)+max(values))/2
             return {'low':round(mid*mult*0.85,2),'high':round(mid*mult*1.15,2),'source':'Discogs marketplace (adjusted for your condition; exact grade data unavailable)','by_grade':by_grade,'grade_used':target_grade}
         return {'low':min(values),'high':max(values),'source':'Discogs marketplace (real listings, varies by condition)','by_grade':by_grade}
+    except Exception:
+        return None
+
+def resolve_discogs_release_id(artist, title, direct_id=None):
+    # A barcode/text match found via the House Of Wax database, cache, or
+    # MusicBrainz never carries a Discogs release id (those are separate
+    # catalogs) -- but Discogs is the only source here with real
+    # marketplace data. Search Discogs by artist/title just to find an id
+    # to pull market stats for, independent of which source actually
+    # matched the listing draft.
+    if safe(direct_id):
+        return safe(direct_id)
+    if not discogs_token_status() or not (safe(artist) or safe(title)):
+        return ''
+    try:
+        candidates=lookup_discogs_text_search(safe(artist),safe(title))
+        best=choose_best_search_result(candidates,safe(artist),safe(title)) if candidates else None
+        return safe(best.get('external_id')) if best else ''
+    except Exception:
+        return ''
+
+def fetch_discogs_market_snapshot(release_id):
+    # The real, live counterpart to suggest_price_range_from_discogs's
+    # algorithmic per-grade estimate: what people are actually asking right
+    # now (lowest current listing, how many are for sale) plus community
+    # proof (have/want/rating) -- the same numbers Discogs shows on its own
+    # release page. One extra call to the standard release endpoint.
+    release_id=safe(release_id)
+    if not release_id:
+        return None
+    try:
+        token=st.secrets.get('DISCOGS_TOKEN','')
+    except Exception:
+        token=''
+    if not token:
+        return None
+    try:
+        url=f'https://api.discogs.com/releases/{release_id}'
+        r=requests.get(url,params={'token':token,'curr_abbr':'USD'},headers={'User-Agent':'HouseOfWaxPrototype/1.0'},timeout=8)
+        if r.status_code!=200:
+            return None
+        data=r.json()
+        community=data.get('community') or {}
+        rating=community.get('rating') or {}
+        lowest=data.get('lowest_price')
+        if isinstance(lowest,dict):
+            lowest=lowest.get('value') if safe(lowest.get('currency'),'USD')=='USD' else None
+        num_for_sale=data.get('num_for_sale')
+        have=community.get('have')
+        want=community.get('want')
+        rating_avg=rating.get('average')
+        rating_count=rating.get('count')
+        if lowest is None and num_for_sale is None and have is None and want is None:
+            return None
+        return {
+            'lowest_price':lowest,
+            'num_for_sale':num_for_sale,
+            'have':have,
+            'want':want,
+            'rating_avg':rating_avg,
+            'rating_count':rating_count,
+            'url':f'https://www.discogs.com/release/{release_id}',
+        }
     except Exception:
         return None
 
@@ -6166,10 +6233,24 @@ def upload_product(sid,key):
     cg1,cg2=st.columns(2)
     mg=cg1.selectbox('Condition - required',GRADE_SCALE,key=f'upload_mg_{key}',help='Tell buyers the condition of the copy you are selling.')
     sg=cg2.selectbox('Sleeve/packaging condition - optional',GRADE_SCALE,key=f'upload_sg_{key}')
-    price_suggestion=suggest_seller_price_range(defaults.get('artist'),discogs_release_id,mg,sg,defaults.get('title')) if defaults.get('artist') else None
+    resolved_discogs_id=resolve_discogs_release_id(defaults.get('artist'),defaults.get('title'),discogs_release_id) if defaults.get('artist') else ''
+    market=fetch_discogs_market_snapshot(resolved_discogs_id) if resolved_discogs_id else None
+    if market and (market.get('lowest_price') is not None or market.get('have') is not None):
+        bits=[]
+        if market.get('lowest_price') is not None and market.get('num_for_sale') is not None:
+            bits.append(f"Currently for sale: {money(market['lowest_price'])}+ across {int(market['num_for_sale'])} listing(s) on Discogs")
+        elif market.get('lowest_price') is not None:
+            bits.append(f"Lowest currently listed on Discogs: {money(market['lowest_price'])}")
+        if market.get('have') is not None or market.get('want') is not None:
+            bits.append(f"{int(market.get('have') or 0)} collectors have it, {int(market.get('want') or 0)} want it")
+        if market.get('rating_avg') and market.get('rating_count'):
+            bits.append(f"Rated {market['rating_avg']:.2f}/5 ({int(market['rating_count'])} ratings)")
+        if bits:
+            st.info('Real Discogs market data for this release -- ' + ' · '.join(bits) + '. You set the final price.')
+    price_suggestion=suggest_seller_price_range(defaults.get('artist'),resolved_discogs_id,mg,sg,defaults.get('title')) if defaults.get('artist') else None
     if price_suggestion:
         grade_note=f" for {price_suggestion['grade_used']} condition" if price_suggestion.get('grade_used') else ''
-        st.info(f"Suggested price range{grade_note}: {money(price_suggestion['low'])}–{money(price_suggestion['high'])}, based on {price_suggestion['source']}. You set the final price.")
+        st.caption(f"Condition-adjusted estimate{grade_note}: {money(price_suggestion['low'])}–{money(price_suggestion['high'])}, based on {price_suggestion['source']} (algorithmic, less reliable than the real listings above).")
     with st.form(key):
         st.markdown('#### Step 1: Find the item')
         st.caption('Search by barcode, artist/title, or item name. If this is a record, CD, or cassette, House Of Wax will try to find the album information for you.')

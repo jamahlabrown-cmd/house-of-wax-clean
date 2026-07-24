@@ -16,7 +16,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.62 TESTER FEEDBACK: PAGE-CRASH RECOVERY + FULLER MOBILE NAV'
+APP_VERSION='V25.43.63 TESTER FEEDBACK: BARCODE CLARITY + SELLER DASHBOARD DECLUTTER'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -958,11 +958,13 @@ def seller_responsibility_policy_text():
 
 def render_seller_rules_acceptance(sid, seller, key_prefix='seller_rules'):
     st.markdown('#### Seller rules and responsibility')
-    seller_responsibility_policy_text()
     if seller_rules_accepted(seller):
         status_badge('Rules accepted','success')
         st.caption('Accepted: '+safe(seller.get('rules_accepted_at'),'date not recorded'))
+        with st.expander('Review seller rules',expanded=False):
+            seller_responsibility_policy_text()
         return True
+    seller_responsibility_policy_text()
     st.warning('Accept seller rules before publishing. You can still save drafts without accepting rules.')
     agreed=st.checkbox('I understand that I am responsible for the accuracy, legality, condition, pricing, images, and descriptions of the items I post. I agree to follow House Of Wax marketplace rules.',key=f'{key_prefix}_rules_agreement_{int(sid)}')
     if st.button('Accept seller rules',key=f'{key_prefix}_accept_rules_{int(sid)}'):
@@ -989,16 +991,26 @@ def seller_onboarding_checklist(sid, seller):
         ('Add first draft listing',has_draft or has_live),
         ('Publish first live listing',has_live),
     ]
-    st.markdown('### Seller Onboarding')
-    st.caption('Complete these basics so sellers understand their responsibility before publishing.')
-    with st.container(border=True):
-        for label,done in checklist:
-            c1,c2=st.columns([0.7,0.3])
-            c1.write(label)
-            if done:
-                c2.success('Complete')
-            else:
-                c2.warning('Not complete')
+    all_done=all(done for _,done in checklist)
+    if all_done:
+        # Once everything's complete this used to keep taking up a large
+        # chunk of the dashboard on every single visit (tester feedback) --
+        # collapse to one line and let sellers expand it if they want detail.
+        with st.expander('Seller Onboarding — complete',expanded=False):
+            st.success('All onboarding steps complete.')
+            for label,done in checklist:
+                st.write(f'✓ {label}')
+    else:
+        st.markdown('### Seller Onboarding')
+        st.caption('Complete these basics so sellers understand their responsibility before publishing.')
+        with st.container(border=True):
+            for label,done in checklist:
+                c1,c2=st.columns([0.7,0.3])
+                c1.write(label)
+                if done:
+                    c2.success('Complete')
+                else:
+                    c2.warning('Not complete')
     render_seller_rules_acceptance(sid,seller,'seller_onboarding')
     return checklist
 
@@ -1324,8 +1336,9 @@ def setup():
     old_v25_43_59_announcement='V25.43.59'+' Fix: avatar widget uses real LiveAvatar SDK + TTS active'
     old_v25_43_60_announcement='V25.43.60'+' Fix: LiveAvatar sessions use correct api.liveavatar.com domain active'
     old_v25_43_61_announcement='V25.43.61'+' Replaced live avatar with instant FAQ video clips active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement]:
-        set_setting('announcement','V25.43.62 Tester feedback: page-crash recovery + fuller mobile nav active')
+    old_v25_43_62_announcement='V25.43.62'+' Tester feedback: page-crash recovery + fuller mobile nav active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement]:
+        set_setting('announcement','V25.43.63 Tester feedback: barcode clarity + seller dashboard declutter active')
 setup()
 recovery_token_bridge()
 
@@ -5012,10 +5025,10 @@ def render_source_health_panel(key_prefix='main'):
         st.caption('If Apple/iTunes and MusicBrainz show connection errors, the app cannot reach outside APIs from the deployed environment. In that case use the manual links and internal House Of Wax database workflow.')
 
 def manual_release_seed_form(artist='', title='', barcode='', key_prefix='main'):
-    with st.expander('Manual release seed: add this item to House Of Wax database'):
-        st.write('Use this when automatic search fails but you found the correct information manually.')
+    with st.expander('Still no match? Type in the release details yourself'):
+        st.write('Only use this if Smart Search above could not find your item. Fill in what you know and House Of Wax will remember it for next time.')
         with st.form(f'manual_release_seed_form_{key_prefix}'):
-            code=st.text_input('Barcode',value=normalize_barcode(barcode))
+            code=st.text_input('Barcode for this release (if known)',value=normalize_barcode(barcode))
             a=st.text_input('Artist',value=safe(artist))
             t=st.text_input('Title',value=safe(title))
             c1,c2,c3=st.columns(3)

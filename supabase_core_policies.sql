@@ -488,3 +488,78 @@ grant select (
   seller_level, rating, completed_sales, disputes, strikes, auction_override,
   access_code, rules_accepted, rules_accepted_at, created_at
 ) on public.sellers to anon;
+
+-- want_list, seller_reviews, and avatar_faq_videos: found with zero RLS/policy
+-- coverage anywhere in this file during the V25.43 audit, despite being live
+-- CORE_HOSTED_TABLES features. Adding the policies their actual app.py usage
+-- requires, matching the ownership/public-read patterns already established
+-- above for the equivalent tables (buyers-own-rows, public content, etc).
+
+-- want_list is a buyer's private want-hunting list -- no public read, only
+-- the owning buyer (and admin) can see or manage it.
+drop policy if exists "buyer manage own want list" on public."want_list";
+create policy "buyer manage own want list"
+on want_list for all to authenticated
+using (buyer_id in (select buyer_id from app_users where auth_user_id = auth.uid()))
+with check (buyer_id in (select buyer_id from app_users where auth_user_id = auth.uid()));
+
+drop policy if exists "admin manage want list" on public."want_list";
+create policy "admin manage want list"
+on want_list for all to authenticated
+using (is_admin_user())
+with check (is_admin_user());
+
+-- Matching a new listing against every buyer's want_list needs to read
+-- across ALL buyers, not just the seller's own -- something RLS on
+-- want_list deliberately blocks above. app.py's find_want_list_matches_for_notify
+-- already expects a security-definer RPC of this exact name/shape (see the
+-- comment there); without it, notify_want_list_matches silently returns no
+-- matches and buyers never get notified, with no error anywhere. This is
+-- almost certainly why want-list match emails have not been going out.
+create or replace function find_want_list_matches(p_artist text, p_title text default '')
+returns table(buyer_id bigint, email text, name text, want_title text)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select w.buyer_id, b.email, b.name, w.title as want_title
+  from want_list w
+  join buyers b on b.id = w.buyer_id
+  where w.status = 'Active'
+    and lower(w.artist) = lower(p_artist)
+    and (w.title is null or w.title = '' or lower(w.title) = lower(coalesce(p_title,'')));
+$$;
+
+-- seller_reviews are shown on public seller profile pages (seller_profile()
+-- calls seller_reviews(sid) with no auth gate), so anon needs read access.
+-- Only the reviewing buyer can create their own review; no update/delete
+-- path exists in the app today, so none is granted here either.
+drop policy if exists "public read seller reviews" on public."seller_reviews";
+create policy "public read seller reviews"
+on seller_reviews for select to anon, authenticated
+using (true);
+
+drop policy if exists "buyer create own seller review" on public."seller_reviews";
+create policy "buyer create own seller review"
+on seller_reviews for insert to authenticated
+with check (buyer_id in (select buyer_id from app_users where auth_user_id = auth.uid()));
+
+drop policy if exists "admin manage seller reviews" on public."seller_reviews";
+create policy "admin manage seller reviews"
+on seller_reviews for all to authenticated
+using (is_admin_user())
+with check (is_admin_user());
+
+-- avatar_faq_videos is admin-authored FAQ content, publicly readable when
+-- Active -- same shape as homepage_blocks/quick_tips/did_you_know above.
+drop policy if exists "public read active avatar faq videos" on public."avatar_faq_videos";
+create policy "public read active avatar faq videos"
+on avatar_faq_videos for select to anon, authenticated
+using (status = 'Active');
+
+drop policy if exists "admin manage avatar faq videos" on public."avatar_faq_videos";
+create policy "admin manage avatar faq videos"
+on avatar_faq_videos for all to authenticated
+using (is_admin_user())
+with check (is_admin_user());

@@ -471,3 +471,20 @@ grant select (
   shipping_price, image_url, reference_image_url, video_url, audio_url,
   external_release_url, listing_status, listing_type, created_at, updated_at
 ) on public.products to anon;
+
+-- sellers.paypal_link is how a buyer actually pays a seller directly (see
+-- the hands-off payment model) -- a real spam/phishing target if exposed to
+-- anyone via the public REST API, not just genuine buyers mid-transaction.
+-- Same anon-safe-select pattern as products.reviewer_notes above. This grant
+-- was applied directly against the live database (that's why get_seller_full's
+-- select=* started 401ing for anon/Testing Mode -- see the V25.43.83 fix) but
+-- was never added here, so recreating this database from this file alone
+-- would have left sellers fully exposed to anon select=*. Keep this in sync
+-- with SELLERS_ANON_SAFE_SELECT in app.py if that list ever changes.
+revoke select on public.sellers from anon;
+grant select (
+  id, store_name, owner_name, email, phone, city, state, website, instagram,
+  store_bio, seller_story, specialties, logo_url, banner_url, status,
+  seller_level, rating, completed_sales, disputes, strikes, auction_override,
+  access_code, rules_accepted, rules_accepted_at, created_at
+) on public.sellers to anon;

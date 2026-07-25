@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.89 POLICY AUDIT: TESTING MODE CANNOT DO ADMIN WRITES, SAY SO UP FRONT'
+APP_VERSION='V25.43.90 FIX: SEARCH NO LONGER HIDES REAL API ERRORS BEHIND "NO MATCH"'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -98,6 +98,13 @@ def worse_grade(media_grade, sleeve_grade=None):
     return GRADE_SCALE[max(mg_idx,sg_idx)]
 SUPABASE_STATUS={'last_read':'Not run','last_write':'Not run','last_error':''}
 AUTH_STATUS={'last_error':'','last_buyer_save_error':'','last_seller_save_error':'','last_link_error':''}
+# Discogs/iTunes/MusicBrainz broad-search helpers used to silently return []
+# on ANY failure -- a real API error (bad token, rate limit, 5xx) looked
+# identical to "genuinely no results" to both the diagnostics table and the
+# person searching. A curl test against Discogs confirmed a bad/expired
+# token makes the search endpoint reject the WHOLE request with 401, not
+# just skip the token -- exactly the kind of failure this was hiding.
+SEARCH_SOURCE_STATUS={'discogs_last_error':'','itunes_last_error':'','musicbrainz_last_error':''}
 def supabase_key_type():
     _,key=supabase_config()
     if key.startswith('sb_publishable_'):
@@ -1416,8 +1423,9 @@ def setup():
     old_v25_43_86_announcement='V25.43.86'+' Fix sign-up: honest errors, no false "signed in" on pending confirmation active'
     old_v25_43_87_announcement='V25.43.87'+' Harden core_update: fail loudly instead of silent no-op in local mode active'
     old_v25_43_88_announcement='V25.43.88'+' Supabase audit: found 3 tables with zero RLS coverage, add diagnostics active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement]:
-        set_setting('announcement','V25.43.89 Policy audit: Testing mode cannot do admin writes, say so up front active')
+    old_v25_43_89_announcement='V25.43.89'+' Policy audit: Testing mode cannot do admin writes, say so up front active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement]:
+        set_setting('announcement','V25.43.90 Fix: search no longer hides real API errors behind "no match" active')
 setup()
 recovery_token_bridge()
 
@@ -5360,6 +5368,7 @@ def manual_release_seed_form(artist='', title='', barcode='', key_prefix='main')
 
 
 def lookup_itunes_text_search(artist='', title='', barcode=''):
+    SEARCH_SOURCE_STATUS['itunes_last_error']=''
     artist=safe(artist)
     title=safe(title)
     code=normalize_barcode(barcode)
@@ -5371,6 +5380,7 @@ def lookup_itunes_text_search(artist='', title='', barcode=''):
         params={'term':term,'media':'music','entity':'album','limit':25}
         r=requests.get(url,params=params,timeout=10)
         if r.status_code!=200:
+            SEARCH_SOURCE_STATUS['itunes_last_error']=f'HTTP {r.status_code}: {safe(r.text)[:300]}'
             return []
         data=r.json()
         results=[]
@@ -5403,10 +5413,12 @@ def lookup_itunes_text_search(artist='', title='', barcode=''):
                 'raw_summary':'Apple iTunes Search API album match'
             })
         return results
-    except Exception:
+    except Exception as e:
+        SEARCH_SOURCE_STATUS['itunes_last_error']=f'{type(e).__name__}: {safe(e)}'
         return []
 
 def lookup_musicbrainz_broad_search(artist='', title='', barcode=''):
+    SEARCH_SOURCE_STATUS['musicbrainz_last_error']=''
     artist=safe(artist)
     title=safe(title)
     code=normalize_barcode(barcode)
@@ -5432,6 +5444,7 @@ def lookup_musicbrainz_broad_search(artist='', title='', barcode=''):
             headers={'User-Agent':'HouseOfWaxPrototype/1.0 (prototype lookup)'}
             r=requests.get(url,params=params,headers=headers,timeout=10)
             if r.status_code!=200:
+                SEARCH_SOURCE_STATUS['musicbrainz_last_error']=f'HTTP {r.status_code}: {safe(r.text)[:300]}'
                 continue
             data=r.json()
             for rel in data.get('releases',[])[:15]:
@@ -5482,7 +5495,8 @@ def lookup_musicbrainz_broad_search(artist='', title='', barcode=''):
                     'external_url':ext,
                     'raw_summary':f'MusicBrainz broad search match: {q}'
                 })
-        except Exception:
+        except Exception as e:
+            SEARCH_SOURCE_STATUS['musicbrainz_last_error']=f'{type(e).__name__}: {safe(e)}'
             continue
         if len(results) >= 10:
             break
@@ -5490,6 +5504,7 @@ def lookup_musicbrainz_broad_search(artist='', title='', barcode=''):
 
 def lookup_discogs_broad_search(artist='', title='', barcode=''):
     # Broad q search. Works best with a DISCOGS_TOKEN, but will still attempt a public search.
+    SEARCH_SOURCE_STATUS['discogs_last_error']=''
     artist=safe(artist)
     title=safe(title)
     code=normalize_barcode(barcode)
@@ -5517,6 +5532,12 @@ def lookup_discogs_broad_search(artist='', title='', barcode=''):
             headers={'User-Agent':'HouseOfWaxPrototype/1.0'}
             r=requests.get('https://api.discogs.com/database/search',params=params,headers=headers,timeout=10)
             if r.status_code!=200:
+                # A bad/expired token makes Discogs reject the WHOLE request
+                # with 401 rather than fall back to an anonymous search --
+                # confirmed by direct testing against the live API. Capture
+                # the real reason instead of treating this the same as a
+                # genuine "no results found".
+                SEARCH_SOURCE_STATUS['discogs_last_error']=f'HTTP {r.status_code}: {safe(r.text)[:300]}'
                 continue
             data=r.json()
             for item in data.get('results',[])[:15]:
@@ -5550,7 +5571,8 @@ def lookup_discogs_broad_search(artist='', title='', barcode=''):
                     'external_url':f'https://www.discogs.com/release/{rid}' if rid else '',
                     'raw_summary':f'Discogs broad search match: {q}'
                 })
-        except Exception:
+        except Exception as e:
+            SEARCH_SOURCE_STATUS['discogs_last_error']=f'{type(e).__name__}: {safe(e)}'
             continue
         if len(results) >= 10:
             break
@@ -5638,7 +5660,9 @@ def lookup_by_artist_title_with_diagnostics(artist='', title='', barcode=''):
             results.extend(dres)
         else:
             token_msg='connected' if discogs_token_status() else 'not connected'
-            diagnostics.append({'Step':'Discogs combined search','Status':'No match','Details':f'Discogs returned no combined result. Discogs token status: {token_msg}.'})
+            source_error=safe(SEARCH_SOURCE_STATUS.get('discogs_last_error'))
+            detail=f'Discogs API call failed: {source_error}' if source_error else f'Discogs returned no combined result. Discogs token status: {token_msg}.'
+            diagnostics.append({'Step':'Discogs combined search','Status':'No match','Details':detail})
     except Exception as e:
         diagnostics.append({'Step':'Discogs combined search','Status':'Error','Details':safe(e)})
 
@@ -5649,7 +5673,9 @@ def lookup_by_artist_title_with_diagnostics(artist='', title='', barcode=''):
             diagnostics.append({'Step':'Apple/iTunes combined search','Status':f'{len(ares)} match(es)','Details':'Apple/iTunes returned album candidates and artwork using artist and title together.'})
             results.extend(ares)
         else:
-            diagnostics.append({'Step':'Apple/iTunes combined search','Status':'No match','Details':'Apple/iTunes returned no album candidate for these combined terms.'})
+            source_error=safe(SEARCH_SOURCE_STATUS.get('itunes_last_error'))
+            detail=f'Apple/iTunes API call failed: {source_error}' if source_error else 'Apple/iTunes returned no album candidate for these combined terms.'
+            diagnostics.append({'Step':'Apple/iTunes combined search','Status':'No match','Details':detail})
     except Exception as e:
         diagnostics.append({'Step':'Apple/iTunes combined search','Status':'Error','Details':safe(e)})
 
@@ -5660,7 +5686,9 @@ def lookup_by_artist_title_with_diagnostics(artist='', title='', barcode=''):
             diagnostics.append({'Step':'MusicBrainz combined search','Status':f'{len(mbres)} match(es)','Details':'MusicBrainz returned release candidates using combined query attempts.'})
             results.extend(mbres)
         else:
-            diagnostics.append({'Step':'MusicBrainz combined search','Status':'No match','Details':'MusicBrainz returned no result after combined query attempts.'})
+            source_error=safe(SEARCH_SOURCE_STATUS.get('musicbrainz_last_error'))
+            detail=f'MusicBrainz API call failed: {source_error}' if source_error else 'MusicBrainz returned no result after combined query attempts.'
+            diagnostics.append({'Step':'MusicBrainz combined search','Status':'No match','Details':detail})
     except Exception as e:
         diagnostics.append({'Step':'MusicBrainz combined search','Status':'Error','Details':safe(e)})
 

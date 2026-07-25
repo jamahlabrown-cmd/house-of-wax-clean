@@ -111,10 +111,18 @@ on buyers for update to authenticated
 using (id in (select buyer_id from app_users where auth_user_id = auth.uid()))
 with check (id in (select buyer_id from app_users where auth_user_id = auth.uid()));
 
+-- Originally just "auth.uid() is not null" -- any authenticated user could
+-- insert a buyers row under ANY email, not just their own, via a direct API
+-- call (the app itself always passes auth_user_email(), so this was never
+-- exploitable through the UI, but RLS should hold even against a request
+-- that skips the app). Tightened during the V25.43 policy-logic audit. Safe
+-- to tighten: the admin repair tool (which legitimately creates a buyer row
+-- for someone else's email) goes through the separate unconditional
+-- "admin manage buyers" policy below, which this doesn't touch.
 drop policy if exists "buyers create own profile" on public."buyers";
 create policy "buyers create own profile"
 on buyers for insert to authenticated
-with check (auth.uid() is not null);
+with check (auth.uid() is not null and lower(email) = lower(auth.email()));
 
 drop policy if exists "public read approved seller stores" on public."sellers";
 create policy "public read approved seller stores"
@@ -135,10 +143,13 @@ on sellers for update to authenticated
 using (id in (select seller_id from app_users where auth_user_id = auth.uid()))
 with check (id in (select seller_id from app_users where auth_user_id = auth.uid()));
 
+-- Same tightening as "buyers create own profile" above, same reasoning:
+-- every app.py call site already passes auth_user_email(), and the
+-- unconditional "admin manage sellers" policy below is untouched by this.
 drop policy if exists "sellers create own store" on public."sellers";
 create policy "sellers create own store"
 on sellers for insert to authenticated
-with check (auth.uid() is not null);
+with check (auth.uid() is not null and lower(email) = lower(auth.email()));
 
 drop policy if exists "public read live products" on public."products";
 create policy "public read live products"

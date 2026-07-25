@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.85 SIMPLIFY: ADD INVENTORY IS ONE NUMBERED FLOW, NOT TWO SECTIONS'
+APP_VERSION='V25.43.86 FIX SIGN-UP: HONEST ERRORS, NO FALSE "SIGNED IN" ON PENDING CONFIRMATION'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -662,6 +662,17 @@ def auth_create_account(name,email,password,confirm,account_type='Buyer'):
         payload,detail=supabase_auth_request('signup',{'email':clean,'password':password,'data':{'display_name':name,'account_type':'Universal'}})
         if not detail.get('ok'):
             AUTH_STATUS['last_error']=detail.get('message')
+            msg_lower=safe(detail.get('message')).lower()
+            # Surface the real reason instead of one generic "failed" message --
+            # a masked Auth Diagnostics error is invisible to a real (non-admin)
+            # tester, so the specific case has to be caught here or they have no
+            # way to know what to do next.
+            if 'rate limit' in msg_lower or 'too many' in msg_lower or '429' in msg_lower:
+                return False,'Too many sign-up attempts too quickly. Wait a few minutes and try again.'
+            if 'password' in msg_lower and any(w in msg_lower for w in ['weak','leaked','breach','pwned','strength']):
+                return False,'That password was rejected as too weak or previously exposed in a data breach. Try a longer, more unique password.'
+            if 'signups not allowed' in msg_lower or 'signup is disabled' in msg_lower or 'signups are disabled' in msg_lower:
+                return False,'New account creation is temporarily disabled. Contact House Of Wax for help.'
             return False,'Supabase sign-up failed. Check Auth Diagnostics for the masked error.'
         user=(payload or {}).get('user') or {}
         auth_uid=safe(user.get('id'))
@@ -678,6 +689,13 @@ def auth_create_account(name,email,password,confirm,account_type='Buyer'):
     password_hash='' if hosted_enabled() else hash_password(password)
     buyer_id=create_or_get_buyer_for_auth(clean,name)
     upsert_app_user(auth_uid,clean,name,'Buyer',buyer_id,0,password_hash,'No','Not Applied','Active')
+    if hosted_enabled() and not access_token:
+        # Email confirmation required: Supabase accepts the signup (the account
+        # row now exists) but deliberately withholds a session until the email
+        # link is clicked, so there is no real access_token to sign in with yet.
+        # Claiming "signed in" here used to be a lie -- every following request
+        # would run with no valid token and fail with no explanation.
+        return True,'Account created. Check your email for a confirmation link, then come back and sign in.'
     sign_in_session(auth_uid,clean,access_token,refresh_token)
     reconcile_authenticated_profile()
     return True,'House Of Wax account created and signed in. You can buy now and apply to sell from My Account.'
@@ -1389,8 +1407,9 @@ def setup():
     old_v25_43_82_announcement='V25.43.82'+' Fix Discogs market data: cache calls, show why when it fails active'
     old_v25_43_83_announcement='V25.43.83'+' Fix admin/testing seller picker 401 (anon select=* permission denied) active'
     old_v25_43_84_announcement='V25.43.84'+' Fix: price/market box now reacts to manually-typed artist/title active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement]:
-        set_setting('announcement','V25.43.85 Simplify: Add Inventory is one numbered flow, not two sections active')
+    old_v25_43_85_announcement='V25.43.85'+' Simplify: Add Inventory is one numbered flow, not two sections active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement]:
+        set_setting('announcement','V25.43.86 Fix sign-up: honest errors, no false "signed in" on pending confirmation active')
 setup()
 recovery_token_bridge()
 

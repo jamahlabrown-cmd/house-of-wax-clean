@@ -1,0 +1,3 @@
+# Dev-only dependencies -- not needed for deployment (see requirements.txt).
+-r requirements.txt
+pytest

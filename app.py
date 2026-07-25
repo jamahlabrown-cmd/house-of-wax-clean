@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.84 FIX: PRICE/MARKET BOX NOW REACTS TO MANUALLY-TYPED ARTIST/TITLE'
+APP_VERSION='V25.43.85 SIMPLIFY: ADD INVENTORY IS ONE NUMBERED FLOW, NOT TWO SECTIONS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1388,8 +1388,9 @@ def setup():
     old_v25_43_81_announcement='V25.43.81'+' Seller Dashboard: cut clutter from 14 sections to 6 active'
     old_v25_43_82_announcement='V25.43.82'+' Fix Discogs market data: cache calls, show why when it fails active'
     old_v25_43_83_announcement='V25.43.83'+' Fix admin/testing seller picker 401 (anon select=* permission denied) active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement]:
-        set_setting('announcement','V25.43.84 Fix: price/market box now reacts to manually-typed artist/title active')
+    old_v25_43_84_announcement='V25.43.84'+' Fix: price/market box now reacts to manually-typed artist/title active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement]:
+        set_setting('announcement','V25.43.85 Simplify: Add Inventory is one numbered flow, not two sections active')
 setup()
 recovery_token_bridge()
 
@@ -6232,16 +6233,14 @@ def upload_product(sid,key):
         source_bits=[v for v in [defaults.get('artist'),defaults.get('title'),defaults.get('label'),defaults.get('release_year')] if safe(v)]
         if source_bits:
             st.info('House Of Wax search/database fields are prefilled below. Review them before submitting.')
-    st.markdown('#### Condition')
-    st.caption('Set this first so House Of Wax can suggest a price range for your specific condition -- better condition supports a higher price.')
-    cg1,cg2=st.columns(2)
-    mg=cg1.selectbox('Condition - required',GRADE_SCALE,key=f'upload_mg_{key}',help='Tell buyers the condition of the copy you are selling.')
-    sg=cg2.selectbox('Sleeve/packaging condition - optional',GRADE_SCALE,key=f'upload_sg_{key}')
-    st.markdown('#### Artist / Title')
-    st.caption('Type this here (or search above) so House Of Wax can look up real market data and suggest a price -- typing inside the form below will not trigger a price lookup until you submit.')
+    st.markdown('#### Step 1: What are you selling, and what condition is it in?')
+    st.caption('Fill these in first so House Of Wax can look up real market data and suggest a price -- better condition supports a higher price.')
     ca1,ca2=st.columns(2)
     artist=ca1.text_input('Artist / Brand - usually auto-filled',value=defaults.get('artist',''),key=f'upload_live_artist_{key}',help='Usually filled automatically after search. Typing here updates the price suggestion below immediately.')
     title=ca2.text_input('Title / Product - required',value=defaults.get('title',''),key=f'upload_live_title_{key}',help='Usually filled automatically after search. Typing here updates the price suggestion below immediately.')
+    cg1,cg2=st.columns(2)
+    mg=cg1.selectbox('Condition - required',GRADE_SCALE,key=f'upload_mg_{key}',help='Tell buyers the condition of the copy you are selling.')
+    sg=cg2.selectbox('Sleeve/packaging condition - optional',GRADE_SCALE,key=f'upload_sg_{key}')
     if artist:
         # Streamlit reruns this whole function on every widget interaction
         # (picking a grade, typing a field) -- without caching, that meant a
@@ -6282,15 +6281,15 @@ def upload_product(sid,key):
         grade_note=f" for {price_suggestion['grade_used']} condition" if price_suggestion.get('grade_used') else ''
         st.caption(f"Condition-adjusted estimate{grade_note}: {money(price_suggestion['low'])}–{money(price_suggestion['high'])}, based on {price_suggestion['source']} (algorithmic, less reliable than the real listings above).")
     with st.form(key):
-        st.markdown('#### Step 1: Find the item')
-        st.caption('Search by barcode, artist/title, or item name. If this is a record, CD, or cassette, House Of Wax will try to find the album information for you.')
+        st.markdown('#### Step 2: Optional barcode lookup')
+        st.caption('If this is a record, CD, or cassette and you have the barcode, enter it here to auto-fill the details below.')
         c1,c2,c3=st.columns(3)
         barcode=c1.text_input('Barcode / UPC / EAN - optional search field',value=defaults.get('barcode',''),help='Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches.')
         catalog=c2.text_input('Catalog number - auto-filled if found',value=defaults.get('catalog_number',''))
         matrix=c3.text_input('Matrix / runout - optional')
 
-        st.markdown('#### Step 2: Confirm item details')
-        st.caption(f'Artist and title are set above (Artist: {safe(artist) or "not set"} | Title: {safe(title) or "not set"}). Check format, label, year, and category below -- these may be filled automatically if the item is found.')
+        st.markdown('#### Step 3: Confirm item details')
+        st.caption('Check format, label, year, and category below -- these may be filled automatically if the item is found. (Artist and title were set in Step 1.)')
         category=st.selectbox('Category - required',['Vinyl Records','CDs','Cassettes','Albums','Music Releases','Clothing','Music Memorabilia','Culture Goods','House Of Wax Merch','Official Drops','Slipmats & Accessories'])
         c7,c8,c9=st.columns(3)
         fmt_default=defaults.get('format','') or ('Vinyl' if category=='Vinyl Records' else '')
@@ -6300,7 +6299,7 @@ def upload_product(sid,key):
         genre=st.text_input('Genre / style - auto-filled if found',value=defaults.get('genre',''))
         external_release_url=st.text_input('External release URL - optional',value=defaults.get('external_url',''))
 
-        st.markdown('#### Step 3: Add your selling details')
+        st.markdown('#### Step 4: Add your selling details')
         st.caption('Now add the details that are specific to the copy you are selling.')
         sku=st.text_input('SKU - optional')
         if is_music_category(category):
@@ -6328,7 +6327,7 @@ def upload_product(sid,key):
         if ship_error:
             st.warning(ship_error)
 
-        st.markdown('#### Step 4: Photos')
+        st.markdown('#### Step 5: Photos')
         st.caption('Prototype storage: uploaded images are saved locally under house_of_wax_uploads/product_images. Production launch should use hosted storage.')
         refimgurl=st.text_input('Reference image - official release art, auto-filled if found',value=defaults.get('image_url',''),help='This is official release art from the House Of Wax database or outside sources (Discogs/MusicBrainz), not a photo of your exact copy. It is shown to buyers labeled as reference art.')
         if safe(refimgurl):
@@ -6358,7 +6357,7 @@ def upload_product(sid,key):
         preview_image=main_img if main_img is not None else imgurl
         listing_preview_card(category,artist,title,fmt,label,year,genre,mg,sg,price,qty,ship,preview_image,preview_description,has_uploaded_photos,smart_confidence,'seller',uploaded_previews)
 
-        st.markdown('#### Step 5: Save or publish')
+        st.markdown('#### Step 6: Save or publish')
         st.caption('Save as Draft if you are not ready. Approved sellers can Publish to My Store after accepting House Of Wax seller rules.')
         st.info('Before publishing, confirm the item details, condition, price, and seller notes are accurate. You are responsible for your listing under House Of Wax rules.')
         if not is_approved:

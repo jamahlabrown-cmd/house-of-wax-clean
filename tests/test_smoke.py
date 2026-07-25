@@ -124,6 +124,17 @@ def test_add_inventory_step1_artist_title_are_outside_the_form():
     assert live_artist_keys and live_title_keys, "Live artist/title fields should exist outside the form"
 
 
+def test_core_update_fails_loudly_without_sql_in_local_mode():
+    # Regression guard: core_update used to silently return True in local-
+    # SQLite mode when a caller omitted sql/params, meaning "nothing was
+    # written" could get reported as success -- the exact bug shape as the
+    # V25.43.86 sign-up fix. It should now raise instead of lying.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    with pytest.raises(ValueError):
+        hw_app.core_update("buyers", {"name": "x"}, {"id": 1})
+
+
 def test_add_inventory_price_box_shows_why_when_no_discogs_token():
     # No Supabase/Discogs secrets are configured for this local run, so typing
     # an artist should hit the explicit "no token configured" caption instead

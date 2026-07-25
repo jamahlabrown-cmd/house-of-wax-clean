@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.81 SELLER DASHBOARD: CUT CLUTTER FROM 14 SECTIONS TO 6'
+APP_VERSION='V25.43.82 FIX DISCOGS MARKET DATA: CACHE CALLS, SHOW WHY WHEN IT FAILS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1385,8 +1385,9 @@ def setup():
     old_v25_43_78_announcement='V25.43.78'+' Add Inventory: fix dead MusicBrainz cover art, fall back to iTunes active'
     old_v25_43_79_announcement='V25.43.79'+' Add Inventory: price suggestions now try Discogs regardless of match source active'
     old_v25_43_80_announcement='V25.43.80'+' Add Inventory: real Discogs market data (listings, have/want, rating) active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement]:
-        set_setting('announcement','V25.43.81 Seller Dashboard: cut clutter from 14 sections to 6 active')
+    old_v25_43_81_announcement='V25.43.81'+' Seller Dashboard: cut clutter from 14 sections to 6 active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement]:
+        set_setting('announcement','V25.43.82 Fix Discogs market data: cache calls, show why when it fails active')
 setup()
 recovery_token_bridge()
 
@@ -6234,8 +6235,21 @@ def upload_product(sid,key):
     cg1,cg2=st.columns(2)
     mg=cg1.selectbox('Condition - required',GRADE_SCALE,key=f'upload_mg_{key}',help='Tell buyers the condition of the copy you are selling.')
     sg=cg2.selectbox('Sleeve/packaging condition - optional',GRADE_SCALE,key=f'upload_sg_{key}')
-    resolved_discogs_id=resolve_discogs_release_id(defaults.get('artist'),defaults.get('title'),discogs_release_id) if defaults.get('artist') else ''
-    market=fetch_discogs_market_snapshot(resolved_discogs_id) if resolved_discogs_id else None
+    if defaults.get('artist'):
+        # Streamlit reruns this whole function on every widget interaction
+        # (picking a grade, typing a field) -- without caching, that meant a
+        # fresh Discogs API call on every keystroke, which can burn through
+        # Discogs' rate limit within a single testing session and makes the
+        # market box silently disappear with no explanation. Cache per item
+        # for the life of this session so it's fetched once.
+        market_cache_key='v25_market_cache_'+hashlib.md5(f"{safe(defaults.get('artist'))}|{safe(defaults.get('title'))}|{safe(discogs_release_id)}".encode()).hexdigest()
+        if market_cache_key not in st.session_state:
+            rid=resolve_discogs_release_id(defaults.get('artist'),defaults.get('title'),discogs_release_id)
+            st.session_state[market_cache_key]=(rid,fetch_discogs_market_snapshot(rid) if rid else None)
+        resolved_discogs_id,market=st.session_state[market_cache_key]
+    else:
+        resolved_discogs_id=''
+        market=None
     if market and (market.get('lowest_price') is not None or market.get('have') is not None):
         bits=[]
         if market.get('lowest_price') is not None and market.get('num_for_sale') is not None:
@@ -6248,6 +6262,14 @@ def upload_product(sid,key):
             bits.append(f"Rated {market['rating_avg']:.2f}/5 ({int(market['rating_count'])} ratings)")
         if bits:
             st.info('Real Discogs market data for this release -- ' + ' · '.join(bits) + '. You set the final price.')
+    elif defaults.get('artist'):
+        # Never fail silently -- show why, instead of just omitting the box.
+        if not discogs_token_status():
+            st.caption('Discogs market data unavailable: no DISCOGS_TOKEN configured.')
+        elif not resolved_discogs_id:
+            st.caption(f"No Discogs match found for market data on \"{safe(defaults.get('artist'))} – {safe(defaults.get('title'))}\".")
+        else:
+            st.caption('Discogs market data is temporarily unavailable for this release (the API call did not return data). Try again in a moment.')
     price_suggestion=suggest_seller_price_range(defaults.get('artist'),resolved_discogs_id,mg,sg,defaults.get('title')) if defaults.get('artist') else None
     if price_suggestion:
         grade_note=f" for {price_suggestion['grade_used']} condition" if price_suggestion.get('grade_used') else ''

@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.90 FIX: SEARCH NO LONGER HIDES REAL API ERRORS BEHIND "NO MATCH"'
+APP_VERSION='V25.43.91 COPY: HOME PAGE + SEARCH MUSIC REWRITTEN WITH REAL VOICE, LESS FILLER'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1301,7 +1301,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'A seller-powered marketplace for records, music culture, clothing, and collectors.','announcement':'V25.43.42 verified domain sender active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'Built by crate-diggers, for crate-diggers — records, merch, and the culture behind both.','announcement':'V25.43.42 verified domain sender active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
         if setting(k, None) is None: set_setting(k,v)
     old_announcement='V16'+' testing build: all core options are active.'
     old_v25_18_announcement='V25.18.1'+' testing tools active'
@@ -1424,8 +1424,9 @@ def setup():
     old_v25_43_87_announcement='V25.43.87'+' Harden core_update: fail loudly instead of silent no-op in local mode active'
     old_v25_43_88_announcement='V25.43.88'+' Supabase audit: found 3 tables with zero RLS coverage, add diagnostics active'
     old_v25_43_89_announcement='V25.43.89'+' Policy audit: Testing mode cannot do admin writes, say so up front active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement]:
-        set_setting('announcement','V25.43.90 Fix: search no longer hides real API errors behind "no match" active')
+    old_v25_43_90_announcement='V25.43.90'+' Fix: search no longer hides real API errors behind "no match" active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement]:
+        set_setting('announcement','V25.43.91 Copy: Home page + Search Music rewritten with real voice, less filler active')
 setup()
 recovery_token_bridge()
 
@@ -3819,29 +3820,29 @@ def seed_homepage_editorial():
         return
     if table('homepage_blocks').empty:
         blocks=[
-            ('hero','House Of Wax','Music. Culture. Collecting. Community.','Discover the stories, sounds, formats, and knowledge behind the music you collect. House Of Wax is where marketplace trust meets music culture education.','Visit Knowledge Hub','Knowledge Hub','Active',1),
-            ('featured_story','What Does VG+ Really Mean?','Featured Story','VG+ does not mean perfect. It means the record has been played but should still sound strong, with only light signs of use. Before you buy used vinyl, learn what grades actually mean.','Read the Guide','Knowledge Hub','Active',2),
-            ('weekly_focus','This Week at House Of Wax','Matrix / Runout','The small letters and numbers etched near the center of a record can tell a big story. Matrix and runout information can help identify pressings, mastering details, and release versions.','Learn About Runouts','Knowledge Hub','Active',3),
-            ('genre_spotlight','Southern Soul Essentials','Genre / Era Spotlight','Southern soul is more than a sound. It carries church roots, regional storytelling, blues influence, deep vocals, and a sense of place.','Explore Spotlight','Knowledge Hub','Active',4),
-            ('editorial_pick','Format Focus: Why Cassettes Still Matter','House Of Wax Editorial Pick','Cassettes are portable, imperfect, personal, and deeply tied to mixtape culture. Their return is not just nostalgia — it is about physical connection.','Read More','Knowledge Hub','Active',5),
-            ('newsletter','Join House Of Wax','Join the Culture','Get collector tips, music culture stories, grading guides, and marketplace education from House Of Wax.','Join the List','Newsletter','Active',6)
+            ('hero','House Of Wax','Dig deeper. Buy smarter. Play louder.',"Every used record has a story — who owned it, how it was pressed, why it still matters. We'll help you read the runout groove, grade a sleeve like you mean it, and buy from sellers who actually know their stock.",'Visit Knowledge Hub','Knowledge Hub','Active',1),
+            ('featured_story','What Does VG+ Really Mean?','Featured Story',"VG+ doesn't mean flawless — it means played, loved, and still sounding strong, with only light signs it's been spun before. Know the grade before you trust the price.",'Read the Guide','Knowledge Hub','Active',2),
+            ('weekly_focus','The Secret Code Etched Into Every Record','This Week: Matrix & Runout','Look close at the dead wax near the label — those scratched letters and numbers are the record\'s fingerprint. They can name the pressing plant, the mastering engineer, even which version you\'re actually holding.','Learn About Runouts','Knowledge Hub','Active',3),
+            ('genre_spotlight','Southern Soul Essentials','Genre Spotlight',"Southern soul isn't just a sound, it's a sense of place — church roots, blues undertow, deep vocals, and stories that could only come from where they were sung.",'Explore Spotlight','Knowledge Hub','Active',4),
+            ('editorial_pick','Format Focus: Why Cassettes Still Matter','House Of Wax Editorial Pick',"Cassettes are portable, imperfect, and personal — built for mixtapes, not perfection. Their comeback isn't nostalgia. It's people wanting something they can actually hold.",'Read More','Knowledge Hub','Active',5),
+            ('newsletter','Join House Of Wax','Join the Culture','No spam, no fluff — just grading breakdowns, pressing deep-dives, and the occasional argument about first pressings, straight from House Of Wax.','Join the List','Newsletter','Active',6)
         ]
         for b in blocks:
             run("INSERT INTO homepage_blocks(block_name,title,subtitle,body,button_text,button_target,status,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",(*b,now(),now()))
     if table('quick_tips').empty:
         for tip,cat in [
-            ('A barcode can help identify a reissue, but it does not tell the whole story.','Barcode, Catalog & Matrix Guides'),
-            ('A clean sleeve does not always mean the record is clean. Check both media and sleeve grades.','Vinyl Grading School'),
-            ('Original pressings are not always the best sounding version. Research matters.','Record Collecting 101'),
-            ('A promo copy can be collectible, but condition and demand still matter.','Record Collecting 101'),
-            ('If a rare record is priced too low, slow down and verify the details.','How to Buy Safely')]:
+            ("A barcode narrows it down. It doesn't seal the deal — check the runout too.",'Barcode, Catalog & Matrix Guides'),
+            ('A mint sleeve can hide a trashed record. Always grade the vinyl and the jacket separately.','Vinyl Grading School'),
+            ("'Original pressing' isn't automatically 'best sounding pressing.' Some remasters genuinely outclass the OG.",'Record Collecting 101'),
+            ('Promo stamp on the cover? Cool story. Still won\'t save a record with condition and demand against it.','Record Collecting 101'),
+            ("If a \"rare\" find is priced like a garage-sale record, slow down and ask why.",'How to Buy Safely')]:
             run("INSERT INTO quick_tips(tip_text,category,status,created_at,updated_at) VALUES(?,?,'Active',?,?)",(tip,cat,now(),now()))
     if table('did_you_know').empty:
         for fact,cat in [
-            ('The matrix/runout area of a record can sometimes help identify the pressing plant, mastering engineer, or version.','Barcode, Catalog & Matrix Guides'),
-            ('VG+ is one of the most common collector grades, but it still allows minor signs of use.','Vinyl Grading School'),
-            ('Some reissues are highly respected by collectors, especially when they are well mastered and clearly documented.','Spotting Bootlegs and Reissues'),
-            ('Music memorabilia can carry cultural value even when it is not rare.','Music History & Culture')]:
+            ('Those tiny etched letters near the label — the runout — can name-drop the pressing plant, the mastering engineer, even the exact version you\'re holding.','Barcode, Catalog & Matrix Guides'),
+            ("VG+ is the most-quoted grade in collecting, and the most misunderstood. It still means 'played' — just played carefully.",'Vinyl Grading School'),
+            ('Not all reissues are lesser copies. A well-mastered, clearly labeled reissue can earn more respect than a beat-up original.','Spotting Bootlegs and Reissues'),
+            ("Rarity isn't the only thing that makes memorabilia matter. Sometimes the story is the value.",'Music History & Culture')]:
             run("INSERT INTO did_you_know(fact_text,category,status,created_at,updated_at) VALUES(?,?,'Active',?,?)",(fact,cat,now(),now()))
 
 def home_block(name):
@@ -3866,11 +3867,11 @@ def home():
     hero=home_block('hero')
     st.markdown(f'''
     <div class="how-hero">
-        <div class="how-kicker">House Of Wax</div>
+        <div class="how-kicker">Built by collectors, for collectors</div>
         <div class="how-title">{safe(hero.get('title'),'House Of Wax')}</div>
-        <div class="how-subtitle">{safe(hero.get('subtitle'),'Music. Culture. Collecting. Community.')}</div>
-        <div class="how-body">{safe(hero.get('body'),'Discover records, learn the culture, and collect smarter.')}</div>
-        <div class="how-callout">A marketplace with a built-in culture magazine — built to help people collect smarter and understand the story behind the music.</div>
+        <div class="how-subtitle">{safe(hero.get('subtitle'),'Dig deeper. Buy smarter. Play louder.')}</div>
+        <div class="how-body">{safe(hero.get('body'),"Every used record has a story. We'll help you learn it, then find a copy worth owning.")}</div>
+        <div class="how-callout">Part record shop, part zine, part crash course in not getting ripped off.</div>
     </div>
     ''', unsafe_allow_html=True)
     a,b,c=st.columns(3)
@@ -3880,7 +3881,7 @@ def home():
     render_avatar_faq_widget()
     with st.expander('Tester Start Here',expanded=True):
         tester_start_here('home')
-    st.info('Looking for music? Open Search Music and type an artist or album name.')
+    st.info("Looking for something specific? Open Search Music and type an artist or album — we'll do the digging.")
     c1,c2,c3,c4=st.columns(4)
     c1.metric('Knowledge Articles',len(table('knowledge_posts')))
     c2.metric('Glossary Terms',len(table('glossary_terms')))
@@ -3889,26 +3890,26 @@ def home():
     groove_divider()
     x=home_block('featured_story'); mini_card(x.get('title','What Does VG+ Really Mean?'),x.get('subtitle','This Week at House Of Wax'),x.get('body','Learn grading before you buy.'),x.get('video_url',''))
 
-    section_header('Learn the Culture','Start with the basics or go deeper into pressings, grading, formats, trust, and music history.','Education + Discovery')
+    section_header('Learn the Culture',"New to collecting? Start here. Already deep in the crates? There's plenty more below.",'The Deep Cuts')
     with st.container(border=True):
-        st.subheader('Everything you need to collect smarter, in one place')
-        st.write('Record collecting basics, grading, barcodes and matrix numbers, bootlegs and reissues, care and storage, genre history, and House Of Wax trust standards all live inside the Knowledge Hub.')
+        st.subheader("Grading, matrix numbers, bootlegs, and everything else nobody explained the first time")
+        st.write("Learn what VG+ actually means, how to read a runout groove, how to spot a reissue trying to pass as an original, and what keeps a purchase safe here. It's all in the Knowledge Hub — no jargon left unexplained.")
         if st.button('Visit the Knowledge Hub',key='learn_culture_cta',width='stretch'):
             request_marketplace_navigation('Knowledge Hub'); st.rerun()
     groove_divider()
     q,d=st.columns(2)
     with q:
-        section_header('Collector Quick Tips','Useful knowledge in seconds.','Collect Smarter')
+        section_header('Collector Quick Tips',"Bite-sized wisdom for the next time you're standing in front of a bin.",'Collect Smarter')
         tips=hosted_select('quick_tips',{'status':'Active'},order='id.asc',limit=5) if hosted_enabled() else df("SELECT * FROM quick_tips WHERE status='Active' ORDER BY id LIMIT 5")
         for _,tip in tips.iterrows(): st.write(f"• {safe(tip['tip_text'])}")
     with d:
-        section_header('Did You Know?','Fast facts from House Of Wax.','Quick Culture')
+        section_header('Did You Know?','Small facts. Good bar trivia. Better buying decisions.','Quick Culture')
         facts=hosted_select('did_you_know',{'status':'Active'},order='id.asc',limit=4) if hosted_enabled() else df("SELECT * FROM did_you_know WHERE status='Active' ORDER BY id LIMIT 4")
         for _,fact in facts.iterrows(): mini_card('Did you know?',safe(fact['category']),safe(fact['fact_text']))
     groove_divider()
-    x=home_block('genre_spotlight'); mini_card(x.get('title','Southern Soul Essentials'),x.get('subtitle','Culture Spotlight'),x.get('body','Explore the sound, labels, artists, and culture.'),x.get('video_url',''))
+    x=home_block('genre_spotlight'); mini_card(x.get('title','Southern Soul Essentials'),x.get('subtitle','Genre Spotlight'),x.get('body','Explore the sound, labels, artists, and culture.'),x.get('video_url',''))
     groove_divider()
-    section_header('Latest From the Knowledge Hub','House Of Wax education, culture, and collecting guides.','Read + Learn')
+    section_header('Latest From the Knowledge Hub','Fresh guides on grading, pressings, genre history, and staying safe out there.','Fresh Ink')
     posts=hosted_select('knowledge_posts',{'status':'Published'},order='updated_at.desc',limit=6) if hosted_enabled() else df("SELECT * FROM knowledge_posts WHERE status='Published' ORDER BY updated_at DESC LIMIT 6")
     cols=st.columns(3)
     for i,(_,post) in enumerate(posts.iterrows()):
@@ -3916,7 +3917,7 @@ def home():
     groove_divider()
     news=home_block('newsletter')
     st.markdown(f"## {safe(news.get('title'),'Join House Of Wax')}")
-    st.write(safe(news.get('body'),'Get collector tips, music culture stories, grading guides, and marketplace education from House Of Wax.'))
+    st.write(safe(news.get('body'),'No spam, no fluff — just grading breakdowns, pressing deep-dives, and the occasional argument about first pressings.'))
     n1,n2,n3=st.columns([1,1,1])
     name=n1.text_input('Name',key='newsletter_name')
     email=n2.text_input('Email',key='newsletter_email')
@@ -3988,8 +3989,7 @@ def test_setup():
     st.subheader('Buyers'); st.dataframe(table('buyers'),width='stretch'); st.subheader('Sellers'); st.dataframe(table('sellers'),width='stretch'); st.subheader('Products'); st.dataframe(table('products'),width='stretch')
 def marketplace():
     header(); marketplace_context('House Of Wax Marketplace → Search Music'); st.header('Search Music')
-    st.write('Type an artist or album name to search all sellers.')
-    st.caption('Search all live listings from House Of Wax sellers.')
+    st.write("Search every live listing from House Of Wax sellers — type an artist or album to start digging.")
     with st.expander('Tester Feedback for this page',expanded=False):
         tester_feedback_form('marketplace')
     if 'seller_id' in st.session_state: seller_profile(int(st.session_state['seller_id'])); return
@@ -4000,7 +4000,7 @@ def marketplace():
         if all_products.empty:
             st.info("Nothing's live yet. If you're a seller, be the first to add something in Seller Tools.")
         else:
-            st.info("Nothing's live for buyers to see right now — check back soon.")
+            st.info("Nothing's live for buyers right now. Check back soon — sellers are always adding new stock.")
             if is_admin_unlocked():
                 statuses=', '.join([f"{safe(k)}: {int(v)}" for k,v in all_products['listing_status'].fillna('Blank').value_counts().items()])
                 st.caption('Admin note: current listing statuses: '+safe(statuses,'none')+'. To make a listing appear, open My House of Wax, choose Seller role, open Seller Dashboard, select an approved seller, and Publish to My Store from Add Inventory or My Inventory.')

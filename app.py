@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.98 ADD: DATABASE STATUS HAS A ONE-CLICK WANT-LIST NOTIFY RPC CHECK'
+APP_VERSION='V25.43.99 ADD: ONE-CLICK CHECK THAT ALL 23 CORE TABLES ACTUALLY EXIST'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1451,8 +1451,9 @@ def setup():
     old_v25_43_95_announcement='V25.43.95'+' Fix: site tagline was stuck on old text, migrated to new copy active'
     old_v25_43_96_announcement='V25.43.96'+' Fix: Seller Spotlight now hosted + actually visible on seller profiles active'
     old_v25_43_97_announcement='V25.43.97'+' Fix: want-list notify RPC failures no longer fail silently active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement]:
-        set_setting('announcement','V25.43.98 Add: Database Status has a one-click want-list notify RPC check active')
+    old_v25_43_98_announcement='V25.43.98'+' Add: Database Status has a one-click want-list notify RPC check active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement]:
+        set_setting('announcement','V25.43.99 Add: one-click check that all 23 core tables actually exist active')
 setup()
 recovery_token_bridge()
 
@@ -7296,6 +7297,35 @@ def supabase_roundtrip_one(table_name, marker):
         return {'table':table_name,'passed':False,'stage':'confirm_delete','status_code':detail.get('status_code'),'message':'Deleted diagnostic row was still readable.'}
     return {'table':table_name,'passed':True,'stage':'complete','status_code':detail.get('status_code'),'message':'Insert/read/update/delete round trip passed.'}
 
+def check_core_tables_exist():
+    # The round-trip test below only ever covered 9 of the 23 tables in
+    # CORE_HOSTED_TABLES -- want_list and culture_posts turned out to have
+    # never actually been created in production, and neither was caught
+    # until each one happened to get exercised by accident. This is a
+    # read-only existence check (GET ?limit=1, no writes, no RLS-insert
+    # side effects) across every single table the app expects, so a gap
+    # like that shows up here on its own instead of waiting to be found.
+    url,_=supabase_config()
+    if not hosted_enabled():
+        return pd.DataFrame()
+    rows=[]
+    for t in CORE_HOSTED_TABLES:
+        try:
+            r=requests.get(f'{url}/rest/v1/{t}',headers=hosted_headers(),params={'select':'*','limit':1},timeout=10)
+            body=safe(r.text)
+            if r.status_code==200:
+                status='OK -- table exists and is readable'
+            elif 'PGRST205' in body or 'schema cache' in body.lower():
+                status='MISSING -- table does not exist in Supabase'
+            elif r.status_code in (401,403):
+                status='OK -- table exists (read blocked by RLS, expected for owner-scoped tables under this session)'
+            else:
+                status=f'UNKNOWN -- HTTP {r.status_code}: {body[:200]}'
+        except Exception as e:
+            status=f'ERROR -- {type(e).__name__}: {safe(e)}'
+        rows.append({'table':t,'status':status})
+    return pd.DataFrame(rows)
+
 def run_supabase_roundtrip_diagnostics():
     marker='DIAG-'+uuid4().hex[:10]+'-'+datetime.now().strftime('%Y%m%d%H%M%S')
     results=[]
@@ -7320,6 +7350,17 @@ def admin_system_diagnostics():
     if not hosted_enabled():
         st.error('Running on local SQLite fallback. Data may not persist between Streamlit restarts/redeploys.')
     st.warning('No error thrown is not evidence of persistence. Use the round-trip test below and confirm every core table passes.')
+    st.caption('Table existence check: does every table CORE_HOSTED_TABLES expects actually exist in Supabase? Read-only, covers all 23 tables (the round-trip test below only covers 9).')
+    if st.button('Check all core tables exist',key='check_core_tables_exist'):
+        st.session_state['core_tables_exist_results']=check_core_tables_exist()
+    table_results=st.session_state.get('core_tables_exist_results')
+    if table_results is not None:
+        st.dataframe(table_results,width='stretch')
+        missing=table_results[table_results['status'].str.startswith('MISSING')]
+        if missing.empty:
+            st.success('Every table in CORE_HOSTED_TABLES exists in Supabase.')
+        else:
+            st.error('Missing tables: '+', '.join(missing['table'].tolist())+'. These need their CREATE TABLE statement run in the Supabase SQL editor -- see supabase_core_schema.sql.')
     st.caption('This test runs as whatever session clicked the button (admin bypass RLS), which proves the table/RLS/grant chain works but not owner-scoped policies. want_list is owner-scoped (a buyer can only see their own list) and is not covered here -- verify it by signing in as a real buyer and using My Account -> My Want List instead.')
     st.caption('Separately: want-list MATCH NOTIFICATIONS go through the find_want_list_matches RPC, not a table read, so the round-trip test above doesn\'t cover it either. Check it here.')
     if st.button('Test want-list notify RPC',key='test_want_list_notify_rpc'):

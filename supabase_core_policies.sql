@@ -574,3 +574,17 @@ create policy "admin manage avatar faq videos"
 on avatar_faq_videos for all to authenticated
 using (is_admin_user())
 with check (is_admin_user());
+
+-- culture_posts backs the admin "Seller Spotlight" tool -- House Of Wax
+-- writes these about a seller, publicly readable when Published, same
+-- shape as avatar_faq_videos above. Sellers do not write these themselves.
+drop policy if exists "public read published culture posts" on public."culture_posts";
+create policy "public read published culture posts"
+on culture_posts for select to anon, authenticated
+using (status = 'Published');
+
+drop policy if exists "admin manage culture posts" on public."culture_posts";
+create policy "admin manage culture posts"
+on culture_posts for all to authenticated
+using (is_admin_user())
+with check (is_admin_user());

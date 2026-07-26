@@ -135,6 +135,31 @@ def test_core_update_fails_loudly_without_sql_in_local_mode():
         hw_app.core_update("buyers", {"name": "x"}, {"id": 1})
 
 
+def test_culture_posts_seller_spotlight_shows_on_seller_profile():
+    # Regression guard: culture_posts (backing the admin "Seller Spotlight"
+    # tool) had no seller_id column at all, so a spotlight post could never
+    # be linked back to a seller or displayed anywhere -- it was written but
+    # nothing could ever read it by seller. Confirms the seller_id column
+    # exists in local mode (via the mig-dict addcol migration) and that
+    # seller_profile() actually renders spotlight posts for that seller.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    _, seller_id, _, _ = hw_app.seed_all()
+    hw_app.run(
+        "INSERT INTO culture_posts(seller_id,title,category,author,body,image_url,status,created_at) VALUES(?,?,?,?,?,?,?,?)",
+        (seller_id, "Seller Spotlight: Test Store", "Seller Spotlight", "House Of Wax", "Great store.", "", "Published", hw_app.now()),
+    )
+    at = fresh_app()
+    goto(at, "Seller Stores")
+    at.session_state["seller_id"] = int(seller_id)
+    at.run()
+    assert not at.exception
+    headings = [s.value for s in at.subheader]
+    assert any("House Of Wax Spotlight" in h for h in headings), (
+        "Expected the seller's public profile to show the Seller Spotlight post"
+    )
+
+
 def test_add_inventory_price_box_shows_why_when_no_discogs_token():
     # No Supabase/Discogs secrets are configured for this local run, so typing
     # an artist should hit the explicit "no token configured" caption instead

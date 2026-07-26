@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.91 COPY: HOME PAGE + SEARCH MUSIC REWRITTEN WITH REAL VOICE, LESS FILLER'
+APP_VERSION='V25.43.92 COPY: KNOWLEDGE HUB + SELLER STORES REWRITTEN, KILLED "WEDGE" JARGON'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1425,8 +1425,9 @@ def setup():
     old_v25_43_88_announcement='V25.43.88'+' Supabase audit: found 3 tables with zero RLS coverage, add diagnostics active'
     old_v25_43_89_announcement='V25.43.89'+' Policy audit: Testing mode cannot do admin writes, say so up front active'
     old_v25_43_90_announcement='V25.43.90'+' Fix: search no longer hides real API errors behind "no match" active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement]:
-        set_setting('announcement','V25.43.91 Copy: Home page + Search Music rewritten with real voice, less filler active')
+    old_v25_43_91_announcement='V25.43.91'+' Copy: Home page + Search Music rewritten with real voice, less filler active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement]:
+        set_setting('announcement','V25.43.92 Copy: Knowledge Hub + Seller Stores rewritten, killed "wedge" jargon active')
 setup()
 recovery_token_bridge()
 
@@ -3265,8 +3266,8 @@ def admin_tester_feedback_view():
                     st.write(safe(row.get(col)))
 
 def knowledge_center_education_hub():
-    st.write('A practical guide to buying, selling, collecting, photos, condition, trust, and House Of Wax marketplace standards.')
-    st.info("We're starting with vinyl records and music collectibles, with merch, memorabilia, clothing, and more culture goods on the way.")
+    st.write('Everything we know about buying and selling records honestly — condition, photos, trust, and the standards we hold every seller to.')
+    st.info("We're starting with vinyl and music collectibles — merch, memorabilia, and more culture goods are next.")
     st.caption('New here? The full testing checklist (Buyer/Seller/Admin paths) lives on the Home page under Tester Start Here.')
 
     overview, buying, selling, condition, photos, trust, buyer_faq, seller_faq, rules = st.tabs([
@@ -3282,9 +3283,9 @@ def knowledge_center_education_hub():
     ])
     with overview:
         st.subheader('What Is House Of Wax?')
-        st.write('House Of Wax is a marketplace and culture platform for vinyl records, music collectibles, merch, memorabilia, and culture goods.')
-        st.write('The first wedge is vinyl records and music collectibles because buyers care deeply about pressing details, condition, photos, seller trust, and the story behind the item.')
-        st.write('The platform is built around better listings, buyer questions, seller profiles, review tools, and education that helps people collect smarter.')
+        st.write('House Of Wax is a marketplace and culture platform for vinyl records, music collectibles, merch, memorabilia, and everything that comes with them.')
+        st.write("We started with vinyl and music collectibles because that's where buyers care the most — pressing details, condition, seller trust, and the story behind the item. Everything else builds outward from there.")
+        st.write("Better listings, real buyer questions, seller profiles that actually mean something, and education that makes you a smarter collector — that's the whole platform, in one sentence.")
     with buying:
         st.subheader('How Buying Works')
         for item in [
@@ -3506,7 +3507,7 @@ def knowledge_hub():
     header()
     marketplace_context('House Of Wax Marketplace → Knowledge Hub')
     st.header('Knowledge Hub')
-    st.write("Everything you need to buy and sell smarter — grading, pressings, barcodes and matrix numbers, trust, and the stories behind the music. Written by House Of Wax, not sponsored by sellers.")
+    st.write("Grading, pressings, matrix numbers, trust — everything you need to buy and sell smarter, written by House Of Wax and never sponsored by a seller.")
     render_knowledge_hub_ai_chat()
     groove_divider()
     knowledge_center_education_hub()
@@ -4043,10 +4044,10 @@ def marketplace():
         with cols[i%2]: product_card(p)
 def seller_stores():
     header(); marketplace_context('House Of Wax Marketplace → Seller Stores'); st.header('Seller Stores')
-    st.write('Browse individual stores and see what each seller has available.')
+    st.write('Every store here is run by a real seller with real inventory — browse their crates, not a warehouse.')
     if 'seller_id' in st.session_state: seller_profile(int(st.session_state['seller_id'])); return
     sellers=table('sellers')
-    if sellers.empty: st.info('No sellers yet.'); return
+    if sellers.empty: st.info("No stores open yet — check back soon."); return
     for _,s in sellers.iterrows():
         with st.container(border=True):
             if safe(s['banner_url']): safe_image(safe(s['banner_url']),width='stretch',fallback_text='Banner image unavailable.')

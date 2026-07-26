@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.92 COPY: KNOWLEDGE HUB + SELLER STORES REWRITTEN, KILLED "WEDGE" JARGON'
+APP_VERSION='V25.43.93 FIX: "OPTIONAL" LABEL PUNCTUATION + DEAD "COMMUNITY POSTS" STAT SWAPPED'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1426,8 +1426,9 @@ def setup():
     old_v25_43_89_announcement='V25.43.89'+' Policy audit: Testing mode cannot do admin writes, say so up front active'
     old_v25_43_90_announcement='V25.43.90'+' Fix: search no longer hides real API errors behind "no match" active'
     old_v25_43_91_announcement='V25.43.91'+' Copy: Home page + Search Music rewritten with real voice, less filler active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement]:
-        set_setting('announcement','V25.43.92 Copy: Knowledge Hub + Seller Stores rewritten, killed "wedge" jargon active')
+    old_v25_43_92_announcement='V25.43.92'+' Copy: Knowledge Hub + Seller Stores rewritten, killed "wedge" jargon active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement]:
+        set_setting('announcement','V25.43.93 Fix: "optional" label punctuation + dead "Community Posts" stat swapped active')
 setup()
 recovery_token_bridge()
 
@@ -2547,7 +2548,7 @@ def render_buyer_inquiry_form(p, seller, key_prefix):
         st.warning('Complete your buyer profile to ask this seller.')
         with st.form(f'complete_buyer_for_inquiry_{key_prefix}'):
             profile_name=st.text_input('Name',value=safe(current_app_user().get('display_name')) or auth_user_email().split('@')[0],key=f'complete_buyer_name_inquiry_{key_prefix}')
-            profile_phone=st.text_input('Phone optional',key=f'complete_buyer_phone_inquiry_{key_prefix}')
+            profile_phone=st.text_input('Phone - optional',key=f'complete_buyer_phone_inquiry_{key_prefix}')
             sub_profile=st.form_submit_button('Save buyer profile and continue')
         if sub_profile:
             buyer_id=ensure_linked_buyer_profile(profile_name)
@@ -2610,7 +2611,7 @@ def render_purchase_request_form(p, key_prefix):
         st.warning('Complete your buyer profile to request this item.')
         with st.form(f'complete_buyer_for_purchase_{key_prefix}'):
             profile_name=st.text_input('Name',value=safe(current_app_user().get('display_name')) or auth_user_email().split('@')[0],key=f'complete_buyer_name_purchase_{key_prefix}')
-            profile_phone=st.text_input('Phone optional',key=f'complete_buyer_phone_purchase_{key_prefix}')
+            profile_phone=st.text_input('Phone - optional',key=f'complete_buyer_phone_purchase_{key_prefix}')
             sub_profile=st.form_submit_button('Save buyer profile and continue')
         if sub_profile:
             buyer_id=ensure_linked_buyer_profile(profile_name)
@@ -2673,7 +2674,7 @@ def render_offer_form(p, key_prefix):
         st.warning('Complete your buyer profile to make an offer.')
         with st.form(f'complete_buyer_for_offer_{key_prefix}'):
             profile_name=st.text_input('Name',value=safe(current_app_user().get('display_name')) or auth_user_email().split('@')[0],key=f'complete_buyer_name_offer_{key_prefix}')
-            profile_phone=st.text_input('Phone optional',key=f'complete_buyer_phone_offer_{key_prefix}')
+            profile_phone=st.text_input('Phone - optional',key=f'complete_buyer_phone_offer_{key_prefix}')
             sub_profile=st.form_submit_button('Save buyer profile and continue')
         if sub_profile:
             buyer_id=ensure_linked_buyer_profile(profile_name)
@@ -2711,8 +2712,8 @@ def report_listing_form(listing=None, seller=None, key_prefix='report'):
     listing_id=int(listing.get('id') or 0) if listing is not None else 0
     seller_id=int((seller.get('id') if seller is not None else 0) or (listing.get('seller_id') if listing is not None else 0) or 0)
     with st.form(f'report_form_{key_prefix}_{listing_id}_{seller_id}'):
-        reporter_name=st.text_input('Your name optional',key=f'report_name_{key_prefix}_{listing_id}_{seller_id}')
-        reporter_contact=st.text_input('Your email or phone optional',key=f'report_contact_{key_prefix}_{listing_id}_{seller_id}')
+        reporter_name=st.text_input('Your name - optional',key=f'report_name_{key_prefix}_{listing_id}_{seller_id}')
+        reporter_contact=st.text_input('Your email or phone - optional',key=f'report_contact_{key_prefix}_{listing_id}_{seller_id}')
         reason=st.selectbox('Reason',REPORT_REASONS,key=f'report_reason_{key_prefix}_{listing_id}_{seller_id}')
         details=st.text_area('Details',key=f'report_details_{key_prefix}_{listing_id}_{seller_id}',placeholder='Explain what House Of Wax should review. Do not enter sensitive private information.')
         sub=st.form_submit_button('Submit Report')
@@ -3214,7 +3215,7 @@ def tester_feedback_form(key_prefix='public'):
     st.write('Test buyer flow, seller flow, Knowledge Center, and admin/moderation flow if available, and tell us where you got stuck. This helps House Of Wax improve before adding risky production features.')
     st.caption('New here? The full testing checklist (Buyer/Seller/Admin paths) lives on the Home page under Tester Start Here.')
     with st.form(f'tester_feedback_form_{key_prefix}'):
-        tester_name=st.text_input('Tester name optional',key=f'tester_feedback_name_{key_prefix}')
+        tester_name=st.text_input('Tester name - optional',key=f'tester_feedback_name_{key_prefix}')
         tester_type=st.selectbox('Tester type',['Buyer','Seller','Admin/Reviewer','Investor/Advisor','Other'],key=f'tester_feedback_type_{key_prefix}')
         page_flow=st.text_input('Page/flow tested',placeholder='Example: Marketplace buyer flow, Seller upload, Knowledge Center, Moderation Center',key=f'tester_feedback_flow_{key_prefix}')
         worked_well=st.text_area('What worked well',key=f'tester_feedback_worked_{key_prefix}')
@@ -3887,7 +3888,7 @@ def home():
     c1.metric('Knowledge Articles',len(table('knowledge_posts')))
     c2.metric('Glossary Terms',len(table('glossary_terms')))
     c3.metric('Marketplace Items',len(table('products')))
-    c4.metric('Community Posts',len(table('culture_posts')))
+    c4.metric('Sellers',len(table('sellers')))
     groove_divider()
     x=home_block('featured_story'); mini_card(x.get('title','What Does VG+ Really Mean?'),x.get('subtitle','This Week at House Of Wax'),x.get('body','Learn grading before you buy.'),x.get('video_url',''))
 
@@ -7477,7 +7478,7 @@ def admin_user_directory():
     with st.form('manual_user_reconcile_form'):
         email=st.text_input('Repair by exact email',key='manual_reconcile_email')
         display=st.text_input('Display name if app_users row is missing',key='manual_reconcile_display')
-        auth_uid=st.text_input('Auth user ID if known optional',key='manual_reconcile_auth_uid')
+        auth_uid=st.text_input('Auth user ID - optional, if known',key='manual_reconcile_auth_uid')
         sub=st.form_submit_button('Create/link app_users + buyer profile')
     if sub:
         clean=safe(email).strip().lower()

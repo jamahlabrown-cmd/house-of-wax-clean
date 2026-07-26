@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.103 FIX: ADMIN VIEWS NOW SAY WHEN TESTING MODE CANNOT SEE THE DATA AT ALL'
+APP_VERSION='V25.43.104 SIMPLIFY: BUY IS NOW ONE CLICK, OFFER/ASK COLLAPSE KNOWN CONTACT INFO'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1468,8 +1468,9 @@ def setup():
     old_v25_43_100_announcement='V25.43.100'+' Add: 9% platform commission, buyer pays seller + House Of Wax directly active'
     old_v25_43_101_announcement='V25.43.101'+' Fix: "checkout not live" wording was scaring buyers off the Buy button active'
     old_v25_43_102_announcement='V25.43.102'+' Add: warn buyers when Testing mode would silently block their request active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement]:
-        set_setting('announcement','V25.43.103 Fix: admin views now say when Testing mode cannot see the data at all active')
+    old_v25_43_103_announcement='V25.43.103'+' Fix: admin views now say when Testing mode cannot see the data at all active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement]:
+        set_setting('announcement','V25.43.104 Simplify: Buy is now one click, offer/ask collapse known contact info active')
 setup()
 recovery_token_bridge()
 
@@ -2586,7 +2587,6 @@ def render_buyer_inquiry_form(p, seller, key_prefix):
     status=safe(p.get('listing_status'))
     if status not in PUBLIC_LISTING_STATUSES:
         return
-    st.info('House Of Wax keeps seller contact details controlled. The seller can respond based on their contact preference.')
     testing_mode_write_warning('sending this message')
     if not is_authenticated():
         set_pending_action('Ask Seller',p)
@@ -2629,14 +2629,15 @@ def render_buyer_inquiry_form(p, seller, key_prefix):
                 buyer_name=safe(buyer.get('name'))
                 buyer_contact=safe(buyer.get('email')) or safe(buyer.get('phone'))
     with st.form(f'inquiry_form_{key_prefix}'):
-        name=st.text_input('Buyer name',value=buyer_name,key=f'inquiry_name_{key_prefix}')
-        contact=st.text_input('Buyer email or phone',value=buyer_contact,key=f'inquiry_contact_{key_prefix}')
-        method=st.selectbox('Preferred contact method',['Email','Phone','Text message','House Of Wax message'],key=f'inquiry_method_{key_prefix}')
-        message=st.text_area('Message/question',key=f'inquiry_message_{key_prefix}',placeholder='Ask about condition, shipping, pickup, photos, or anything you need before buying.')
-        sub=st.form_submit_button('Send inquiry')
+        message=st.text_area('Your question',key=f'inquiry_message_{key_prefix}',placeholder='Ask about condition, shipping, pickup, photos, or anything you need before buying.')
+        with st.expander('Change contact info'):
+            name=st.text_input('Buyer name',value=buyer_name,key=f'inquiry_name_{key_prefix}')
+            contact=st.text_input('Buyer email or phone',value=buyer_contact,key=f'inquiry_contact_{key_prefix}')
+            method=st.selectbox('Preferred contact method',['House Of Wax message','Email','Phone','Text message'],key=f'inquiry_method_{key_prefix}')
+        sub=st.form_submit_button('Send question')
     if sub:
         if not safe(name) or not safe(contact) or not safe(message):
-            st.warning('Add your name, contact info, and question before sending.')
+            st.warning('Add your question (and contact info, if this is your first message) before sending.')
         else:
             data={'product_id':int(p['id']),'seller_id':int(p['seller_id']),'buyer_id':int(buyer_id or 0),'buyer_name':name,'buyer_contact':contact,'preferred_contact_method':method,'message':message,'status':'New','created_at':now(),'updated_at':now()}
             new_id=core_insert('listing_inquiries',data,'''INSERT INTO listing_inquiries(product_id,seller_id,buyer_id,buyer_name,buyer_contact,preferred_contact_method,message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['product_id','seller_id','buyer_id','buyer_name','buyer_contact','preferred_contact_method','message','status','created_at','updated_at']))
@@ -2650,11 +2651,10 @@ def render_purchase_request_form(p, key_prefix):
     if not is_available_listing(p):
         st.info('Purchase requests are available only while a listing is available.')
         return
-    st.info(f"Buying at the listed price of {money(p['price'])}. This sends a request to the seller to confirm it's available and sort out pickup/shipping — once they accept, you'll get payment instructions right here. Want to propose a different price instead? Use Make an Offer.")
     testing_mode_write_warning('this purchase request')
     if not is_authenticated():
         set_pending_action('Request to Buy',p)
-        st.warning('Sign in to request this item. We will bring you back here.')
+        st.warning('Sign in to buy this item. We will bring you back here.')
         if st.button('Sign in or create Buyer account',key=f'purchase_signin_{key_prefix}',width='stretch'):
             request_marketplace_navigation('My Account')
             st.rerun()
@@ -2669,17 +2669,17 @@ def render_purchase_request_form(p, key_prefix):
             buyer_name=safe(buyer.get('name'))
             buyer_contact=safe(buyer.get('email')) or safe(buyer.get('phone'))
     if not buyer_id:
-        st.warning('Complete your buyer profile to request this item.')
+        st.warning('Complete your buyer profile to buy this item.')
         with st.form(f'complete_buyer_for_purchase_{key_prefix}'):
             profile_name=st.text_input('Name',value=safe(current_app_user().get('display_name')) or auth_user_email().split('@')[0],key=f'complete_buyer_name_purchase_{key_prefix}')
             profile_phone=st.text_input('Phone - optional',key=f'complete_buyer_phone_purchase_{key_prefix}')
-            sub_profile=st.form_submit_button('Save buyer profile and continue')
+            sub_profile=st.form_submit_button('Save and continue')
         if sub_profile:
             buyer_id=ensure_linked_buyer_profile(profile_name)
             if buyer_id:
                 core_update('buyers',{'name':profile_name,'phone':profile_phone},{'id':buyer_id},'UPDATE buyers SET name=?,phone=? WHERE id=?',(profile_name,profile_phone,buyer_id))
                 restore_pending_action()
-                st.success('Buyer profile saved. You can request this item now.')
+                st.success('Saved. You can buy this item now.')
                 st.rerun()
             else:
                 st.error('Buyer profile could not be saved. Check Auth Diagnostics for the exact error.')
@@ -2692,30 +2692,37 @@ def render_purchase_request_form(p, key_prefix):
             if buyer is not None:
                 buyer_name=safe(buyer.get('name'))
                 buyer_contact=safe(buyer.get('email')) or safe(buyer.get('phone'))
-    with st.form(f'purchase_request_form_{key_prefix}'):
-        name=st.text_input('Buyer name',value=buyer_name,key=f'purchase_name_{key_prefix}')
-        contact=st.text_input('Buyer email or phone',value=buyer_contact,key=f'purchase_contact_{key_prefix}')
-        method=st.selectbox('Preferred contact method',['Email','Phone','Text message','House Of Wax message'],key=f'purchase_method_{key_prefix}')
-        fulfillment=st.selectbox('Pickup or shipping preference',['Shipping','Local pickup','Either / discuss with seller'],key=f'purchase_fulfillment_{key_prefix}')
-        message=st.text_area('Buyer message',key=f'purchase_message_{key_prefix}',placeholder='Confirm availability, shipping/pickup details, or anything the seller should know.')
-        sub=st.form_submit_button('Send purchase request')
-    if sub:
+
+    def send_purchase_request(name,contact,method,fulfillment,message):
         if not safe(name) or not safe(contact):
             st.warning('Add your name and contact info before sending a purchase request.')
+            return
+        data={'product_id':int(p['id']),'seller_id':int(p['seller_id']),'buyer_id':int(buyer_id or 0),'buyer_name':name,'buyer_contact':contact,'preferred_contact_method':method,'fulfillment_preference':fulfillment,'offer_price':0.0,'buyer_message':message,'status':'New','created_at':now(),'updated_at':now()}
+        new_id=core_insert('purchase_requests',data,'''INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,preferred_contact_method,fulfillment_preference,offer_price,buyer_message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['product_id','seller_id','buyer_id','buyer_name','buyer_contact','preferred_contact_method','fulfillment_preference','offer_price','buyer_message','status','created_at','updated_at']))
+        if new_id or not hosted_enabled():
+            clear_pending_action()
+            st.success(f"Bought — request sent to the seller for {money(p['price'])}. They'll confirm, then you'll see payment instructions right here.")
         else:
-            data={'product_id':int(p['id']),'seller_id':int(p['seller_id']),'buyer_id':int(buyer_id or 0),'buyer_name':name,'buyer_contact':contact,'preferred_contact_method':method,'fulfillment_preference':fulfillment,'offer_price':0.0,'buyer_message':message,'status':'New','created_at':now(),'updated_at':now()}
-            new_id=core_insert('purchase_requests',data,'''INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,preferred_contact_method,fulfillment_preference,offer_price,buyer_message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['product_id','seller_id','buyer_id','buyer_name','buyer_contact','preferred_contact_method','fulfillment_preference','offer_price','buyer_message','status','created_at','updated_at']))
-            if new_id or not hosted_enabled():
-                clear_pending_action()
-                st.success('Purchase request sent. The seller can review it inside Seller Tools.')
-            else:
-                st.error('Purchase request could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
+            st.error('Purchase request could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
+
+    if st.button(f"Buy Now — {money(p['price'])}",key=f'purchase_buy_now_{key_prefix}',width='stretch',type='primary'):
+        send_purchase_request(buyer_name,buyer_contact,'House Of Wax message','Shipping','')
+    st.caption("Sends a request to the seller to confirm it's available — you'll get payment instructions here once they accept. Want a different price? Use Make an Offer instead.")
+    with st.expander('Change delivery details or add a note before buying'):
+        with st.form(f'purchase_request_form_{key_prefix}'):
+            name=st.text_input('Buyer name',value=buyer_name,key=f'purchase_name_{key_prefix}')
+            contact=st.text_input('Buyer email or phone',value=buyer_contact,key=f'purchase_contact_{key_prefix}')
+            method=st.selectbox('Preferred contact method',['House Of Wax message','Email','Phone','Text message'],key=f'purchase_method_{key_prefix}')
+            fulfillment=st.selectbox('Pickup or shipping preference',['Shipping','Local pickup','Either / discuss with seller'],key=f'purchase_fulfillment_{key_prefix}')
+            message=st.text_area('Message to seller - optional',key=f'purchase_message_{key_prefix}',placeholder='Confirm availability, shipping/pickup details, or anything the seller should know.')
+            sub=st.form_submit_button('Buy with these details')
+        if sub:
+            send_purchase_request(name,contact,method,fulfillment,message)
 
 def render_offer_form(p, key_prefix):
     if not is_available_listing(p):
         st.info('Offers are available only while a listing is available.')
         return
-    st.info(f"Listed at {money(p['price'])}. Propose a price below and the seller can accept, counter, or decline.")
     testing_mode_write_warning('this offer')
     if not is_authenticated():
         set_pending_action('Make Offer',p)
@@ -2749,10 +2756,12 @@ def render_offer_form(p, key_prefix):
                 st.error('Buyer profile could not be saved. Check Auth Diagnostics for the exact error.')
         return
     with st.form(f'offer_form_{key_prefix}'):
-        name=st.text_input('Buyer name',value=buyer_name,key=f'offer_name_{key_prefix}')
-        contact=st.text_input('Buyer email or phone',value=buyer_contact,key=f'offer_contact_{key_prefix}')
+        st.caption(f"Listed at {money(p['price'])}. The seller can accept, counter, or decline.")
         offer=st.number_input('Your offer price',min_value=0.01,step=1.0,value=max(0.01,float(p['price'] or 0)*0.85),key=f'offer_amount_{key_prefix}')
         message=st.text_area('Message to seller - optional',key=f'offer_message_{key_prefix}',placeholder='Explain your offer if you want.')
+        with st.expander('Change contact info'):
+            name=st.text_input('Buyer name',value=buyer_name,key=f'offer_name_{key_prefix}')
+            contact=st.text_input('Buyer email or phone',value=buyer_contact,key=f'offer_contact_{key_prefix}')
         sub=st.form_submit_button('Send offer')
     if sub:
         if not safe(name) or not safe(contact):

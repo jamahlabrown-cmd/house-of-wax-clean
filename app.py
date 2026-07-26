@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.99 ADD: ONE-CLICK CHECK THAT ALL 23 CORE TABLES ACTUALLY EXIST'
+APP_VERSION='V25.43.100 ADD: 9% PLATFORM COMMISSION, BUYER PAYS SELLER + HOUSE OF WAX DIRECTLY'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1308,7 +1308,7 @@ def setup():
         run("UPDATE app_users SET seller_application_status='Pending Seller Approval' WHERE COALESCE(seller_id,0)>0 AND (seller_application_status IS NULL OR seller_application_status='' OR seller_application_status='Not Applied')")
     except Exception:
         pass
-    for k,v in {'site_tagline':'Built by crate-diggers, for crate-diggers — records, merch, and the culture behind both.','announcement':'V25.43.42 verified domain sender active','platform_commission_percent':'9','auction_commission_percent':'10'}.items():
+    for k,v in {'site_tagline':'Built by crate-diggers, for crate-diggers — records, merch, and the culture behind both.','announcement':'V25.43.42 verified domain sender active','platform_commission_percent':'9','auction_commission_percent':'10','house_of_wax_paypal_link':'mojo71mojo@yahoo.com'}.items():
         if setting(k, None) is None: set_setting(k,v)
     # site_tagline is set-if-missing above like the other defaults, but
     # app_settings lives in local SQLite even in hosted mode (see setting()/
@@ -1452,8 +1452,9 @@ def setup():
     old_v25_43_96_announcement='V25.43.96'+' Fix: Seller Spotlight now hosted + actually visible on seller profiles active'
     old_v25_43_97_announcement='V25.43.97'+' Fix: want-list notify RPC failures no longer fail silently active'
     old_v25_43_98_announcement='V25.43.98'+' Add: Database Status has a one-click want-list notify RPC check active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement]:
-        set_setting('announcement','V25.43.99 Add: one-click check that all 23 core tables actually exist active')
+    old_v25_43_99_announcement='V25.43.99'+' Add: one-click check that all 23 core tables actually exist active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement]:
+        set_setting('announcement','V25.43.100 Add: 9% platform commission, buyer pays seller + House Of Wax directly active')
 setup()
 recovery_token_bridge()
 
@@ -2095,6 +2096,24 @@ def followers(sid):
     r=hosted_select('seller_followers',{'seller_id':int(sid)},select='id') if hosted_enabled() else df('SELECT COUNT(*) c FROM seller_followers WHERE seller_id=?',(int(sid),))
     return len(r) if hosted_enabled() else (0 if r.empty else int(r.iloc[0]['c'] or 0))
 def fee(total,auction=False): return round(float(total)*float(setting('auction_commission_percent' if auction else 'platform_commission_percent','9'))/100,2)
+def commission_percent(auction=False): return float(setting('auction_commission_percent' if auction else 'platform_commission_percent','9'))
+def render_split_payment_line(heading, paypal_value, amount, note, key):
+    # Shared by the buyer's "Ready to pay" view and the seller's own purchase
+    # request view -- same rendering rules as the existing seller-paypal
+    # display (link_button for a URL/paypal.me value, plain info text for a
+    # bare email, since PayPal has no pre-filled-amount deep link for email).
+    st.write(f"**{heading}:** {money(amount)}")
+    paypal=safe(paypal_value)
+    if not paypal:
+        st.warning("PayPal info not set up yet.")
+        return
+    if paypal.lower().startswith(('http://','https://')) or 'paypal.me' in paypal.lower():
+        link=paypal if paypal.lower().startswith(('http://','https://')) else f'https://{paypal}'
+        st.link_button('Pay with PayPal',link,key=key)
+    else:
+        st.info(f'Pay via PayPal: {paypal}')
+    if note:
+        st.caption(note)
 
 def seller_profile_completion(sid):
     s=get_seller(sid)
@@ -4143,24 +4162,32 @@ def buyer_workspace_tabs(bid):
             awaiting_payment=purchases[purchases['status'].isin(['Seller Accepted','Pending Pickup/Payment'])] if 'status' in purchases.columns else purchases.iloc[0:0]
             if not awaiting_payment.empty:
                 st.markdown('#### Ready to pay')
-                st.caption("House Of Wax connects you with the seller but never handles payment -- you pay the seller directly.")
+                st.caption("House Of Wax connects you with the seller but never holds your payment -- pay each of the two amounts below directly.")
                 for _,pr in awaiting_payment.iterrows():
                     seller=get_seller_full(int(pr['seller_id'])) if safe(pr.get('seller_id')) else None
-                    amount=float(pr.get('offer_price') or 0)
+                    amount=float(pr.get('offer_price') or 0) or float(pr.get('price') or 0)
                     with st.container(border=True):
                         st.write(f"**{safe(pr.get('artist'))} — {safe(pr.get('title'))}** from {safe(pr.get('store_name'))}")
                         if amount>0:
-                            st.write(f"Amount to pay: {money(amount)}")
-                        paypal=safe(seller.get('paypal_link')) if seller is not None else ''
-                        if paypal:
-                            if paypal.lower().startswith(('http://','https://')) or 'paypal.me' in paypal.lower():
-                                link=paypal if paypal.lower().startswith(('http://','https://')) else f'https://{paypal}'
-                                st.link_button('Pay with PayPal',link)
-                            else:
-                                st.info(f'Pay this seller via PayPal: {paypal}')
-                            st.caption("Payment goes directly to the seller's PayPal, not through House Of Wax. Message the seller through House Of Wax if there's a problem.")
+                            platform_cut=fee(amount)
+                            seller_cut=round(amount-platform_cut,2)
+                            st.write(f"Total price: {money(amount)}")
+                            render_split_payment_line(
+                                'Pay the seller',
+                                seller.get('paypal_link') if seller is not None else '',
+                                seller_cut,
+                                "This part goes straight to the seller's PayPal. Message the seller through House Of Wax if there's a problem.",
+                                key=f'pay_seller_{int(pr["id"])}',
+                            )
+                            render_split_payment_line(
+                                "Pay House Of Wax's platform fee",
+                                setting('house_of_wax_paypal_link'),
+                                platform_cut,
+                                'This part goes straight to House Of Wax, separate from the seller.',
+                                key=f'pay_platform_{int(pr["id"])}',
+                            )
                         else:
-                            st.warning("This seller hasn't added their PayPal info yet. Message them through House Of Wax to arrange payment.")
+                            st.warning('This listing has no price set -- ask the seller through House Of Wax before paying.')
             countered=purchases[purchases['status']=='Seller Countered'] if 'status' in purchases.columns else purchases.iloc[0:0]
             if not countered.empty:
                 st.markdown('#### Seller counter-offers awaiting your response')
@@ -6721,7 +6748,12 @@ def seller_purchase_request_view(sid):
         st.write(f"**Buyer contact:** {safe(row.get('buyer_contact'))}")
         st.write(f"**Preferred contact method:** {safe(row.get('preferred_contact_method'))}")
         st.write(f"**Pickup/shipping:** {safe(row.get('fulfillment_preference'))}")
+        row_amount=float(row.get('offer_price') or 0) or float(row.get('price') or 0)
         st.write(f"**Offer:** {money(row.get('offer_price')) if float(row.get('offer_price') or 0)>0 else 'No offer entered'}")
+        if row_amount>0:
+            row_platform_cut=fee(row_amount)
+            row_seller_cut=round(row_amount-row_platform_cut,2)
+            st.caption(f"Total {money(row_amount)} = seller receives {money(row_seller_cut)} + House Of Wax platform fee ({commission_percent():.0f}%) {money(row_platform_cut)}. The buyer pays each part directly.")
         st.write(f"**Message:** {safe(row.get('buyer_message'),'No message.')}")
         if float(row.get('counter_price') or 0)>0:
             st.write(f"**Your counter:** {money(row.get('counter_price'))} — {safe(row.get('counter_message'),'No message.')}")
@@ -6774,7 +6806,12 @@ def admin_purchase_request_view():
         st.write(f"**Listing status:** {safe(row.get('listing_status'))}")
         st.write(f"**Buyer:** {safe(row.get('buyer_name'))} • {safe(row.get('buyer_contact'))}")
         st.write(f"**Pickup/shipping:** {safe(row.get('fulfillment_preference'))}")
+        row_amount=float(row.get('offer_price') or 0) or float(row.get('price') or 0)
         st.write(f"**Offer:** {money(row.get('offer_price')) if float(row.get('offer_price') or 0)>0 else 'No offer entered'}")
+        if row_amount>0:
+            row_platform_cut=fee(row_amount)
+            row_seller_cut=round(row_amount-row_platform_cut,2)
+            st.caption(f"Total {money(row_amount)} = seller receives {money(row_seller_cut)} + House Of Wax platform fee ({commission_percent():.0f}%) {money(row_platform_cut)}. The buyer pays each part directly.")
         st.write(f"**Message:** {safe(row.get('buyer_message'),'No message.')}")
         if float(row.get('counter_price') or 0)>0:
             st.write(f"**Seller counter:** {money(row.get('counter_price'))} — {safe(row.get('counter_message'),'No message.')}")

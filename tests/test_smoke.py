@@ -102,6 +102,21 @@ def test_create_account_rejects_invalid_email():
     assert any("valid email" in a.value.lower() for a in at.error), "Expected an invalid-email error"
 
 
+# ---------- Commission split (V25.43.100) ----------
+
+def test_commission_fee_uses_nine_percent_default():
+    import app as hw_app
+    assert hw_app.commission_percent() == 9.0
+    assert hw_app.fee(100) == 9.0
+    assert hw_app.fee(45.50) == round(45.50 * 0.09, 2)
+
+
+def test_house_of_wax_paypal_link_is_seeded():
+    import app as hw_app
+    fresh_app()
+    assert hw_app.setting("house_of_wax_paypal_link") == "mojo71mojo@yahoo.com"
+
+
 # ---------- Add Inventory: Step 1 structure (regression guard for V25.43.84-85) ----------
 
 def test_add_inventory_step1_artist_title_are_outside_the_form():

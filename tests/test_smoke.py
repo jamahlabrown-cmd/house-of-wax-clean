@@ -135,6 +135,29 @@ def test_core_update_fails_loudly_without_sql_in_local_mode():
         hw_app.core_update("buyers", {"name": "x"}, {"id": 1})
 
 
+def test_want_list_notify_surfaces_rpc_failure_instead_of_swallowing_it(monkeypatch):
+    # Regression guard: find_want_list_matches_for_notify() used to have a
+    # bare "except Exception: return []" around the find_want_list_matches
+    # RPC call -- if that RPC was ever missing, misconfigured, or rejected,
+    # want-list match emails would silently never fire, with no error
+    # anywhere to show it. WANT_LIST_NOTIFY_STATUS didn't exist before this
+    # fix, so this test fails outright against the pre-fix code.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "supabase_config", lambda: ("https://example.invalid", "fake-anon-key"))
+
+    def boom(*args, **kwargs):
+        raise ConnectionError("simulated RPC failure")
+    monkeypatch.setattr(hw_app.requests, "post", boom)
+
+    hw_app.WANT_LIST_NOTIFY_STATUS["last_error"] = ""
+    result = hw_app.find_want_list_matches_for_notify("Some Artist", "Some Title")
+    assert result == []
+    assert "simulated RPC failure" in hw_app.WANT_LIST_NOTIFY_STATUS["last_error"], (
+        "Expected the RPC failure to be recorded, not silently swallowed"
+    )
+
+
 def test_culture_posts_seller_spotlight_shows_on_seller_profile():
     # Regression guard: culture_posts (backing the admin "Seller Spotlight"
     # tool) had no seller_id column at all, so a spotlight post could never

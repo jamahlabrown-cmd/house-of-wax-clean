@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.104 SIMPLIFY: BUY IS NOW ONE CLICK, OFFER/ASK COLLAPSE KNOWN CONTACT INFO'
+APP_VERSION='V25.43.105 SIMPLIFY: TESTER SCAFFOLDING HIDDEN FROM REAL VISITORS, BUY OPENS FIRST'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1469,8 +1469,9 @@ def setup():
     old_v25_43_101_announcement='V25.43.101'+' Fix: "checkout not live" wording was scaring buyers off the Buy button active'
     old_v25_43_102_announcement='V25.43.102'+' Add: warn buyers when Testing mode would silently block their request active'
     old_v25_43_103_announcement='V25.43.103'+' Fix: admin views now say when Testing mode cannot see the data at all active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement]:
-        set_setting('announcement','V25.43.104 Simplify: Buy is now one click, offer/ask collapse known contact info active')
+    old_v25_43_104_announcement='V25.43.104'+' Simplify: Buy is now one click, offer/ask collapse known contact info active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement]:
+        set_setting('announcement','V25.43.105 Simplify: tester scaffolding hidden from real visitors, Buy opens first active')
 setup()
 recovery_token_bridge()
 
@@ -2949,10 +2950,6 @@ def product_card(p):
         if seller is not None:
             st.caption('Seller: '+safe(seller.get('store_name')))
             public_seller_trust_badge(seller)
-            if st.button('View Store',key=f"seller_store_from_item_{int(p['id'])}_{int(seller.get('id'))}",width='stretch'):
-                st.session_state['seller_id']=int(seller.get('id'))
-                st.session_state.pop('product_id',None)
-                st.rerun()
         if st.button('View Item',key=f"item_{int(p['id'])}",width='stretch'): st.session_state['product_id']=int(p['id']); st.rerun()
         if is_available_listing(p):
             if st.button('Ask Seller',key=f"ask_item_{int(p['id'])}",width='stretch'):
@@ -3157,10 +3154,15 @@ def product_detail(pid):
         st.info('Buyer actions appear only for public marketplace listings.')
         return
     if is_available:
-        st.session_state.pop(f'open_inquiry_{pid}',False)
-        with st.expander('Ask About This Item / Contact Seller',expanded=True):
+        # Buy is the action most buyers who reached this page actually want,
+        # so it's the one open by default -- Ask/Offer still auto-expand if
+        # that's specifically what was clicked (from the search grid, a
+        # pending sign-in redirect, etc.), same as before.
+        purchase_expanded=not bool(st.session_state.get(f'open_inquiry_{pid}',False)) and not bool(st.session_state.get(f'open_offer_{pid}',False))
+        inquiry_expanded=bool(st.session_state.pop(f'open_inquiry_{pid}',False))
+        with st.expander('Ask About This Item / Contact Seller',expanded=inquiry_expanded):
             render_buyer_inquiry_form(p,s,f'product_{pid}')
-        purchase_expanded=bool(st.session_state.pop(f'open_purchase_{pid}',False))
+        purchase_expanded=purchase_expanded or bool(st.session_state.pop(f'open_purchase_{pid}',False))
         with st.expander('Buy',expanded=purchase_expanded):
             render_purchase_request_form(p,f'product_{pid}')
         offer_expanded=bool(st.session_state.pop(f'open_offer_{pid}',False))
@@ -3480,8 +3482,9 @@ def knowledge_center_education_hub():
             ('Production readiness notes','Before public launch: real auth, hosted database, permanent image storage, payment/legal terms, and admin permission checks.')
         ]
         st.dataframe(pd.DataFrame(admin_rows,columns=['Founder/admin topic','Why it matters']),width='stretch')
-    with st.expander('Tester Feedback',expanded=False):
-        tester_feedback_form('knowledge_center')
+    if is_admin_unlocked():
+        with st.expander('Tester Feedback',expanded=False):
+            tester_feedback_form('knowledge_center')
 
 def anthropic_configured():
     try:
@@ -3956,13 +3959,10 @@ def home():
         <div class="how-callout">Part record shop, part zine, part crash course in not getting ripped off.</div>
     </div>
     ''', unsafe_allow_html=True)
-    a,b,c=st.columns(3)
-    if a.button('Explore Marketplace'): request_marketplace_navigation('Search Music'); st.rerun()
-    if b.button('Visit Knowledge Hub'): request_marketplace_navigation('Knowledge Hub'); st.rerun()
-    if c.button("Read This Week's Feature"): request_marketplace_navigation('Knowledge Hub'); st.rerun()
     render_avatar_faq_widget()
-    with st.expander('Tester Start Here',expanded=True):
-        tester_start_here('home')
+    if is_admin_unlocked():
+        with st.expander('Tester Start Here',expanded=False):
+            tester_start_here('home')
     st.info("Looking for something specific? Open Search Music and type an artist or album — we'll do the digging.")
     c1,c2,c3,c4=st.columns(4)
     c1.metric('Knowledge Articles',len(table('knowledge_posts')))
@@ -4075,8 +4075,9 @@ def test_setup():
 def marketplace():
     header(); marketplace_context('House Of Wax Marketplace → Search Music'); st.header('Search Music')
     st.write("Search every live listing from House Of Wax sellers — type an artist or album to start digging.")
-    with st.expander('Tester Feedback for this page',expanded=False):
-        tester_feedback_form('marketplace')
+    if is_admin_unlocked():
+        with st.expander('Tester Feedback for this page',expanded=False):
+            tester_feedback_form('marketplace')
     if 'seller_id' in st.session_state: seller_profile(int(st.session_state['seller_id'])); return
     if 'product_id' in st.session_state: product_detail(int(st.session_state['product_id'])); return
     prods=load_global_marketplace_listings()

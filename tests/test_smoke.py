@@ -253,12 +253,13 @@ def test_real_signed_in_seller_can_reach_bulk_import_tools():
     )
 
 
-def test_seller_status_banner_shows_once_per_dashboard_page():
-    # Regression guard: seller_status_notice() (the "Enabled" badge + "You're
-    # approved to sell..." text) used to render once in the Seller Dashboard
-    # header AND again inside upload_product()/seller_listings_manager() --
-    # so every seller tab repeated the same status banner twice on one page
-    # load. It should now render exactly once per page, from the header only.
+def test_seller_status_banner_removed_from_dashboard():
+    # seller_status_notice() (the "Enabled" badge + "You're approved to
+    # sell..." text) used to render as a big colored banner at the top of
+    # every Seller Dashboard page -- first deduped from 2 copies down to 1,
+    # then removed entirely per founder feedback ("those big buttons that
+    # say approved and ready to sell can go"). Confirms it's gone for good,
+    # on the dashboard itself and on every sub-tab.
     import app as hw_app
     at = AppTest.from_file("app.py", default_timeout=30)
     at.session_state["testing_mode_enabled"] = True
@@ -269,14 +270,13 @@ def test_seller_status_banner_shows_once_per_dashboard_page():
         texts = [w.value for w in at.warning] + [s.value for s in at.success]
         return sum(1 for t in texts if "approved to sell" in t.lower() or "approved to publish listings" in t.lower())
 
-    baseline = count_status_banner()
-    assert baseline <= 1, f"Expected at most one status banner on Seller Dashboard itself, got {baseline}"
+    assert count_status_banner() == 0, "Expected the approved-to-sell banner to be fully removed from Seller Dashboard"
 
     at.radio(key="seller_tools_primary_section").set_value("Add Inventory").run()
-    assert count_status_banner() <= 1, "Add Inventory should not repeat the seller status banner"
+    assert count_status_banner() == 0, "Add Inventory should not show the seller status banner"
 
     at.radio(key="seller_tools_primary_section").set_value("My Inventory").run()
-    assert count_status_banner() <= 1, "My Inventory should not repeat the seller status banner"
+    assert count_status_banner() == 0, "My Inventory should not show the seller status banner"
 
 
 def test_buyer_can_save_avatar_url_to_profile():
@@ -403,3 +403,25 @@ def test_missed_payment_window_releases_listing_and_strikes_buyer():
 
     ending_strikes = int(hw_app.get_buyer(buyer_id).get("strikes") or 0)
     assert ending_strikes == starting_strikes + 1, f"Expected a strike added, got {starting_strikes} -> {ending_strikes}"
+
+
+def test_account_page_has_no_buying_selling_metric_banners():
+    # Regression guard: My Account used to show three big st.metric banners
+    # (Account / Buying / Selling) right under "Signed in as..." -- founder
+    # feedback: "Buying selling banners at the top need to go", since the
+    # same info is already in the Account/Buying/Selling tabs right below.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    buyer_id, seller_id, buyer_email, seller_email = hw_app.seed_all()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,buyer_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        ("real-account-uuid", buyer_email, "Real Buyer", "Buyer", buyer_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": "real-account-uuid", "email": buyer_email, "access_token": "fake"}
+    at.run()
+    goto(at, "My Account")
+    assert not at.exception, at.exception
+
+    metric_labels = [m.label for m in at.get("metric")]
+    assert metric_labels == [], f"Expected no metric banners on My Account, got {metric_labels}"

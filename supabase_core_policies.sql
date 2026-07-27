@@ -111,6 +111,20 @@ on buyers for update to authenticated
 using (id in (select buyer_id from app_users where auth_user_id = auth.uid()))
 with check (id in (select buyer_id from app_users where auth_user_id = auth.uid()));
 
+-- expire_overdue_purchase_requests() (app.py) adds a strike to a buyer's
+-- account when they miss the 5-day payment window. That sweep runs lazily
+-- under whoever's browsing -- often the SELLER checking their own dashboard,
+-- not the buyer -- so without this, a seller's session had no permission to
+-- touch a buyers row that wasn't their own, and the write was silently
+-- rejected by RLS. Scoped the same way as "buyer reserve product for own
+-- purchase" below: only buyers with an actual purchase_requests row tied to
+-- one of this seller's own products.
+drop policy if exists "seller strike buyer for own unpaid order" on public."buyers";
+create policy "seller strike buyer for own unpaid order"
+on buyers for update to authenticated
+using (id in (select buyer_id from purchase_requests where seller_id in (select seller_id from app_users where auth_user_id = auth.uid())))
+with check (id in (select buyer_id from purchase_requests where seller_id in (select seller_id from app_users where auth_user_id = auth.uid())));
+
 -- Originally just "auth.uid() is not null" -- any authenticated user could
 -- insert a buyers row under ANY email, not just their own, via a direct API
 -- call (the app itself always passes auth_user_email(), so this was never

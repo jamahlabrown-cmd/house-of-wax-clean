@@ -458,3 +458,60 @@ def test_reservation_failure_is_surfaced_not_silently_swallowed(monkeypatch):
     assert any("could not reserve the listing" in e for e in errors), (
         f"Expected the reservation-failure error to be surfaced, got errors={errors}"
     )
+
+
+def _payment_expiry_sweep_probe():
+    import app as hw_app
+    hw_app.expire_overdue_purchase_requests()
+
+
+def test_expiry_sweep_buyer_strike_failure_is_quiet_not_a_random_error_banner(monkeypatch):
+    # Regression guard for a second real production bug found in the same
+    # audit as the reservation-failure fix above: expire_overdue_purchase_
+    # requests() also writes a strike to buyers.strikes, but that sweep runs
+    # lazily on EVERY page load for WHOEVER is browsing -- often a seller
+    # checking their own dashboard, not the buyer being struck. No RLS
+    # policy ever let a seller's session touch a buyers row that wasn't
+    # their own, so the write was silently rejected -- and because this
+    # background sweep called the normal (loud) core_update, any seller
+    # loading ANY page could see an out-of-context "Supabase update failed
+    # for buyers: HTTP 403" error banner for a write they had no part in.
+    # Fixed with a new RLS policy ("seller strike buyer for own unpaid
+    # order") AND by making every write inside this sweep quiet=True,
+    # recording failures to PAYMENT_EXPIRY_STATUS instead of popping an
+    # unrelated error on the current page.
+    import pandas as pd
+    from datetime import datetime as _dt, timedelta as _td
+    import app as hw_app
+
+    overdue_row = {
+        "id": 1, "product_id": 1, "seller_id": 1, "buyer_id": 1,
+        "status": "Seller Accepted",
+        "payment_due_at": (_dt.now() - _td(days=1)).isoformat(timespec="seconds"),
+    }
+
+    def fake_hosted_select(table_name, filters=None, **kwargs):
+        if table_name == "purchase_requests":
+            return pd.DataFrame([overdue_row])
+        if table_name == "products":
+            return pd.DataFrame([{"id": 1, "listing_status": "Pending Pickup/Payment"}])
+        return pd.DataFrame()
+
+    def fake_core_update(table_name, *a, **k):
+        if table_name == "buyers":
+            hw_app.SUPABASE_STATUS["last_error"] = "buyers: HTTP 403 new row violates row-level security policy"
+            return False
+        return True
+
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_select", fake_hosted_select)
+    monkeypatch.setattr(hw_app, "get_buyer", lambda bid: {"id": bid, "strikes": 0})
+    monkeypatch.setattr(hw_app, "core_update", fake_core_update)
+    hw_app.PAYMENT_EXPIRY_STATUS["last_error"] = ""
+
+    at = AppTest.from_function(_payment_expiry_sweep_probe, default_timeout=30)
+    at.run()
+    assert not at.exception, at.exception
+
+    assert list(at.error) == [], f"Expected no error banner from the background sweep, got {[e.value for e in at.error]}"
+    assert hw_app.PAYMENT_EXPIRY_STATUS["last_error"], "Expected the strike-write failure to be recorded, not silently dropped"

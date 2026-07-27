@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.112 FIX: BUY NOW WAS SILENTLY FAILING TO RESERVE THE LISTING (RLS)'
+APP_VERSION='V25.43.113 FIX: SECOND RLS GAP (BUYER STRIKES), BACKGROUND SWEEP NOW QUIET'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -270,13 +270,21 @@ def hosted_insert(table_name, data):
     payload,detail=hosted_request('post',table_name,data=clean)
     show_hosted_error('insert',table_name,detail)
     return int(payload[0].get('id',0)) if payload and payload[0].get('id') else 0
-def hosted_update(table_name, data, filters):
+def hosted_update(table_name, data, filters, quiet=False):
     if not hosted_enabled():
         return False
     params={k:f'eq.{v}' for k,v in filters.items()}
     clean={k:v for k,v in data.items() if v is not None}
     payload,detail=hosted_request('patch',table_name,params=params,data=clean)
-    show_hosted_error('update',table_name,detail)
+    # quiet=True is for writes made by background/system sweeps (nothing the
+    # current viewer did) -- SUPABASE_STATUS['last_error'] is still set by
+    # hosted_request() either way, but a failure there shouldn't interrupt an
+    # unrelated page with a raw HTTP error banner. See expire_overdue_
+    # purchase_requests(), which used to do exactly that: a seller loading
+    # any page could see a "Supabase update failed for buyers: HTTP 403"
+    # error for a background strike-tracking write they had no part in.
+    if not quiet:
+        show_hosted_error('update',table_name,detail)
     return bool(detail.get('ok'))
 def hosted_delete(table_name, filters):
     if not hosted_enabled():
@@ -293,9 +301,9 @@ def core_insert(table_name, data, sql='', params=()):
     if hosted_enabled() and table_name in CORE_HOSTED_TABLES:
         return hosted_insert(table_name,data)
     return insert(sql,params) if sql else 0
-def core_update(table_name, data, filters, sql='', params=()):
+def core_update(table_name, data, filters, sql='', params=(), quiet=False):
     if hosted_enabled() and table_name in CORE_HOSTED_TABLES:
-        return hosted_update(table_name,data,filters)
+        return hosted_update(table_name,data,filters,quiet=quiet)
     if not sql:
         # Every real caller passes sql/params for the local-SQLite fallback.
         # Silently returning True here (the old behavior) would mean "nothing
@@ -1461,8 +1469,9 @@ def setup():
     old_v25_43_109_announcement='V25.43.109'+' Rename: My Purchase Requests is now My Orders active'
     old_v25_43_110_announcement='V25.43.110'+' Rename: My Inquiries is now My Questions active'
     old_v25_43_111_announcement='V25.43.111'+' Simplify: account status banners removed, photo field moved to top of buyer profile active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement]:
-        set_setting('announcement','V25.43.112 Fix: Buy Now was silently failing to reserve the listing due to a missing RLS policy active')
+    old_v25_43_112_announcement='V25.43.112'+' Fix: Buy Now was silently failing to reserve the listing due to a missing RLS policy active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement]:
+        set_setting('announcement','V25.43.113 Fix: found and closed a second RLS gap (buyer strikes); background sweep no longer shows unrelated errors active')
 setup()
 recovery_token_bridge()
 
@@ -6739,21 +6748,21 @@ def reserve_listing_for_payment(request_id, product_id):
         st.error("This order was recorded, but House Of Wax could not reserve the listing itself -- it may still show as available to others. This is a platform error, not something you did wrong. Message House Of Wax through Report Seller / Report Listing so it can be fixed by hand.")
     return due
 
-def update_purchase_request_status(request_id, status, seller_id=None):
+def update_purchase_request_status(request_id, status, seller_id=None, quiet=False):
     if seller_id is None:
         req=hosted_select('purchase_requests',{'id':int(request_id)},limit=1) if hosted_enabled() else df('SELECT product_id FROM purchase_requests WHERE id=?',(int(request_id),))
-        core_update('purchase_requests',{'status':status,'updated_at':now()},{'id':int(request_id)},'UPDATE purchase_requests SET status=?,updated_at=? WHERE id=?',(status,now(),int(request_id)))
+        core_update('purchase_requests',{'status':status,'updated_at':now()},{'id':int(request_id)},'UPDATE purchase_requests SET status=?,updated_at=? WHERE id=?',(status,now(),int(request_id)),quiet=quiet)
     else:
         req=hosted_select('purchase_requests',{'id':int(request_id),'seller_id':int(seller_id)},limit=1) if hosted_enabled() else df('SELECT product_id FROM purchase_requests WHERE id=? AND seller_id=?',(int(request_id),int(seller_id)))
-        core_update('purchase_requests',{'status':status,'updated_at':now()},{'id':int(request_id),'seller_id':int(seller_id)},'UPDATE purchase_requests SET status=?,updated_at=? WHERE id=? AND seller_id=?',(status,now(),int(request_id),int(seller_id)))
+        core_update('purchase_requests',{'status':status,'updated_at':now()},{'id':int(request_id),'seller_id':int(seller_id)},'UPDATE purchase_requests SET status=?,updated_at=? WHERE id=? AND seller_id=?',(status,now(),int(request_id),int(seller_id)),quiet=quiet)
     if not req.empty:
         pid=int(req.iloc[0]['product_id'])
         if status=='Seller Accepted':
             reserve_listing_for_payment(request_id,pid)
         elif status=='Pending Pickup/Payment':
-            core_update('products',{'listing_status':'Pending Pickup/Payment','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Pending Pickup/Payment',updated_at=? WHERE id=?",(now(),pid))
+            core_update('products',{'listing_status':'Pending Pickup/Payment','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Pending Pickup/Payment',updated_at=? WHERE id=?",(now(),pid),quiet=quiet)
         elif status=='Sold':
-            core_update('products',{'listing_status':'Sold','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Sold',updated_at=? WHERE id=?",(now(),pid))
+            core_update('products',{'listing_status':'Sold','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Sold',updated_at=? WHERE id=?",(now(),pid),quiet=quiet)
         elif status in ('Seller Declined','Closed','Buyer Did Not Pay'):
             # A deal that fell through used to leave the listing stuck at
             # Pending Pickup/Payment forever, permanently hiding it from
@@ -6766,7 +6775,9 @@ def update_purchase_request_status(request_id, status, seller_id=None):
                 siblings=hosted_select('purchase_requests',{'product_id':pid}) if hosted_enabled() else df('SELECT id,status FROM purchase_requests WHERE product_id=?',(pid,))
                 still_active=siblings[siblings['status'].isin(['Pending Pickup/Payment','Seller Accepted','Offer Pending','Seller Countered']) & (siblings['id'].astype(int)!=int(request_id))] if not siblings.empty else siblings
                 if still_active.empty:
-                    core_update('products',{'listing_status':'Live','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Live',updated_at=? WHERE id=?",(now(),pid))
+                    core_update('products',{'listing_status':'Live','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Live',updated_at=? WHERE id=?",(now(),pid),quiet=quiet)
+
+PAYMENT_EXPIRY_STATUS={'last_error':''}
 
 def expire_overdue_purchase_requests():
     # Streamlit has no background scheduler, so the 5-day payment deadline is
@@ -6775,6 +6786,13 @@ def expire_overdue_purchase_requests():
     # who doesn't pay in time loses the item (it's released back to Live)
     # and gets a strike on their buyer profile -- see the House Of Wax
     # payment-window policy this implements.
+    #
+    # Every write here runs quiet=True: this is a background/system sweep
+    # that can fire on ANY page load for ANY visitor, not something the
+    # current viewer asked for -- a write failure here (e.g. a missing RLS
+    # policy) used to pop a raw "Supabase update failed..." error banner on
+    # a completely unrelated page. Failures are recorded to
+    # PAYMENT_EXPIRY_STATUS instead (see Database Status / Diagnostics).
     last=st.session_state.get('_payment_expiry_sweep_at')
     if last:
         try:
@@ -6792,13 +6810,15 @@ def expire_overdue_purchase_requests():
         if not due or due>nowstr:
             continue
         rid=int(row['id'])
-        update_purchase_request_status(rid,'Buyer Did Not Pay')
+        update_purchase_request_status(rid,'Buyer Did Not Pay',quiet=True)
         buyer_id=row.get('buyer_id')
         if safe(buyer_id):
             buyer=get_buyer(int(buyer_id))
             if buyer is not None:
                 new_strikes=int(buyer.get('strikes') or 0)+1
-                core_update('buyers',{'strikes':new_strikes},{'id':int(buyer_id)},'UPDATE buyers SET strikes=? WHERE id=?',(new_strikes,int(buyer_id)))
+                ok=core_update('buyers',{'strikes':new_strikes},{'id':int(buyer_id)},'UPDATE buyers SET strikes=? WHERE id=?',(new_strikes,int(buyer_id)),quiet=True)
+                if not ok and hosted_enabled():
+                    PAYMENT_EXPIRY_STATUS['last_error']=SUPABASE_STATUS.get('last_error') or 'Unknown error adding a buyer strike'
 
 def seller_purchase_request_view(sid):
     st.subheader('Purchase requests')

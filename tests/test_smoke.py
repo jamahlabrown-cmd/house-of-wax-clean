@@ -251,3 +251,47 @@ def test_real_signed_in_seller_can_reach_bulk_import_tools():
     assert tab_labels == ["Bulk import", "Announcements", "Events/drops"], (
         f"Expected a real seller to reach the Bulk import/Announcements/Events tabs, got {tab_labels}"
     )
+
+
+def test_seller_status_banner_shows_once_per_dashboard_page():
+    # Regression guard: seller_status_notice() (the "Enabled" badge + "You're
+    # approved to sell..." text) used to render once in the Seller Dashboard
+    # header AND again inside upload_product()/seller_listings_manager() --
+    # so every seller tab repeated the same status banner twice on one page
+    # load. It should now render exactly once per page, from the header only.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    goto(at, "Seller Dashboard")
+
+    def count_status_banner():
+        texts = [w.value for w in at.warning] + [s.value for s in at.success]
+        return sum(1 for t in texts if "approved to sell" in t.lower() or "approved to publish listings" in t.lower())
+
+    baseline = count_status_banner()
+    assert baseline <= 1, f"Expected at most one status banner on Seller Dashboard itself, got {baseline}"
+
+    at.radio(key="seller_tools_primary_section").set_value("Add Inventory").run()
+    assert count_status_banner() <= 1, "Add Inventory should not repeat the seller status banner"
+
+    at.radio(key="seller_tools_primary_section").set_value("My Inventory").run()
+    assert count_status_banner() <= 1, "My Inventory should not repeat the seller status banner"
+
+
+def test_buyer_can_save_avatar_url_to_profile():
+    # Regression guard: buyers had no photo/avatar column at all (unlike
+    # sellers, which have logo_url/banner_url), so there was no way for a
+    # buyer to add a profile photo. Confirms the avatar_url column exists
+    # (via the mig-dict addcol migration) and round-trips through core_update
+    # the same way seller logo_url/banner_url already do.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    buyer_id, seller_id, buyer_email, seller_email = hw_app.seed_all()
+    ok = hw_app.core_update(
+        "buyers", {"avatar_url": "house_of_wax_uploads/buyer_avatars/test.png"}, {"id": buyer_id},
+        "UPDATE buyers SET avatar_url=? WHERE id=?", ("house_of_wax_uploads/buyer_avatars/test.png", buyer_id),
+    )
+    assert ok
+    b = hw_app.get_buyer(buyer_id)
+    assert b.get("avatar_url") == "house_of_wax_uploads/buyer_avatars/test.png"

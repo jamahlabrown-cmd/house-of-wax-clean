@@ -218,3 +218,36 @@ def test_add_inventory_price_box_shows_why_when_no_discogs_token():
     assert any("no discogs_token configured" in c.lower() for c in captions), (
         "Expected the explicit 'no token configured' caption, not silence"
     )
+
+
+def test_real_signed_in_seller_can_reach_bulk_import_tools():
+    # Regression guard: the "More Tools" tabs (Bulk import / Announcements /
+    # Events-drops) were only ever rendered in the admin/testing-mode branch
+    # of seller_dashboard(). A real signed-in seller's branch called
+    # seller_inventory_visibility_summary(sid) and returned immediately after
+    # -- the tabs code below it was unreachable for anyone but an admin or a
+    # Testing Mode session. Real sellers had no way to bulk-import a CSV, post
+    # a store announcement, or create an event/drop, even though both
+    # store_announcements and seller_events are displayed on the seller's own
+    # public profile page (seller_profile()).
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    assert not at.exception
+
+    buyer_id, seller_id, buyer_email, seller_email = hw_app.seed_all()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        ("real-seller-uuid", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+
+    at.session_state["auth_session"] = {"user_id": "real-seller-uuid", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard", area_key="marketplace_navigation")
+    at.radio(key="seller_tools_primary_section_auth").set_value("More Tools").run()
+    assert not at.exception
+
+    tab_labels = [t.proto.label for t in at.tabs]
+    assert tab_labels == ["Bulk import", "Announcements", "Events/drops"], (
+        f"Expected a real seller to reach the Bulk import/Announcements/Events tabs, got {tab_labels}"
+    )

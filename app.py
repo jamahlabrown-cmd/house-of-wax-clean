@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.105 SIMPLIFY: TESTER SCAFFOLDING HIDDEN FROM REAL VISITORS, BUY OPENS FIRST'
+APP_VERSION='V25.43.106 SIMPLIFY: ADD INVENTORY STREAMLINED, SELLER TOOLS FIXED FOR REAL SELLERS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1470,8 +1470,9 @@ def setup():
     old_v25_43_102_announcement='V25.43.102'+' Add: warn buyers when Testing mode would silently block their request active'
     old_v25_43_103_announcement='V25.43.103'+' Fix: admin views now say when Testing mode cannot see the data at all active'
     old_v25_43_104_announcement='V25.43.104'+' Simplify: Buy is now one click, offer/ask collapse known contact info active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement]:
-        set_setting('announcement','V25.43.105 Simplify: tester scaffolding hidden from real visitors, Buy opens first active')
+    old_v25_43_105_announcement='V25.43.105'+' Simplify: tester scaffolding hidden from real visitors, Buy opens first active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement]:
+        set_setting('announcement','V25.43.106 Simplify: Add Inventory streamlined to 5 steps, one save message; fix: real sellers can now reach Bulk Import/Announcements/Events active')
 setup()
 recovery_token_bridge()
 
@@ -6444,15 +6445,8 @@ def upload_product(sid,key):
         grade_note=f" for {price_suggestion['grade_used']} condition" if price_suggestion.get('grade_used') else ''
         st.caption(f"Condition-adjusted estimate{grade_note}: {money(price_suggestion['low'])}–{money(price_suggestion['high'])}, based on {price_suggestion['source']} (algorithmic, less reliable than the real listings above).")
     with st.form(key):
-        st.markdown('#### Step 2: Optional barcode lookup')
-        st.caption('If this is a record, CD, or cassette and you have the barcode, enter it here to auto-fill the details below.')
-        c1,c2,c3=st.columns(3)
-        barcode=c1.text_input('Barcode / UPC / EAN - optional search field',value=defaults.get('barcode',''),help='Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches.')
-        catalog=c2.text_input('Catalog number - auto-filled if found',value=defaults.get('catalog_number',''))
-        matrix=c3.text_input('Matrix / runout - optional')
-
-        st.markdown('#### Step 3: Confirm item details')
-        st.caption('Check format, label, year, and category below -- these may be filled automatically if the item is found. (Artist and title were set in Step 1.)')
+        st.markdown('#### Step 2: Confirm item details')
+        st.caption('Check category, format, label, and year below -- these may be filled automatically if the item was found above. (Artist and title were set in Step 1.)')
         category=st.selectbox('Category - required',['Vinyl Records','CDs','Cassettes','Albums','Music Releases','Clothing','Music Memorabilia','Culture Goods','House Of Wax Merch','Official Drops','Slipmats & Accessories'])
         c7,c8,c9=st.columns(3)
         fmt_default=defaults.get('format','') or ('Vinyl' if category=='Vinyl Records' else '')
@@ -6460,9 +6454,14 @@ def upload_product(sid,key):
         label=c8.text_input('Label / Brand - auto-filled if found',value=defaults.get('label',''),help='Filled automatically if found.')
         year=c9.text_input('Release year - auto-filled if found',value=defaults.get('release_year',''),help='Filled automatically if found.')
         genre=st.text_input('Genre / style - auto-filled if found',value=defaults.get('genre',''))
-        external_release_url=st.text_input('External release URL - optional',value=defaults.get('external_url',''))
+        with st.expander('Barcode, catalog number, matrix, or external release link'):
+            c1,c2,c3=st.columns(3)
+            barcode=c1.text_input('Barcode / UPC / EAN',value=defaults.get('barcode',''),help='Filled automatically if you used barcode lookup above. You can also type or correct it here.')
+            catalog=c2.text_input('Catalog number - auto-filled if found',value=defaults.get('catalog_number',''))
+            matrix=c3.text_input('Matrix / runout - optional')
+            external_release_url=st.text_input('External release URL - optional',value=defaults.get('external_url',''))
 
-        st.markdown('#### Step 4: Add your selling details')
+        st.markdown('#### Step 3: Add your selling details')
         st.caption('Now add the details that are specific to the copy you are selling.')
         sku=st.text_input('SKU - optional')
         if is_music_category(category):
@@ -6490,7 +6489,7 @@ def upload_product(sid,key):
         if ship_error:
             st.warning(ship_error)
 
-        st.markdown('#### Step 5: Photos')
+        st.markdown('#### Step 4: Photos')
         st.caption('Prototype storage: uploaded images are saved locally under house_of_wax_uploads/product_images. Production launch should use hosted storage.')
         refimgurl=st.text_input('Reference image - official release art, auto-filled if found',value=defaults.get('image_url',''),help='This is official release art from the House Of Wax database or outside sources (Discogs/MusicBrainz), not a photo of your exact copy. It is shown to buyers labeled as reference art.')
         if safe(refimgurl):
@@ -6520,7 +6519,7 @@ def upload_product(sid,key):
         preview_image=main_img if main_img is not None else imgurl
         listing_preview_card(category,artist,title,fmt,label,year,genre,mg,sg,price,qty,ship,preview_image,preview_description,has_uploaded_photos,smart_confidence,'seller',uploaded_previews)
 
-        st.markdown('#### Step 6: Save or publish')
+        st.markdown('#### Step 5: Save or publish')
         st.caption('Save as Draft if you are not ready. Approved sellers can Publish to My Store after accepting House Of Wax seller rules.')
         st.info('Before publishing, confirm the item details, condition, price, and seller notes are accurate. You are responsible for your listing under House Of Wax rules.')
         if not is_approved:
@@ -6590,8 +6589,6 @@ def upload_product(sid,key):
             core_insert('product_gallery',{'product_id':int(pid),'image_url':path,'caption':f'Supporting photo {i}','created_at':now()},'INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),path,f'Supporting photo {i}',now()))
         for i,path in enumerate(saved_condition,1):
             core_insert('product_gallery',{'product_id':int(pid),'image_url':path,'caption':f'Condition photo {i}','created_at':now()},'INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)',(int(pid),path,f'Condition photo {i}',now()))
-        if listing_status=='Live':
-            st.success('Published. This item is now live in your store.')
         if is_music_category(category) and imgurl and not has_saved_seller_photos:
             st.success(f'Inventory saved as {listing_status} using the album cover image.')
         elif is_music_category(category) and not image:
@@ -6608,32 +6605,6 @@ def upload_product(sid,key):
         st.session_state['last_saved_listing_id']=int(pid or 0)
         st.session_state['last_saved_listing_seller_id']=int(sid)
         st.session_state['last_saved_listing_status']=listing_status
-        st.session_state['pending_seller_tools_primary_section']='My Inventory'
-        st.success('Inventory saved.')
-        st.success('Saved. You can find this item in My Inventory.')
-        c_view,c_market,c_add=st.columns(3)
-        if c_view.button('View in My Inventory',key=f'view_inventory_after_save_{key}_{int(pid or 0)}'):
-            st.session_state['pending_seller_tools_primary_section']='My Inventory'
-            st.rerun()
-        if listing_status=='Live' and c_market.button('View in Marketplace',key=f'view_marketplace_after_save_{key}_{int(pid or 0)}'):
-            st.session_state['product_id']=int(pid or 0)
-            product_detail(int(pid or 0))
-        elif listing_status=='Draft':
-            c_market.info('Publish to show this item in Marketplace.')
-        if c_add.button('Add Another Item',key=f'add_another_after_save_{key}_{int(pid or 0)}'):
-            st.session_state['pending_seller_tools_primary_section']='Add Inventory'
-            st.rerun()
-        if listing_status=='Draft':
-            c_publish=st.columns(1)[0]
-            if can_publish and c_publish.button('Publish to My Store',key=f'publish_after_save_{key}_{int(pid or 0)}'):
-                core_update('products',{'listing_status':'Live','updated_at':now()},{'id':int(pid),'seller_id':int(sid)},'UPDATE products SET listing_status=?,updated_at=? WHERE id=? AND seller_id=?',('Live',now(),int(pid),int(sid)))
-                st.success('Published. This item is now live in your store.')
-                st.session_state['pending_seller_tools_primary_section']='My Inventory'
-                st.rerun()
-            elif not is_approved:
-                c_publish.info('Seller approval required before publishing.')
-            elif not rules_ok:
-                c_publish.info('Accept seller rules before publishing.')
     last_id=int(st.session_state.get('last_saved_listing_id') or 0)
     last_sid=int(st.session_state.get('last_saved_listing_seller_id') or 0)
     if last_id and last_sid==int(sid):
@@ -6643,7 +6614,7 @@ def upload_product(sid,key):
             with st.container(border=True):
                 st.write(f"**Last saved item:** {safe(last_row.iloc[0].get('artist'))} - {safe(last_row.iloc[0].get('title'))}")
                 st.write(f"**Status:** {current_status}")
-                a,b,c=st.columns(3)
+                a,b,c,d=st.columns(4)
                 if current_status=='Live' and a.button('View in Marketplace',key=f'persistent_view_marketplace_{last_id}'):
                     st.session_state['product_id']=last_id
                     product_detail(last_id)
@@ -6653,12 +6624,19 @@ def upload_product(sid,key):
                     if can_publish and b.button('Publish to My Store',key=f'persistent_publish_listing_{last_id}'):
                         core_update('products',{'listing_status':'Live','updated_at':now()},{'id':last_id,'seller_id':int(sid)},'UPDATE products SET listing_status=?,updated_at=? WHERE id=? AND seller_id=?',('Live',now(),last_id,int(sid)))
                         st.success('Published. This item is now live in your store.')
+                        st.session_state['last_saved_listing_status']='Live'
                         st.rerun()
                     elif not is_approved:
                         b.info('Seller approval required before publishing.')
                     elif not rules_ok:
                         b.info('Accept seller rules before publishing.')
-                if c.button('Clear last saved item',key=f'clear_last_saved_listing_{last_id}'):
+                if c.button('View in My Inventory',key=f'persistent_view_inventory_{last_id}'):
+                    st.session_state['pending_seller_tools_primary_section']='My Inventory'
+                    st.rerun()
+                if d.button('Add Another Item',key=f'persistent_add_another_{last_id}'):
+                    st.session_state['pending_seller_tools_primary_section']='Add Inventory'
+                    st.rerun()
+                if st.button('Clear last saved item',key=f'clear_last_saved_listing_{last_id}'):
                     st.session_state.pop('last_saved_listing_id',None)
                     st.session_state.pop('last_saved_listing_seller_id',None)
                     st.session_state.pop('last_saved_listing_status',None)
@@ -7056,7 +7034,6 @@ def seller_dashboard():
         seller_onboarding_checklist(sid,s)
         if not hosted_enabled():
             st.warning('For real tester data persistence, connect Supabase before collecting tester data. Local SQLite is for development and can reset on Streamlit Cloud.')
-        st.info('Use My Inventory to find everything you added. Use Add Inventory to create one new item.')
         primary_section=st.radio('Seller Tools section',['My Inventory','Add Inventory','My Store Profile','Buyer Requests','Seller Messages/Inquiries','More Tools'],horizontal=True,key='seller_tools_primary_section_auth')
         if primary_section=='My Inventory':
             seller_listings_manager(sid,'primary_my_inventory')
@@ -7077,6 +7054,7 @@ def seller_dashboard():
             seller_inquiry_view(sid)
             return
         seller_inventory_visibility_summary(sid)
+        seller_more_tools_tabs(sid)
         return
     st.caption('Admin/testing seller store inspection is enabled.')
     sellers=table('sellers')
@@ -7116,7 +7094,6 @@ def seller_dashboard():
     seller_onboarding_checklist(sid,s)
     if not hosted_enabled():
         st.warning('For real tester data persistence, connect Supabase before collecting tester data. Local SQLite is for development and can reset on Streamlit Cloud.')
-    st.info('Use My Inventory to find everything you added. Use Add Inventory to create one new item.')
     primary_section=st.radio('Seller Tools section',['My Inventory','Add Inventory','My Store Profile','Buyer Requests','Seller Messages/Inquiries','More Tools'],horizontal=True,key='seller_tools_primary_section')
     if primary_section=='My Inventory':
         seller_listings_manager(sid,'primary_my_inventory')
@@ -7137,6 +7114,9 @@ def seller_dashboard():
         seller_inquiry_view(sid)
         return
     seller_inventory_visibility_summary(sid)
+    seller_more_tools_tabs(sid)
+
+def seller_more_tools_tabs(sid):
     st.caption('My Store Profile, Add Inventory, My Inventory, Seller Messages/Inquiries, and Buyer Requests are in the radio above. A few less-frequent tools are below.')
     tabs=st.tabs(['Bulk import','Announcements','Events/drops'])
     with tabs[0]:

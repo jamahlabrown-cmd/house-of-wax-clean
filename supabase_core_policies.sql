@@ -172,6 +172,19 @@ on products for update to authenticated
 using (seller_id in (select seller_id from app_users where auth_user_id = auth.uid()))
 with check (seller_id in (select seller_id from app_users where auth_user_id = auth.uid()));
 
+-- Buy Now (and accepting a seller's counter-offer) reserves the listing
+-- itself (listing_status -> Pending Pickup/Payment) at the moment the buyer
+-- clicks, before the seller does anything -- see reserve_listing_for_payment()
+-- in app.py. Without this, that update was silently rejected by RLS (no
+-- policy let a buyer touch products at all), which surfaced as a raw
+-- "Supabase update failed for products: HTTP 403" error banner sitting right
+-- next to the "Bought!" success message on every Buy Now click.
+drop policy if exists "buyer reserve product for own purchase" on public."products";
+create policy "buyer reserve product for own purchase"
+on products for update to authenticated
+using (id in (select product_id from purchase_requests where buyer_id in (select buyer_id from app_users where auth_user_id = auth.uid())))
+with check (id in (select product_id from purchase_requests where buyer_id in (select buyer_id from app_users where auth_user_id = auth.uid())));
+
 drop policy if exists "public read product gallery for public products" on public."product_gallery";
 create policy "public read product gallery for public products"
 on product_gallery for select to anon, authenticated

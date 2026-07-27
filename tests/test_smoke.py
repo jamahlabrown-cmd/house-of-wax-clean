@@ -425,3 +425,36 @@ def test_account_page_has_no_buying_selling_metric_banners():
 
     metric_labels = [m.label for m in at.get("metric")]
     assert metric_labels == [], f"Expected no metric banners on My Account, got {metric_labels}"
+
+
+def _reservation_failure_probe():
+    import app as hw_app
+    hw_app.reserve_listing_for_payment(1, 1)
+
+
+def test_reservation_failure_is_surfaced_not_silently_swallowed(monkeypatch):
+    # Regression guard for a real production bug: reserve_listing_for_payment()
+    # updates BOTH products.listing_status and purchase_requests.payment_due_at.
+    # In production this update to `products` happens under the BUYER's own
+    # RLS session (they're the one clicking Buy Now), but no RLS policy ever
+    # granted a buyer UPDATE rights on products -- so the write was silently
+    # rejected while the purchase_requests row still saved fine. The buyer
+    # saw a raw "Supabase update failed for products: HTTP 403" error banner
+    # sitting right next to the "Bought!" success message, which read as
+    # "none of the buttons work" (reported directly by the founder). Fixed
+    # with a new RLS policy (supabase_core_policies.sql: "buyer reserve
+    # product for own purchase") AND by checking the result here instead of
+    # assuming success -- this test guards the latter half, since RLS itself
+    # can't be exercised against local SQLite (no RLS engine at all).
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "core_update", lambda table_name, *a, **k: table_name != "products")
+
+    at = AppTest.from_function(_reservation_failure_probe, default_timeout=30)
+    at.run()
+    assert not at.exception, at.exception
+
+    errors = [e.value for e in at.error]
+    assert any("could not reserve the listing" in e for e in errors), (
+        f"Expected the reservation-failure error to be surfaced, got errors={errors}"
+    )

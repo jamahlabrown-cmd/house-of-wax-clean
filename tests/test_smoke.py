@@ -295,3 +295,111 @@ def test_buyer_can_save_avatar_url_to_profile():
     assert ok
     b = hw_app.get_buyer(buyer_id)
     assert b.get("avatar_url") == "house_of_wax_uploads/buyer_avatars/test.png"
+
+
+def _new_isolated_product(hw_app, seller_id, title):
+    # ensure_product() reuses whatever product row already exists in the
+    # shared SQLite file, which collides across tests in the same pytest
+    # run for anything that mutates listing_status/purchase_requests (like
+    # the payment-window tests below). Insert a dedicated row instead.
+    hw_app.run(
+        '''INSERT INTO products(seller_id,sku,barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,condition_notes,description,price,quantity,shipping_price,image_url,video_url,audio_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+        (seller_id, '', '', '', '', 'Vinyl Records', 'Isolated Test Artist', title, 'Vinyl', '', '1999', 'Soul', 'VG+', 'VG', '', 'Isolated test product.', 24.99, 1, 5.00, '', '', '', '', 'Live', 'Fixed Price', hw_app.now(), hw_app.now()),
+    )
+    return int(hw_app.df("SELECT id FROM products WHERE title=? ORDER BY id DESC LIMIT 1", (title,)).iloc[0]['id'])
+
+
+def _real_buyer_session(at, hw_app, buyer_id, buyer_email):
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,buyer_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        ("real-buyer-uuid", buyer_email, "Real Buyer", "Buyer", buyer_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": "real-buyer-uuid", "email": buyer_email, "access_token": "fake"}
+    at.run()
+
+
+def test_buy_now_reserves_listing_and_starts_five_day_payment_window():
+    # Regression guard for the new payment-window policy: clicking Buy Now
+    # used to create a purchase_request at status='New' and leave the
+    # listing_status untouched (Live) until the seller manually clicked
+    # "Mark Seller Accepted" -- an unbounded wait with no deadline, and the
+    # item stayed buyable by someone else in the meantime. Buy Now should now
+    # go straight to 'Seller Accepted', reserve the listing (Pending
+    # Pickup/Payment) so nobody else can buy it, and set a payment_due_at
+    # five days out -- all in the same click, no seller action required.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+
+    buyer_id = hw_app.ensure_buyer()
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Buy Now Window Test Album")
+    buyer = hw_app.get_buyer(buyer_id)
+
+    _real_buyer_session(at, hw_app, buyer_id, buyer["email"])
+    goto(at, "Search Music", area_key="marketplace_navigation")
+    at.session_state["product_id"] = int(product_id)
+    at.run()
+    assert not at.exception, at.exception
+
+    buy_button = next(b for b in at.button if b.key == f"purchase_buy_now_product_{product_id}")
+    buy_button.click().run()
+    assert not at.exception, at.exception
+
+    pr = hw_app.df("SELECT * FROM purchase_requests WHERE product_id=? ORDER BY id DESC LIMIT 1", (product_id,))
+    assert not pr.empty, "Expected a purchase_requests row to be created"
+    row = pr.iloc[0]
+    assert row["status"] == "Seller Accepted", f"Expected instant reservation, got status={row['status']!r}"
+    assert row["payment_due_at"], "Expected payment_due_at to be set"
+
+    from datetime import datetime as _dt
+    due = _dt.fromisoformat(row["payment_due_at"])
+    days_out = (due - _dt.now()).total_seconds() / 86400
+    assert 4.9 <= days_out <= 5.1, f"Expected ~5 days out, got {days_out:.2f} days"
+
+    product = hw_app.df("SELECT listing_status FROM products WHERE id=?", (product_id,))
+    assert product.iloc[0]["listing_status"] == "Pending Pickup/Payment", (
+        "Expected the listing to be reserved (taken off the market) immediately on Buy Now"
+    )
+
+    successes = [s.value for s in at.success]
+    assert any("Pay by" in s for s in successes), f"Expected a 'Pay by <date>' message, got {successes}"
+
+
+def test_missed_payment_window_releases_listing_and_strikes_buyer():
+    # Regression guard: the auto-expiration side of the same policy. If a
+    # buyer's payment_due_at passes while still 'Seller Accepted', the
+    # request should flip to 'Buyer Did Not Pay', the listing should go back
+    # to Live (so someone else can buy it), and the buyer should get a
+    # strike on their account -- all without any admin/seller action, since
+    # Streamlit has no background scheduler and this runs lazily from
+    # header() on the next page load.
+    import app as hw_app
+    from datetime import datetime as _dt, timedelta as _td
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+
+    buyer_id = hw_app.ensure_buyer()
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Missed Payment Window Test Album")
+    starting_strikes = int(hw_app.get_buyer(buyer_id).get("strikes") or 0)
+
+    overdue_due = (_dt.now() - _td(days=1)).isoformat(timespec="seconds")
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,status,payment_due_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (product_id, seller_id, buyer_id, "Overdue Buyer", "overdue@example.com", "Seller Accepted", overdue_due, hw_app.now(), hw_app.now()),
+    )
+    hw_app.run("UPDATE products SET listing_status='Pending Pickup/Payment' WHERE id=?", (product_id,))
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()  # header() runs on this first load -- the sweep has no prior throttle timestamp yet
+    assert not at.exception, at.exception
+
+    pr = hw_app.df("SELECT * FROM purchase_requests WHERE product_id=? AND buyer_name='Overdue Buyer'", (product_id,))
+    assert pr.iloc[0]["status"] == "Buyer Did Not Pay", f"Expected auto-expiry, got status={pr.iloc[0]['status']!r}"
+
+    product = hw_app.df("SELECT listing_status FROM products WHERE id=?", (product_id,))
+    assert product.iloc[0]["listing_status"] == "Live", "Expected the listing to be released back to Live"
+
+    ending_strikes = int(hw_app.get_buyer(buyer_id).get("strikes") or 0)
+    assert ending_strikes == starting_strikes + 1, f"Expected a strike added, got {starting_strikes} -> {ending_strikes}"

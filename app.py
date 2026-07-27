@@ -9,7 +9,7 @@ import secrets
 from uuid import uuid4
 from urllib.parse import quote_plus
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import requests
 import anthropic
@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.107 FIX: WANT LIST CLEARS ON ADD, BUYER PHOTO, LESS SELLER TAB CLUTTER'
+APP_VERSION='V25.43.108 ADD: 5-DAY PAYMENT WINDOW ON BUY NOW, AUTO-EXPIRE, BUYER STRIKES'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -978,7 +978,7 @@ SELLER_STATUSES=['Pending Seller Approval','Approved Seller','Suspended Seller']
 LISTING_STATUSES=['Draft','Live','Hidden','Sold','Reported','Under Review','Removed by House Of Wax']
 PUBLIC_LISTING_STATUSES=['Live','Active','Approved','Public']
 INQUIRY_STATUSES=['New','Seller Responded','Closed']
-PURCHASE_REQUEST_STATUSES=['New','Offer Pending','Seller Countered','Seller Accepted','Seller Declined','Pending Pickup/Payment','Sold','Closed']
+PURCHASE_REQUEST_STATUSES=['New','Offer Pending','Seller Countered','Seller Accepted','Seller Declined','Pending Pickup/Payment','Sold','Buyer Did Not Pay','Closed']
 UNAVAILABLE_LISTING_STATUSES=['Pending Pickup/Payment','Pending','Sold']
 ACCOUNT_ROLES=['Buyer','Seller','Admin']
 KEY_DATA_TABLES=['app_users','products','sellers','listing_inquiries','purchase_requests','product_gallery','tester_feedback','listing_reports']
@@ -1213,7 +1213,7 @@ def setup():
     cur.execute('''CREATE TABLE IF NOT EXISTS feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER,reviewer_type TEXT,reviewer_id INTEGER,reviewee_type TEXT,reviewee_id INTEGER,rating INTEGER,comment TEXT,public TEXT DEFAULT 'Yes',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,sender_type TEXT,subject TEXT,message TEXT,status TEXT DEFAULT 'New',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS listing_inquiries(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,message TEXT,status TEXT DEFAULT 'New',created_at TEXT,updated_at TEXT)''')
-    cur.execute('''CREATE TABLE IF NOT EXISTS purchase_requests(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,fulfillment_preference TEXT,offer_price REAL DEFAULT 0,buyer_message TEXT,status TEXT DEFAULT 'New',created_at TEXT,updated_at TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS purchase_requests(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,fulfillment_preference TEXT,offer_price REAL DEFAULT 0,buyer_message TEXT,status TEXT DEFAULT 'New',payment_due_at TEXT,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS want_list(id INTEGER PRIMARY KEY AUTOINCREMENT,buyer_id INTEGER,artist TEXT,title TEXT,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_reviews(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,buyer_id INTEGER,purchase_request_id INTEGER,product_id INTEGER,rating INTEGER,review_text TEXT,buyer_display_name TEXT,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS avatar_faq_videos(id INTEGER PRIMARY KEY AUTOINCREMENT,question TEXT,video_url TEXT,display_order INTEGER DEFAULT 0,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)''')
@@ -1311,7 +1311,7 @@ def setup():
         created_at TEXT
     )""")
     c.commit(); c.close()
-    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','avatar_url':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT','paypal_link':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT','reference_image_url':'TEXT'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'knowledge_posts':{'video_url':'TEXT'},'homepage_blocks':{'video_url':'TEXT'},'purchase_requests':{'counter_price':'REAL','counter_message':'TEXT'},'newsletter_signups':{'interest':'TEXT','updated_at':'TEXT'},'culture_posts':{'seller_id':'INTEGER'}}
+    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','avatar_url':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT','paypal_link':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT','reference_image_url':'TEXT'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'knowledge_posts':{'video_url':'TEXT'},'homepage_blocks':{'video_url':'TEXT'},'purchase_requests':{'counter_price':'REAL','counter_message':'TEXT','payment_due_at':'TEXT'},'newsletter_signups':{'interest':'TEXT','updated_at':'TEXT'},'culture_posts':{'seller_id':'INTEGER'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
     try:
@@ -1472,8 +1472,9 @@ def setup():
     old_v25_43_104_announcement='V25.43.104'+' Simplify: Buy is now one click, offer/ask collapse known contact info active'
     old_v25_43_105_announcement='V25.43.105'+' Simplify: tester scaffolding hidden from real visitors, Buy opens first active'
     old_v25_43_106_announcement='V25.43.106'+' Simplify: Add Inventory streamlined to 5 steps, one save message; fix: real sellers can now reach Bulk Import/Announcements/Events active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement]:
-        set_setting('announcement','V25.43.107 Fix: Want List clears after adding, buyers can add a profile photo, less repeated seller status text active')
+    old_v25_43_107_announcement='V25.43.107'+' Fix: Want List clears after adding, buyers can add a profile photo, less repeated seller status text active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement]:
+        set_setting('announcement','V25.43.108 Add: Buy Now reserves the item and starts a 5-day payment window, auto-expires with a buyer strike active')
 setup()
 recovery_token_bridge()
 
@@ -2213,6 +2214,7 @@ def render_seller_trust_badges(sid, context='public'):
 # ---------- UI helpers ----------
 def header(show_badges=True):
     apply_brand_style()
+    expire_overdue_purchase_requests()
     st.title('🎧 House Of Wax')
     st.caption(setting('site_tagline'))
     if show_badges:
@@ -2699,18 +2701,33 @@ def render_purchase_request_form(p, key_prefix):
     def send_purchase_request(name,contact,method,fulfillment,message):
         if not safe(name) or not safe(contact):
             st.warning('Add your name and contact info before sending a purchase request.')
-            return
-        data={'product_id':int(p['id']),'seller_id':int(p['seller_id']),'buyer_id':int(buyer_id or 0),'buyer_name':name,'buyer_contact':contact,'preferred_contact_method':method,'fulfillment_preference':fulfillment,'offer_price':0.0,'buyer_message':message,'status':'New','created_at':now(),'updated_at':now()}
+            return None
+        data={'product_id':int(p['id']),'seller_id':int(p['seller_id']),'buyer_id':int(buyer_id or 0),'buyer_name':name,'buyer_contact':contact,'preferred_contact_method':method,'fulfillment_preference':fulfillment,'offer_price':0.0,'buyer_message':message,'status':'Seller Accepted','created_at':now(),'updated_at':now()}
         new_id=core_insert('purchase_requests',data,'''INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,preferred_contact_method,fulfillment_preference,offer_price,buyer_message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['product_id','seller_id','buyer_id','buyer_name','buyer_contact','preferred_contact_method','fulfillment_preference','offer_price','buyer_message','status','created_at','updated_at']))
         if new_id or not hosted_enabled():
             clear_pending_action()
-            st.success(f"Bought — request sent to the seller for {money(p['price'])}. They'll confirm, then you'll see payment instructions right here.")
+            due=reserve_listing_for_payment(new_id or 0,int(p['id']))
+            st.session_state[f'bought_due_{key_prefix}']=due
+            return due
         else:
             st.error('Purchase request could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
+            return None
 
     if st.button(f"Buy Now — {money(p['price'])}",key=f'purchase_buy_now_{key_prefix}',width='stretch',type='primary'):
         send_purchase_request(buyer_name,buyer_contact,'House Of Wax message','Shipping','')
-    st.caption("Sends a request to the seller to confirm it's available — you'll get payment instructions here once they accept. Want a different price? Use Make an Offer instead.")
+    st.caption(f"It's yours the moment you click Buy — House Of Wax reserves it and you have {PAYMENT_WINDOW_DAYS} days to pay. If payment doesn't arrive in time, the item goes back on sale. Want a different price instead? Use Make an Offer.")
+    bought_due=st.session_state.get(f'bought_due_{key_prefix}')
+    if bought_due:
+        due_label=datetime.fromisoformat(bought_due).strftime('%B %d, %Y')
+        st.success(f"Bought — this item is reserved for you. Pay by **{due_label}** or you'll lose it.")
+        seller_full=get_seller_full(int(p['seller_id']))
+        amount=float(p['price'] or 0)
+        platform_cut=fee(amount)
+        seller_cut=round(amount-platform_cut,2)
+        st.caption(f"Total {money(amount)} = pay the seller {money(seller_cut)} + House Of Wax's platform fee ({commission_percent():.0f}%) {money(platform_cut)}, separately, directly.")
+        render_split_payment_line('Pay the seller',seller_full.get('paypal_link') if seller_full is not None else '',seller_cut,"This part goes straight to the seller's PayPal.",key=f'buy_now_pay_seller_{key_prefix}')
+        render_split_payment_line("Pay House Of Wax's platform fee",setting('house_of_wax_paypal_link'),platform_cut,'This part goes straight to House Of Wax.',key=f'buy_now_pay_platform_{key_prefix}')
+        st.caption('This also appears under My Account → Buying → My Purchase Requests any time you come back.')
     with st.expander('Change delivery details or add a note before buying'):
         with st.form(f'purchase_request_form_{key_prefix}'):
             name=st.text_input('Buyer name',value=buyer_name,key=f'purchase_name_{key_prefix}')
@@ -2720,7 +2737,8 @@ def render_purchase_request_form(p, key_prefix):
             message=st.text_area('Message to seller - optional',key=f'purchase_message_{key_prefix}',placeholder='Confirm availability, shipping/pickup details, or anything the seller should know.')
             sub=st.form_submit_button('Buy with these details')
         if sub:
-            send_purchase_request(name,contact,method,fulfillment,message)
+            if send_purchase_request(name,contact,method,fulfillment,message):
+                st.rerun()
 
 def render_offer_form(p, key_prefix):
     if not is_available_listing(p):
@@ -4159,6 +4177,9 @@ def buyer_workspace_tabs(bid):
     with tabs[0]:
         if safe(b.get('avatar_url')):
             safe_image(safe(b.get('avatar_url')),width=120,fallback_text='Profile photo unavailable.')
+        buyer_strikes=int(b.get('strikes') or 0)
+        if buyer_strikes:
+            st.warning(f"{buyer_strikes} strike{'s' if buyer_strikes!=1 else ''} on your account for not paying within the {PAYMENT_WINDOW_DAYS}-day window after Buy Now. Sellers can see this.")
         with st.form('bp_auth'):
             name=st.text_input('Name',value=safe(b['name']))
             phone=st.text_input('Phone',value=safe(b.get('phone')))
@@ -4202,6 +4223,8 @@ def buyer_workspace_tabs(bid):
                     amount=float(pr.get('offer_price') or 0) or float(pr.get('price') or 0)
                     with st.container(border=True):
                         st.write(f"**{safe(pr.get('artist'))} — {safe(pr.get('title'))}** from {safe(pr.get('store_name'))}")
+                        if safe(pr.get('status'))=='Seller Accepted' and safe(pr.get('payment_due_at')):
+                            st.warning(f"Pay by **{datetime.fromisoformat(safe(pr.get('payment_due_at'))).strftime('%B %d, %Y')}** or you'll lose this item.")
                         if amount>0:
                             platform_cut=fee(amount)
                             seller_cut=round(amount-platform_cut,2)
@@ -4235,7 +4258,8 @@ def buyer_workspace_tabs(bid):
                         cc1,cc2=st.columns(2)
                         if cc1.button('Accept Counter',key=f'buyer_accept_counter_{crid}',width='stretch'):
                             core_update('purchase_requests',{'status':'Seller Accepted','offer_price':float(cr.get('counter_price') or 0),'updated_at':now()},{'id':crid},'UPDATE purchase_requests SET status=?,offer_price=?,updated_at=? WHERE id=?',('Seller Accepted',float(cr.get('counter_price') or 0),now(),crid))
-                            st.success('Counter accepted. The seller will follow up on pickup/payment.')
+                            reserve_listing_for_payment(crid,int(cr.get('product_id')))
+                            st.success(f'Counter accepted. You have {PAYMENT_WINDOW_DAYS} days to pay -- see Ready to pay below.')
                             st.rerun()
                         if cc2.button('Decline Counter',key=f'buyer_decline_counter_{crid}',width='stretch'):
                             core_update('purchase_requests',{'status':'Closed','updated_at':now()},{'id':crid},'UPDATE purchase_requests SET status=?,updated_at=? WHERE id=?',('Closed',now(),crid))
@@ -6708,6 +6732,20 @@ def admin_inquiry_view():
     if st.button('Mark Inquiry Closed',key=f'admin_inquiry_closed_{iid}'):
         core_update('listing_inquiries',{'status':'Closed','updated_at':now()},{'id':iid},"UPDATE listing_inquiries SET status='Closed',updated_at=? WHERE id=?",(now(),iid)); st.success('Inquiry closed.')
 
+PAYMENT_WINDOW_DAYS=5
+
+def payment_due_at_string():
+    return (datetime.now()+timedelta(days=PAYMENT_WINDOW_DAYS)).isoformat(timespec='seconds')
+
+def reserve_listing_for_payment(request_id, product_id):
+    # A price is agreed and the item is off the market for anyone else --
+    # start the payment clock right now. expire_overdue_purchase_requests()
+    # is what actually enforces the deadline later.
+    due=payment_due_at_string()
+    core_update('products',{'listing_status':'Pending Pickup/Payment','updated_at':now()},{'id':int(product_id)},"UPDATE products SET listing_status='Pending Pickup/Payment',updated_at=? WHERE id=?",(now(),int(product_id)))
+    core_update('purchase_requests',{'payment_due_at':due},{'id':int(request_id)},'UPDATE purchase_requests SET payment_due_at=? WHERE id=?',(due,int(request_id)))
+    return due
+
 def update_purchase_request_status(request_id, status, seller_id=None):
     if seller_id is None:
         req=hosted_select('purchase_requests',{'id':int(request_id)},limit=1) if hosted_enabled() else df('SELECT product_id FROM purchase_requests WHERE id=?',(int(request_id),))
@@ -6717,11 +6755,13 @@ def update_purchase_request_status(request_id, status, seller_id=None):
         core_update('purchase_requests',{'status':status,'updated_at':now()},{'id':int(request_id),'seller_id':int(seller_id)},'UPDATE purchase_requests SET status=?,updated_at=? WHERE id=? AND seller_id=?',(status,now(),int(request_id),int(seller_id)))
     if not req.empty:
         pid=int(req.iloc[0]['product_id'])
-        if status=='Pending Pickup/Payment':
+        if status=='Seller Accepted':
+            reserve_listing_for_payment(request_id,pid)
+        elif status=='Pending Pickup/Payment':
             core_update('products',{'listing_status':'Pending Pickup/Payment','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Pending Pickup/Payment',updated_at=? WHERE id=?",(now(),pid))
         elif status=='Sold':
             core_update('products',{'listing_status':'Sold','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Sold',updated_at=? WHERE id=?",(now(),pid))
-        elif status in ('Seller Declined','Closed'):
+        elif status in ('Seller Declined','Closed','Buyer Did Not Pay'):
             # A deal that fell through used to leave the listing stuck at
             # Pending Pickup/Payment forever, permanently hiding it from
             # buyers even though nothing was ever sold. Return it to Live,
@@ -6734,6 +6774,38 @@ def update_purchase_request_status(request_id, status, seller_id=None):
                 still_active=siblings[siblings['status'].isin(['Pending Pickup/Payment','Seller Accepted','Offer Pending','Seller Countered']) & (siblings['id'].astype(int)!=int(request_id))] if not siblings.empty else siblings
                 if still_active.empty:
                     core_update('products',{'listing_status':'Live','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Live',updated_at=? WHERE id=?",(now(),pid))
+
+def expire_overdue_purchase_requests():
+    # Streamlit has no background scheduler, so the 5-day payment deadline is
+    # enforced lazily: this runs from header() (every page) with a session
+    # throttle so it doesn't re-scan on every single widget rerun. A buyer
+    # who doesn't pay in time loses the item (it's released back to Live)
+    # and gets a strike on their buyer profile -- see the House Of Wax
+    # payment-window policy this implements.
+    last=st.session_state.get('_payment_expiry_sweep_at')
+    if last:
+        try:
+            if (datetime.now()-datetime.fromisoformat(last)).total_seconds()<60:
+                return
+        except Exception:
+            pass
+    st.session_state['_payment_expiry_sweep_at']=now()
+    overdue=hosted_select('purchase_requests',{'status':'Seller Accepted'}) if hosted_enabled() else df("SELECT * FROM purchase_requests WHERE status='Seller Accepted'")
+    if overdue.empty:
+        return
+    nowstr=now()
+    for _,row in overdue.iterrows():
+        due=safe(row.get('payment_due_at'))
+        if not due or due>nowstr:
+            continue
+        rid=int(row['id'])
+        update_purchase_request_status(rid,'Buyer Did Not Pay')
+        buyer_id=row.get('buyer_id')
+        if safe(buyer_id):
+            buyer=get_buyer(int(buyer_id))
+            if buyer is not None:
+                new_strikes=int(buyer.get('strikes') or 0)+1
+                core_update('buyers',{'strikes':new_strikes},{'id':int(buyer_id)},'UPDATE buyers SET strikes=? WHERE id=?',(new_strikes,int(buyer_id)))
 
 def seller_purchase_request_view(sid):
     st.subheader('Purchase requests')
@@ -6756,7 +6828,10 @@ def seller_purchase_request_view(sid):
     with st.container(border=True):
         st.write(f"**Listing:** {safe(row.get('artist'))} - {safe(row.get('title'))}")
         st.write(f"**Listing status:** {safe(row.get('listing_status'))}")
-        st.write(f"**Buyer:** {safe(row.get('buyer_name'))}")
+        buyer_record=get_buyer(int(row.get('buyer_id'))) if safe(row.get('buyer_id')) else None
+        buyer_strikes=int(buyer_record.get('strikes') or 0) if buyer_record is not None else 0
+        strike_note=f" ⚠️ {buyer_strikes} unpaid strike{'s' if buyer_strikes!=1 else ''} on record" if buyer_strikes else ''
+        st.write(f"**Buyer:** {safe(row.get('buyer_name'))}{strike_note}")
         st.write(f"**Buyer contact:** {safe(row.get('buyer_contact'))}")
         st.write(f"**Preferred contact method:** {safe(row.get('preferred_contact_method'))}")
         st.write(f"**Pickup/shipping:** {safe(row.get('fulfillment_preference'))}")
@@ -6769,10 +6844,14 @@ def seller_purchase_request_view(sid):
         st.write(f"**Message:** {safe(row.get('buyer_message'),'No message.')}")
         if float(row.get('counter_price') or 0)>0:
             st.write(f"**Your counter:** {money(row.get('counter_price'))} — {safe(row.get('counter_message'),'No message.')}")
+        if safe(row.get('status'))=='Seller Accepted' and safe(row.get('payment_due_at')):
+            st.warning(f"Buyer must pay by **{datetime.fromisoformat(safe(row.get('payment_due_at'))).strftime('%B %d, %Y')}**. If they don't, this releases back to Live automatically and a strike is added to their buyer account.")
+        elif safe(row.get('status'))=='Buyer Did Not Pay':
+            st.error("Buyer did not pay within the window. This listing was released back to Live and the buyer's account received a strike.")
         st.caption(f"Request status: {safe(row.get('status'))} • Received {safe(row.get('created_at'))}")
     c1,c2,c3,c4,c5=st.columns(5)
     if c1.button('Mark Seller Accepted',key=f'seller_purchase_accept_{rid}'):
-        update_purchase_request_status(rid,'Seller Accepted',sid); st.success('Purchase request accepted.')
+        update_purchase_request_status(rid,'Seller Accepted',sid); st.success(f'Accepted. The buyer now has {PAYMENT_WINDOW_DAYS} days to pay.')
     if c2.button('Mark Seller Declined',key=f'seller_purchase_decline_{rid}'):
         update_purchase_request_status(rid,'Seller Declined',sid); st.warning('Purchase request declined.')
     if c3.button('Mark Pending Pickup/Payment',key=f'seller_purchase_pending_{rid}'):
@@ -6818,7 +6897,10 @@ def admin_purchase_request_view():
         st.write(f"**Seller:** {safe(row.get('store_name'))}")
         st.write(f"**Listing:** {safe(row.get('artist'))} - {safe(row.get('title'))}")
         st.write(f"**Listing status:** {safe(row.get('listing_status'))}")
-        st.write(f"**Buyer:** {safe(row.get('buyer_name'))} • {safe(row.get('buyer_contact'))}")
+        buyer_record=get_buyer(int(row.get('buyer_id'))) if safe(row.get('buyer_id')) else None
+        buyer_strikes=int(buyer_record.get('strikes') or 0) if buyer_record is not None else 0
+        strike_note=f" ⚠️ {buyer_strikes} unpaid strike{'s' if buyer_strikes!=1 else ''} on record" if buyer_strikes else ''
+        st.write(f"**Buyer:** {safe(row.get('buyer_name'))} • {safe(row.get('buyer_contact'))}{strike_note}")
         st.write(f"**Pickup/shipping:** {safe(row.get('fulfillment_preference'))}")
         row_amount=float(row.get('offer_price') or 0) or float(row.get('price') or 0)
         st.write(f"**Offer:** {money(row.get('offer_price')) if float(row.get('offer_price') or 0)>0 else 'No offer entered'}")
@@ -6829,6 +6911,10 @@ def admin_purchase_request_view():
         st.write(f"**Message:** {safe(row.get('buyer_message'),'No message.')}")
         if float(row.get('counter_price') or 0)>0:
             st.write(f"**Seller counter:** {money(row.get('counter_price'))} — {safe(row.get('counter_message'),'No message.')}")
+        if safe(row.get('status'))=='Seller Accepted' and safe(row.get('payment_due_at')):
+            st.caption(f"Payment due by {datetime.fromisoformat(safe(row.get('payment_due_at'))).strftime('%B %d, %Y')}.")
+        elif safe(row.get('status'))=='Buyer Did Not Pay':
+            st.caption("Buyer missed the payment window -- listing released, buyer got a strike.")
         st.caption(f"Request status: {safe(row.get('status'))} • Received {safe(row.get('created_at'))}")
     if st.button('Mark Purchase Request Closed',key=f'admin_purchase_closed_{rid}'):
         update_purchase_request_status(rid,'Closed'); st.success('Purchase request closed.')

@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.118 FIX: MOBILE QUICK-NAV BAR WAS MISSING THE CART BUTTON'
+APP_VERSION='V25.43.119 FIX: MENU ICON UNLABELED, TWO BARCODE FIELDS LOOKED LIKE SEPARATE STEPS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1487,8 +1487,9 @@ def setup():
     old_v25_43_115_announcement='V25.43.115'+' Add: shopping cart foundation -- Add to Cart on every listing, more coming active'
     old_v25_43_116_announcement='V25.43.116'+' Add: Cart page and checkout, grouped by seller like Discogs active'
     old_v25_43_117_announcement='V25.43.117'+' Add: one combined PayPal payment per seller instead of one per item active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement]:
-        set_setting('announcement','V25.43.118 Fix: the mobile quick-nav bar was missing the Cart button active')
+    old_v25_43_118_announcement='V25.43.118'+' Fix: the mobile quick-nav bar was missing the Cart button active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement]:
+        set_setting('announcement','V25.43.119 Fix: labeled the sidebar menu icon, made barcode search Step 1 of one flow instead of a separate box active')
 setup()
 recovery_token_bridge()
 
@@ -1691,6 +1692,40 @@ def apply_brand_style():
     section[data-testid="stSidebar"] .stFormSubmitButton > button *,
     section[data-testid="stSidebar"] .stDownloadButton > button * {
         color: #0b0b0b !important;
+    }
+
+    [data-testid="stExpandSidebarButton"],
+    [data-testid="stSidebarCollapseButton"] {
+        background: var(--how-gold) !important;
+        border-radius: 8px !important;
+        opacity: 1 !important;
+        position: relative !important;
+        overflow: visible !important;
+    }
+
+    [data-testid="stExpandSidebarButton"] svg,
+    [data-testid="stSidebarCollapseButton"] svg {
+        fill: #0b0b0b !important;
+        color: #0b0b0b !important;
+    }
+
+    [data-testid="stExpandSidebarButton"]::after {
+        content: "Menu";
+        position: absolute;
+        left: 100%;
+        top: 50%;
+        transform: translateY(-50%);
+        margin-left: 8px;
+        background: var(--how-gold);
+        color: #0b0b0b;
+        font-size: .72rem;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        padding: 4px 10px;
+        border-radius: 6px;
+        white-space: nowrap;
+        pointer-events: none;
     }
 
     .stTabs [data-baseweb="tab-list"] {
@@ -6210,9 +6245,9 @@ def lookup_barcode(barcode):
 
 def render_barcode_lookup_widget(key_prefix='main'):
     seed_listing_media_policy()
-    st.markdown('### Barcode / UPC lookup')
+    st.markdown('#### Step 1: Search by barcode (optional but recommended)')
     st.write('For records, CDs, and cassettes, scan or type the barcode. House Of Wax checks its own release database first, then outside sources for release information and cover art. For shirts, dolls, memorabilia, merch, and accessories, sellers should use a photo of the exact item or an official product image.')
-    st.caption('Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches.')
+    st.caption('Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches. This is the only barcode box you need here -- the one further down under "Confirm item details" just shows what it found, in case you want to fix a typo.')
     with st.expander('Scanning with your phone? Here\'s the fastest way',expanded=False):
         st.write("On Android, point Google Lens (already on your phone) at the barcode and copy the number it reads.")
         st.write("On iPhone, search your App Store for a free barcode or UPC scanner app, scan the item, then copy the number it shows.")
@@ -6619,7 +6654,7 @@ def upload_product(sid,key):
         source_bits=[v for v in [defaults.get('artist'),defaults.get('title'),defaults.get('label'),defaults.get('release_year')] if safe(v)]
         if source_bits:
             st.info('House Of Wax search/database fields are prefilled below. Review them before submitting.')
-    st.markdown('#### Step 1: What are you selling, and what condition is it in?')
+    st.markdown('#### Step 2: What are you selling, and what condition is it in?')
     st.caption('Fill these in first so House Of Wax can look up real market data and suggest a price -- better condition supports a higher price.')
     ca1,ca2=st.columns(2)
     artist=ca1.text_input('Artist / Brand - usually auto-filled',value=defaults.get('artist',''),key=f'upload_live_artist_{key}',help='Usually filled automatically after search. Typing here updates the price suggestion below immediately.')
@@ -6667,8 +6702,8 @@ def upload_product(sid,key):
         grade_note=f" for {price_suggestion['grade_used']} condition" if price_suggestion.get('grade_used') else ''
         st.caption(f"Condition-adjusted estimate{grade_note}: {money(price_suggestion['low'])}–{money(price_suggestion['high'])}, based on {price_suggestion['source']} (algorithmic, less reliable than the real listings above).")
     with st.form(key):
-        st.markdown('#### Step 2: Confirm item details')
-        st.caption('Check category, format, label, and year below -- these may be filled automatically if the item was found above. (Artist and title were set in Step 1.)')
+        st.markdown('#### Step 3: Confirm item details')
+        st.caption('Check category, format, label, and year below -- these may be filled automatically if the item was found above. (Artist and title were set in Step 2.)')
         category=st.selectbox('Category - required',['Vinyl Records','CDs','Cassettes','Albums','Music Releases','Clothing','Music Memorabilia','Culture Goods','House Of Wax Merch','Official Drops','Slipmats & Accessories'])
         c7,c8,c9=st.columns(3)
         fmt_default=defaults.get('format','') or ('Vinyl' if category=='Vinyl Records' else '')
@@ -6678,12 +6713,12 @@ def upload_product(sid,key):
         genre=st.text_input('Genre / style - auto-filled if found',value=defaults.get('genre',''))
         with st.expander('Barcode, catalog number, matrix, or external release link'):
             c1,c2,c3=st.columns(3)
-            barcode=c1.text_input('Barcode / UPC / EAN',value=defaults.get('barcode',''),help='Filled automatically if you used barcode lookup above. You can also type or correct it here.')
+            barcode=c1.text_input('Barcode / UPC / EAN',value=defaults.get('barcode',''),help='Filled in from Step 1\'s barcode search. You can correct it here if it looks wrong.')
             catalog=c2.text_input('Catalog number - auto-filled if found',value=defaults.get('catalog_number',''))
             matrix=c3.text_input('Matrix / runout - optional')
             external_release_url=st.text_input('External release URL - optional',value=defaults.get('external_url',''))
 
-        st.markdown('#### Step 3: Add your selling details')
+        st.markdown('#### Step 4: Add your selling details')
         st.caption('Now add the details that are specific to the copy you are selling.')
         sku=st.text_input('SKU - optional')
         if is_music_category(category):
@@ -6711,7 +6746,7 @@ def upload_product(sid,key):
         if ship_error:
             st.warning(ship_error)
 
-        st.markdown('#### Step 4: Photos')
+        st.markdown('#### Step 5: Photos')
         st.caption('Prototype storage: uploaded images are saved locally under house_of_wax_uploads/product_images. Production launch should use hosted storage.')
         refimgurl=st.text_input('Reference image - official release art, auto-filled if found',value=defaults.get('image_url',''),help='This is official release art from the House Of Wax database or outside sources (Discogs/MusicBrainz), not a photo of your exact copy. It is shown to buyers labeled as reference art.')
         if safe(refimgurl):
@@ -6741,7 +6776,7 @@ def upload_product(sid,key):
         preview_image=main_img if main_img is not None else imgurl
         listing_preview_card(category,artist,title,fmt,label,year,genre,mg,sg,price,qty,ship,preview_image,preview_description,has_uploaded_photos,smart_confidence,'seller',uploaded_previews)
 
-        st.markdown('#### Step 5: Save or publish')
+        st.markdown('#### Step 6: Save or publish')
         st.caption('Save as Draft if you are not ready. Approved sellers can Publish to My Store after accepting House Of Wax seller rules.')
         st.info('Before publishing, confirm the item details, condition, price, and seller notes are accurate. You are responsible for your listing under House Of Wax rules.')
         if not is_approved:

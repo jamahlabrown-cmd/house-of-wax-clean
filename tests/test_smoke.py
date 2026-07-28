@@ -117,9 +117,9 @@ def test_house_of_wax_paypal_link_is_seeded():
     assert hw_app.setting("house_of_wax_paypal_link") == "mojo71mojo@yahoo.com"
 
 
-# ---------- Add Inventory: Step 1 structure (regression guard for V25.43.84-85) ----------
+# ---------- Add Inventory: Step 2 structure (regression guard for V25.43.84-85) ----------
 
-def test_add_inventory_step1_artist_title_are_outside_the_form():
+def test_add_inventory_step2_artist_title_are_outside_the_form():
     # These specific keys only exist because Artist/Title were deliberately
     # moved outside st.form so the price box can react to them live -- see
     # the V25.43.84 fix. If a future refactor moves them back inside the
@@ -132,7 +132,8 @@ def test_add_inventory_step1_artist_title_are_outside_the_form():
     assert not at.exception
 
     headings = [m.value for m in at.markdown]
-    assert any("Step 1: What are you selling" in h for h in headings)
+    assert any("Step 1: Search by barcode" in h for h in headings)
+    assert any("Step 2: What are you selling" in h for h in headings)
 
     live_artist_keys = [t.key for t in at.text_input if t.key and t.key.startswith("upload_live_artist_")]
     live_title_keys = [t.key for t in at.text_input if t.key and t.key.startswith("upload_live_title_")]

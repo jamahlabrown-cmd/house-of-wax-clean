@@ -605,6 +605,27 @@ on seller_reviews for all to authenticated
 using (is_admin_user())
 with check (is_admin_user());
 
+-- buyer_reviews mirrors seller_reviews (a seller reviewing a buyer after a
+-- sale), but there's no public buyer profile page in the app, so read access
+-- is scoped to authenticated only, not anon -- any signed-in seller can check
+-- a buyer's trust tier before accepting an offer, same as any signed-in
+-- buyer can see their own.
+drop policy if exists "authenticated read buyer reviews" on public."buyer_reviews";
+create policy "authenticated read buyer reviews"
+on buyer_reviews for select to authenticated
+using (true);
+
+drop policy if exists "seller create own buyer review" on public."buyer_reviews";
+create policy "seller create own buyer review"
+on buyer_reviews for insert to authenticated
+with check (seller_id in (select seller_id from app_users where auth_user_id = auth.uid()));
+
+drop policy if exists "admin manage buyer reviews" on public."buyer_reviews";
+create policy "admin manage buyer reviews"
+on buyer_reviews for all to authenticated
+using (is_admin_user())
+with check (is_admin_user());
+
 -- avatar_faq_videos is admin-authored FAQ content, publicly readable when
 -- Active -- same shape as homepage_blocks/quick_tips/did_you_know above.
 drop policy if exists "public read active avatar faq videos" on public."avatar_faq_videos";

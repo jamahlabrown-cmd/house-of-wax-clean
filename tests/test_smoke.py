@@ -458,6 +458,99 @@ def test_missed_payment_window_releases_listing_and_strikes_buyer():
     assert ending_strikes == starting_strikes + 1, f"Expected a strike added, got {starting_strikes} -> {ending_strikes}"
 
 
+# ---------- Buyer/seller trust tier (founder: grade based on volume + averaged feedback) ----------
+
+def test_trust_tier_gates_silver_and_gold_behind_a_real_average():
+    # Founder: "grade based on how many items they buy and sell... averaged
+    # based on your feedback and reviews." Design constraint from the
+    # follow-up discussion: volume alone must not be enough to reach
+    # Silver/Gold -- a high-volume account with a mediocre average should
+    # stay capped at Bronze.
+    import app as hw_app
+
+    assert hw_app.compute_trust_tier(0, None) == "New"
+    assert hw_app.compute_trust_tier(0, {"average": 5.0, "count": 3}) == "New", (
+        "Zero completed transactions should be New regardless of review average"
+    )
+    assert hw_app.compute_trust_tier(1, None) == "Bronze", "Any completed transaction with no reviews yet should be Bronze"
+    assert hw_app.compute_trust_tier(25, {"average": 2.0, "count": 25}) == "Bronze", (
+        "High volume with a poor average must NOT reach Silver/Gold"
+    )
+    assert hw_app.compute_trust_tier(3, {"average": 5.0, "count": 3}) == "Bronze", (
+        "A perfect average with too few transactions should not reach Silver yet"
+    )
+    assert hw_app.compute_trust_tier(5, {"average": 4.0, "count": 5}) == "Silver"
+    assert hw_app.compute_trust_tier(19, {"average": 5.0, "count": 19}) == "Silver", (
+        "Just under the Gold volume threshold should stay Silver even with a perfect average"
+    )
+    assert hw_app.compute_trust_tier(20, {"average": 4.5, "count": 20}) == "Gold"
+    assert hw_app.compute_trust_tier(20, {"average": 4.4, "count": 20}) == "Silver", (
+        "Just under the Gold average threshold should stay Silver even at high volume"
+    )
+
+
+def test_seller_profile_shows_real_trust_tier_not_static_fake_rating():
+    # The old "Rating {s['rating']}%" caption was a static field set to 100
+    # at seller creation and never recalculated by anything -- a fake number
+    # sitting next to the real review average shown further down the same
+    # page. It should be gone, replaced by the real tier/average.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    seller_id = hw_app.ensure_seller()
+    goto(at, "Seller Stores", area_key="marketplace_navigation")
+    at.session_state["seller_id"] = int(seller_id)
+    at.run()
+    assert not at.exception
+
+    all_text = [m.value for m in at.markdown] + [c.value for c in at.caption]
+    assert not any("Rating 100%" in t for t in all_text), "Static fake rating should be gone"
+    assert any(">New Seller<" in t or ">Bronze Seller<" in t for t in all_text), (
+        f"Expected a real trust-tier badge, got: {[t for t in all_text if 'Seller' in t]}"
+    )
+    assert any("completed seller transaction" in t for t in all_text), "Expected the real transaction-count caption"
+
+
+def test_seller_can_review_buyer_after_sale_and_it_feeds_the_buyers_tier():
+    # New capability: sellers previously had no way to review a buyer at all
+    # (only buyer -> seller reviews existed). This is the seller-side mirror,
+    # and it should be reflected the next time that buyer's tier is computed.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    seller_id = hw_app.ensure_seller()
+    buyer_id = hw_app.ensure_buyer()
+    product_id = _new_isolated_product(hw_app, seller_id, "Buyer Review Test Album")
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+        (product_id, seller_id, buyer_id, "Review Test Buyer", "reviewtest@example.com", "Sold", hw_app.now(), hw_app.now()),
+    )
+
+    assert hw_app.buyer_review_summary(buyer_id) is None, "Should start with no buyer reviews"
+
+    at.session_state["seller_tool_seller_id"] = seller_id
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section").set_value("Buyer Requests").run()
+    assert not at.exception
+
+    rating_slider = next(s for s in at.slider if s.key and s.key.startswith("buyer_review_rating_"))
+    rating_slider.set_value(4).run()
+    submit_button = next(b for b in at.button if b.key and b.key.startswith("FormSubmitter:buyer_review_form_"))
+    submit_button.click().run()
+    assert not at.exception
+
+    summary = hw_app.buyer_review_summary(buyer_id)
+    assert summary is not None, "Expected a buyer review to have been saved"
+    assert summary["average"] == 4.0
+    assert summary["count"] == 1
+    assert hw_app.compute_trust_tier(hw_app.buyer_completed_purchases_count(buyer_id), summary) == "Bronze"
+
+
 # ---------- Buy Now removal + redundant Verified Seller badge removal (founder feedback) ----------
 
 def test_buy_button_is_gone_from_search_music_and_product_detail():
@@ -545,7 +638,10 @@ def test_seller_profile_has_no_auto_trust_badges():
     # seller button can all go" -- these are the buyer-facing auto-generated
     # badges from render_seller_trust_badges(sid, 'public'). The seller's own
     # dashboard self-diagnostic view (context='seller') is a different call
-    # site and should be unaffected.
+    # site and should be unaffected. Note: "New Seller" is NOT in this list
+    # -- that's now a legitimate label from the new real trust-tier system
+    # (render_trust_tier), coincidentally reusing wording from the old fake
+    # heuristic badges this test guards against.
     import app as hw_app
     at = AppTest.from_file("app.py", default_timeout=30)
     at.session_state["testing_mode_enabled"] = True
@@ -559,7 +655,7 @@ def test_seller_profile_has_no_auto_trust_badges():
     at.run()
     assert not at.exception
     all_text = [m.value for m in at.markdown]
-    for phrase in ["Profile Complete", "Approved Listings", "Quality Listings", "Trusted Seller", "New Seller"]:
+    for phrase in ["Profile Complete", "Approved Listings", "Quality Listings", "Trusted Seller"]:
         assert not any(phrase in t for t in all_text), f"Expected '{phrase}' badge to be gone from the public seller profile"
 
 

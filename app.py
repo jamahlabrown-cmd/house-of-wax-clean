@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.127 FIX: MOBILE BUTTON ROW, TRUST BADGES, LIVE/REFERENCE LABELS, BANNER SIZE'
+APP_VERSION='V25.43.128 ADD: REAL BUYER/SELLER TRUST TIERS (VOLUME + AVERAGED REVIEWS)'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -77,7 +77,7 @@ def supabase_config():
         url=url[:-8].rstrip('/')
     anon=safe(config_value('SUPABASE_ANON_KEY'))
     return url,anon
-CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies','want_list','seller_reviews','avatar_faq_videos','culture_posts','cart_items']
+CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies','want_list','seller_reviews','buyer_reviews','avatar_faq_videos','culture_posts','cart_items']
 GRADE_SCALE=['Mint','Near Mint','VG+','VG','Good+','Good','Fair','Poor']
 GRADE_INDEX={g:i for i,g in enumerate(GRADE_SCALE)}
 GRADE_PRICE_MULTIPLIERS={'Mint':1.35,'Near Mint':1.20,'VG+':1.00,'VG':0.80,'Good+':0.65,'Good':0.50,'Fair':0.35,'Poor':0.20}
@@ -1186,6 +1186,7 @@ def setup():
     cur.execute('''CREATE TABLE IF NOT EXISTS want_list(id INTEGER PRIMARY KEY AUTOINCREMENT,buyer_id INTEGER,artist TEXT,title TEXT,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS cart_items(id INTEGER PRIMARY KEY AUTOINCREMENT,buyer_id INTEGER,product_id INTEGER,seller_id INTEGER,added_price REAL DEFAULT 0,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_reviews(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,buyer_id INTEGER,purchase_request_id INTEGER,product_id INTEGER,rating INTEGER,review_text TEXT,buyer_display_name TEXT,created_at TEXT,updated_at TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS buyer_reviews(id INTEGER PRIMARY KEY AUTOINCREMENT,buyer_id INTEGER,seller_id INTEGER,purchase_request_id INTEGER,product_id INTEGER,rating INTEGER,review_text TEXT,seller_display_name TEXT,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS avatar_faq_videos(id INTEGER PRIMARY KEY AUTOINCREMENT,question TEXT,video_url TEXT,display_order INTEGER DEFAULT 0,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS tester_feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,tester_name TEXT,tester_type TEXT,page_flow TEXT,worked_well TEXT,confusing TEXT,felt_broken TEXT,missing TEXT,ease_rating INTEGER,would_use_again TEXT,open_notes TEXT,status TEXT DEFAULT 'New',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS listing_reports(id INTEGER PRIMARY KEY AUTOINCREMENT,listing_id INTEGER,seller_id INTEGER,reporter_name TEXT,reporter_contact TEXT,reason TEXT,details TEXT,status TEXT DEFAULT 'Open',created_at TEXT,updated_at TEXT)''')
@@ -1462,8 +1463,9 @@ def setup():
     old_v25_43_124_announcement='V25.43.124'+' Fix: stale "Request to Buy"/checkout copy in internal roadmap pages active'
     old_v25_43_125_announcement='V25.43.125'+' Cleanup: deleted 5 dead admin pages that were not wired to any nav active'
     old_v25_43_126_announcement='V25.43.126'+' Cleanup: deleted 16 more orphaned functions found in a full dead-code sweep active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement]:
-        set_setting('announcement','V25.43.127 Fix: mobile button row, trust badges, live/reference labels, banner size active')
+    old_v25_43_127_announcement='V25.43.127'+' Fix: mobile button row, trust badges, live/reference labels, banner size active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement]:
+        set_setting('announcement','V25.43.128 Add: real buyer/seller trust tiers based on transaction volume + averaged reviews active')
 setup()
 recovery_token_bridge()
 
@@ -3015,7 +3017,8 @@ def seller_profile(sid):
         else: st.markdown('## 🏪')
     with col2:
         st.title(safe(s['store_name']))
-        st.caption(f"Rating {s['rating']}% • Sales {s['completed_sales']} • Followers {followers(sid)}")
+        render_trust_tier(seller_completed_sales_count(sid),seller_review_summary(sid),'seller')
+        st.caption(f"Followers {followers(sid)}")
         if safe(s['instagram']): st.write('Instagram: '+safe(s['instagram']))
         if safe(s['website']):
             site_url=safe(s['website']).strip()
@@ -4228,7 +4231,8 @@ def seller_stores():
         with st.container(border=True):
             if safe(s['banner_url']): safe_image(safe(s['banner_url']),width=350,fallback_text='Banner image unavailable.')
             st.subheader(safe(s['store_name']))
-            st.caption(f"Rating {s['rating']}% • Followers {followers(int(s['id']))}")
+            render_trust_tier(seller_completed_sales_count(int(s['id'])),seller_review_summary(int(s['id'])),'seller')
+            st.caption(f"Followers {followers(int(s['id']))}")
             st.write(safe(s['store_bio']))
             if badges(int(s['id'])): st.info('Badges: '+badges(int(s['id'])))
             if st.button('Open public profile',key=f"openseller{int(s['id'])}"): st.session_state['seller_id']=int(s['id']); st.rerun()
@@ -4247,6 +4251,7 @@ def buyer_workspace_tabs(bid):
     with tabs[0]:
         if safe(b.get('avatar_url')):
             safe_image(safe(b.get('avatar_url')),width=120,fallback_text='Profile photo unavailable.')
+        render_trust_tier(buyer_completed_purchases_count(bid),buyer_review_summary(bid),'buyer')
         buyer_strikes=int(b.get('strikes') or 0)
         if buyer_strikes:
             st.warning(f"{buyer_strikes} strike{'s' if buyer_strikes!=1 else ''} on your account for not paying within the {PAYMENT_WINDOW_DAYS}-day window after Buy Now. Sellers can see this.")
@@ -4758,6 +4763,64 @@ def seller_review_summary(seller_id):
     if reviews.empty:
         return None
     return {'average':round(float(reviews['rating'].mean()),1),'count':int(len(reviews))}
+
+def add_buyer_review(buyer_id, seller_id, purchase_request_id, product_id, rating, review_text, seller_display_name):
+    data={'buyer_id':int(buyer_id),'seller_id':int(seller_id),'purchase_request_id':int(purchase_request_id),'product_id':int(product_id) if product_id else None,'rating':int(rating),'review_text':safe(review_text).strip(),'seller_display_name':safe(seller_display_name),'created_at':now(),'updated_at':now()}
+    return core_insert('buyer_reviews',data,"""INSERT INTO buyer_reviews(buyer_id,seller_id,purchase_request_id,product_id,rating,review_text,seller_display_name,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)""",(data['buyer_id'],data['seller_id'],data['purchase_request_id'],data['product_id'],data['rating'],data['review_text'],data['seller_display_name'],data['created_at'],data['updated_at']))
+
+def buyer_reviews(buyer_id):
+    if not buyer_id:
+        return pd.DataFrame()
+    return hosted_select('buyer_reviews',{'buyer_id':buyer_id},order='created_at.desc') if hosted_enabled() else df('SELECT * FROM buyer_reviews WHERE buyer_id=? ORDER BY created_at DESC',(buyer_id,))
+
+def seller_already_reviewed_buyer(purchase_request_id):
+    existing=hosted_select('buyer_reviews',{'purchase_request_id':purchase_request_id},limit=1) if hosted_enabled() else df('SELECT id FROM buyer_reviews WHERE purchase_request_id=?',(purchase_request_id,))
+    return not existing.empty
+
+def buyer_review_summary(buyer_id):
+    reviews=buyer_reviews(buyer_id)
+    if reviews.empty:
+        return None
+    return {'average':round(float(reviews['rating'].mean()),1),'count':int(len(reviews))}
+
+def seller_completed_sales_count(sid):
+    if not sid:
+        return 0
+    rows=hosted_select('purchase_requests',{'seller_id':int(sid),'status':'Sold'}) if hosted_enabled() else df("SELECT id FROM purchase_requests WHERE seller_id=? AND status='Sold'",(int(sid),))
+    return len(rows)
+
+def buyer_completed_purchases_count(bid):
+    if not bid:
+        return 0
+    rows=hosted_select('purchase_requests',{'buyer_id':int(bid),'status':'Sold'}) if hosted_enabled() else df("SELECT id FROM purchase_requests WHERE buyer_id=? AND status='Sold'",(int(bid),))
+    return len(rows)
+
+def compute_trust_tier(completed_count, review_summary):
+    # Volume alone can only reach Bronze -- Silver/Gold also require a real
+    # average rating above the tier's floor, so a high-volume account with
+    # a poor review average can't just out-volume its way to a top tier.
+    count=int(completed_count or 0)
+    avg=review_summary['average'] if review_summary else None
+    if count<=0:
+        return 'New'
+    if avg is not None and count>=20 and avg>=4.5:
+        return 'Gold'
+    if avg is not None and count>=5 and avg>=4.0:
+        return 'Silver'
+    return 'Bronze'
+
+def render_trust_tier(completed_count, review_summary, noun='seller'):
+    tier=compute_trust_tier(completed_count,review_summary)
+    kind={'Gold':'success','Silver':'neutral','Bronze':'neutral','New':'neutral'}.get(tier,'neutral')
+    status_badge(f'{tier} {noun.capitalize()}',kind)
+    count=int(completed_count or 0)
+    txn_note=f"{count} completed {noun} transaction{'s' if count!=1 else ''}"
+    if review_summary:
+        review_note=f"{review_summary['average']}/5 average ({review_summary['count']} review{'s' if review_summary['count']!=1 else ''})"
+    else:
+        review_note='No reviews yet'
+    st.caption(f"{review_note} • {txn_note}")
+    return tier
 
 def send_email(to_email, subject, html_body):
     # Fails quietly and returns False on any problem -- email is a nice-to-have
@@ -6835,6 +6898,8 @@ def seller_purchase_request_view(sid):
         buyer_strikes=int(buyer_record.get('strikes') or 0) if buyer_record is not None else 0
         strike_note=f" ⚠️ {buyer_strikes} unpaid strike{'s' if buyer_strikes!=1 else ''} on record" if buyer_strikes else ''
         st.write(f"**Buyer:** {safe(row.get('buyer_name'))}{strike_note}")
+        if safe(row.get('buyer_id')):
+            render_trust_tier(buyer_completed_purchases_count(int(row.get('buyer_id'))),buyer_review_summary(int(row.get('buyer_id'))),'buyer')
         st.write(f"**Buyer contact:** {safe(row.get('buyer_contact'))}")
         st.write(f"**Preferred contact method:** {safe(row.get('preferred_contact_method'))}")
         st.write(f"**Pickup/shipping:** {safe(row.get('fulfillment_preference'))}")
@@ -6872,6 +6937,27 @@ def seller_purchase_request_view(sid):
         if send_counter:
             core_update('purchase_requests',{'status':'Seller Countered','counter_price':float(counter_price),'counter_message':counter_message,'updated_at':now()},{'id':rid,'seller_id':int(sid)},'UPDATE purchase_requests SET status=?,counter_price=?,counter_message=?,updated_at=? WHERE id=? AND seller_id=?',('Seller Countered',float(counter_price),counter_message,now(),rid,sid))
             st.success('Counter offer sent to the buyer.')
+    sold=requests[requests['status']=='Sold'] if 'status' in requests.columns else requests.iloc[0:0]
+    to_review=sold[~sold['id'].apply(lambda i: seller_already_reviewed_buyer(int(i)))] if not sold.empty else sold
+    if not to_review.empty:
+        st.markdown('#### Leave a review of the buyer')
+        seller_record=get_seller(int(sid))
+        for _,br in to_review.iterrows():
+            brid=int(br['id'])
+            with st.container(border=True):
+                st.write(f"**{safe(br.get('artist'))} — {safe(br.get('title'))}** to {safe(br.get('buyer_name'))}")
+                with st.form(f'buyer_review_form_{brid}'):
+                    b_rating=st.slider('Rating',1,5,5,key=f'buyer_review_rating_{brid}')
+                    b_review_text=st.text_area('Your review - optional',key=f'buyer_review_text_{brid}')
+                    b_display_name=st.text_input('Display name shown on your review',value=safe(seller_record.get('store_name')) if seller_record is not None else '',key=f'buyer_review_name_{brid}')
+                    b_review_submitted=st.form_submit_button('Submit review')
+                if b_review_submitted:
+                    b_rvid=add_buyer_review(br.get('buyer_id'),sid,brid,br.get('product_id'),b_rating,b_review_text,b_display_name)
+                    if b_rvid or not hosted_enabled():
+                        st.success('Review posted. Thank you.')
+                        st.rerun()
+                    else:
+                        st.error('Review could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
 
 def admin_purchase_request_view():
     st.subheader('Purchase Request Review')

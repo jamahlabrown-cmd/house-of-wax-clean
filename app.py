@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.122 FIX: STATUS BADGES/TAGS WERE PILL-SHAPED LIKE BUTTONS, HARD TO TELL APART'
+APP_VERSION='V25.43.123 REMOVE: BUY NOW + VERIFIED SELLER BADGE, COMPACT LISTING CARDS, FIX SILENT SIGN-IN REDIRECT'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -490,8 +490,6 @@ def restore_pending_action():
     request_marketplace_navigation('Search Music')
     if action.get('action_type')=='Ask Seller':
         st.session_state[f'open_inquiry_{pid}']=True
-    elif action.get('action_type')=='Request to Buy':
-        st.session_state[f'open_purchase_{pid}']=True
     elif action.get('action_type')=='Make Offer':
         st.session_state[f'open_offer_{pid}']=True
     elif action.get('action_type')=='Add to Cart':
@@ -1110,19 +1108,6 @@ def seller_onboarding_checklist(sid, seller):
     render_seller_rules_acceptance(sid,seller,'seller_onboarding')
     return checklist
 
-def seller_public_trust_label(seller):
-    if seller is None:
-        return 'House Of Wax Seller'
-    status=normalize_seller_status(seller.get('status'))
-    level=safe(seller.get('seller_level'))
-    if safe(seller.get('store_name')).lower()=='house of wax official' or 'official' in level.lower():
-        return 'House Of Wax Seller'
-    if status=='Approved Seller':
-        return 'Verified Seller'
-    if status=='Suspended Seller':
-        return 'Not Enabled'
-    return 'New Seller'
-
 def status_badge(label, kind='neutral'):
     classes={'success':'how-status-success','live':'how-status-success','danger':'how-status-danger','disabled':'how-status-danger','warning':'how-status-warning','pending':'how-status-warning','admin':'how-status-admin','neutral':'how-status-neutral'}
     css_class=classes.get(kind,'how-status-neutral')
@@ -1139,11 +1124,6 @@ def listing_status_badge(status):
         kind='warning'
     elif label=='Sold':
         kind='danger'
-    status_badge(label,kind)
-
-def public_seller_trust_badge(seller):
-    label=seller_public_trust_label(seller)
-    kind='success' if label in ['Verified Seller','Active Seller','Trusted Seller','House Of Wax Seller'] else ('danger' if label=='Not Enabled' else 'neutral')
     status_badge(label,kind)
 
 def public_listing_query_statuses():
@@ -1506,8 +1486,9 @@ def setup():
     old_v25_43_119_announcement='V25.43.119'+' Fix: labeled the sidebar menu icon, made barcode search Step 1 of one flow instead of a separate box active'
     old_v25_43_120_announcement='V25.43.120'+' Fix: the Privacy Policy, Terms of Service, and password-reset-link pages were dead ends with no way back active'
     old_v25_43_121_announcement='V25.43.121'+' Add: My Inventory hides sold/removed listings by default, with a checkbox to show them active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement]:
-        set_setting('announcement','V25.43.122 Fix: status badges/tags no longer look like buttons active')
+    old_v25_43_122_announcement='V25.43.122'+' Fix: status badges/tags no longer look like buttons active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement]:
+        set_setting('announcement','V25.43.123 Remove: Buy Now + Verified Seller badge, compact listing cards, fix silent sign-in redirect active')
 setup()
 recovery_token_bridge()
 
@@ -2463,6 +2444,14 @@ def account_page():
                 st.success('Signed out.')
                 st.rerun()
         return
+    pending=pending_action()
+    if pending.get('action_type'):
+        # A signed-out visitor who clicks Ask Seller/Make an Offer/Add to
+        # Cart gets redirected here with zero explanation -- landing on a
+        # bare sign-in form with no memory of what they just clicked reads
+        # as "the button didn't do anything." Say why they're here.
+        pending_labels={'Ask Seller':'ask the seller a question','Make Offer':'make an offer','Add to Cart':'add this item to your cart'}
+        st.info('Sign in to '+pending_labels.get(pending.get('action_type'),'continue')+" -- you'll be brought right back to it.")
     tabs=st.tabs(['Sign In','Create Account','Account Status'])
     with tabs[0]:
         with st.form('signin_form'):
@@ -2721,94 +2710,6 @@ def render_buyer_inquiry_form(p, seller, key_prefix):
             else:
                 st.error('Inquiry could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
 
-def render_purchase_request_form(p, key_prefix):
-    if not is_available_listing(p):
-        st.info('Purchase requests are available only while a listing is available.')
-        return
-    testing_mode_write_warning('this purchase request')
-    if not is_authenticated():
-        set_pending_action('Request to Buy',p)
-        st.warning('Sign in to buy this item. We will bring you back here.')
-        if st.button('Sign in or create Buyer account',key=f'purchase_signin_{key_prefix}',width='stretch'):
-            request_marketplace_navigation('My Account')
-            st.rerun()
-        return
-    known_buyers=table('buyers')
-    buyer_id=ensure_linked_buyer_profile()
-    buyer_name=''
-    buyer_contact=''
-    if buyer_id:
-        buyer=get_buyer(buyer_id)
-        if buyer is not None:
-            buyer_name=safe(buyer.get('name'))
-            buyer_contact=safe(buyer.get('email')) or safe(buyer.get('phone'))
-    if not buyer_id:
-        st.warning('Complete your buyer profile to buy this item.')
-        with st.form(f'complete_buyer_for_purchase_{key_prefix}'):
-            profile_name=st.text_input('Name',value=safe(current_app_user().get('display_name')) or auth_user_email().split('@')[0],key=f'complete_buyer_name_purchase_{key_prefix}')
-            profile_phone=st.text_input('Phone - optional',key=f'complete_buyer_phone_purchase_{key_prefix}')
-            sub_profile=st.form_submit_button('Save and continue')
-        if sub_profile:
-            buyer_id=ensure_linked_buyer_profile(profile_name)
-            if buyer_id:
-                core_update('buyers',{'name':profile_name,'phone':profile_phone},{'id':buyer_id},'UPDATE buyers SET name=?,phone=? WHERE id=?',(profile_name,profile_phone,buyer_id))
-                restore_pending_action()
-                st.success('Saved. You can buy this item now.')
-                st.rerun()
-            else:
-                st.error('Buyer profile could not be saved. Check Auth Diagnostics for the exact error.')
-        return
-    elif is_admin_unlocked() and not known_buyers.empty:
-        use_buyer=st.checkbox('Use an existing buyer profile',value=False,key=f'purchase_existing_buyer_{key_prefix}')
-        if use_buyer:
-            buyer_id=buyer_pick(f'purchase_buyer_{key_prefix}')
-            buyer=get_buyer(buyer_id)
-            if buyer is not None:
-                buyer_name=safe(buyer.get('name'))
-                buyer_contact=safe(buyer.get('email')) or safe(buyer.get('phone'))
-
-    def send_purchase_request(name,contact,method,fulfillment,message):
-        if not safe(name) or not safe(contact):
-            st.warning('Add your name and contact info before sending a purchase request.')
-            return None
-        data={'product_id':int(p['id']),'seller_id':int(p['seller_id']),'buyer_id':int(buyer_id or 0),'buyer_name':name,'buyer_contact':contact,'preferred_contact_method':method,'fulfillment_preference':fulfillment,'offer_price':0.0,'buyer_message':message,'status':'Seller Accepted','created_at':now(),'updated_at':now()}
-        new_id=core_insert('purchase_requests',data,'''INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,preferred_contact_method,fulfillment_preference,offer_price,buyer_message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['product_id','seller_id','buyer_id','buyer_name','buyer_contact','preferred_contact_method','fulfillment_preference','offer_price','buyer_message','status','created_at','updated_at']))
-        if new_id or not hosted_enabled():
-            clear_pending_action()
-            due=reserve_listing_for_payment(new_id or 0,int(p['id']))
-            st.session_state[f'bought_due_{key_prefix}']=due
-            return due
-        else:
-            st.error('Purchase request could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
-            return None
-
-    if st.button(f"Buy Now — {money(p['price'])}",key=f'purchase_buy_now_{key_prefix}',width='stretch',type='primary'):
-        send_purchase_request(buyer_name,buyer_contact,'House Of Wax message','Shipping','')
-    st.caption(f"It's yours the moment you click Buy — House Of Wax reserves it and you have {PAYMENT_WINDOW_DAYS} days to pay. If payment doesn't arrive in time, the item goes back on sale. Want a different price instead? Use Make an Offer.")
-    bought_due=st.session_state.get(f'bought_due_{key_prefix}')
-    if bought_due:
-        due_label=datetime.fromisoformat(bought_due).strftime('%B %d, %Y')
-        st.success(f"Bought — this item is reserved for you. Pay by **{due_label}** or you'll lose it.")
-        seller_full=get_seller_full(int(p['seller_id']))
-        amount=float(p['price'] or 0)
-        platform_cut=fee(amount)
-        seller_cut=round(amount-platform_cut,2)
-        st.caption(f"Total {money(amount)} = pay the seller {money(seller_cut)} + House Of Wax's platform fee ({commission_percent():.0f}%) {money(platform_cut)}, separately, directly.")
-        render_split_payment_line('Pay the seller',seller_full.get('paypal_link') if seller_full is not None else '',seller_cut,"This part goes straight to the seller's PayPal.",key=f'buy_now_pay_seller_{key_prefix}')
-        render_split_payment_line("Pay House Of Wax's platform fee",setting('house_of_wax_paypal_link'),platform_cut,'This part goes straight to House Of Wax.',key=f'buy_now_pay_platform_{key_prefix}')
-        st.caption('This also appears under My Account → Buying → My Orders any time you come back.')
-    with st.expander('Change delivery details or add a note before buying'):
-        with st.form(f'purchase_request_form_{key_prefix}'):
-            name=st.text_input('Buyer name',value=buyer_name,key=f'purchase_name_{key_prefix}')
-            contact=st.text_input('Buyer email or phone',value=buyer_contact,key=f'purchase_contact_{key_prefix}')
-            method=st.selectbox('Preferred contact method',['House Of Wax message','Email','Phone','Text message'],key=f'purchase_method_{key_prefix}')
-            fulfillment=st.selectbox('Pickup or shipping preference',['Shipping','Local pickup','Either / discuss with seller'],key=f'purchase_fulfillment_{key_prefix}')
-            message=st.text_area('Message to seller - optional',key=f'purchase_message_{key_prefix}',placeholder='Confirm availability, shipping/pickup details, or anything the seller should know.')
-            sub=st.form_submit_button('Buy with these details')
-        if sub:
-            if send_purchase_request(name,contact,method,fulfillment,message):
-                st.rerun()
-
 def render_offer_form(p, key_prefix):
     if not is_available_listing(p):
         st.info('Offers are available only while a listing is available.')
@@ -3046,73 +2947,73 @@ def filter_global_marketplace_listings(prods, keyword='', category='All', fmt='A
     return shown
 
 def product_card(p, buyer_id=None):
+    # Compact layout: a small thumbnail next to the details instead of a
+    # full-width image, one merged caption line instead of three, and the
+    # buyer actions in a single button row instead of stacked full-width --
+    # founder feedback that cards were far too large to scale once a store
+    # has real inventory ("it should be a quarter of the size").
     with st.container(border=True):
         seller=get_seller(int(p['seller_id'])) if safe(p.get('seller_id')) else None
         image=listing_primary_image(p)
-        if image: safe_image(image,width=220,fallback_text='Listing image unavailable.')
-        else: st.info('No listing image yet.')
-        if has_listing_photos(int(p['id'])):
-            status_badge('📷 Seller photos included','success')
-        elif image:
-            status_badge('Reference image','warning')
-        st.subheader(safe(p.get('title'),'Untitled listing'))
-        st.write('**Artist:** '+safe(p.get('artist'),'Unknown artist'))
-        st.caption(f"Format: {safe(p.get('format')) or 'Not listed'}")
-        st.caption(f"Condition: {safe(p.get('media_grade'),'Not listed')}")
+        img_col,info_col=st.columns([1,2])
+        with img_col:
+            if image: safe_image(image,width=90,fallback_text='No image')
+            else: st.caption('No image yet')
+        with info_col:
+            st.write(f"**{safe(p.get('title'),'Untitled listing')}**")
+            st.caption(safe(p.get('artist'),'Unknown artist')+' · '+(safe(p.get('format')) or 'Format n/a')+' · '+safe(p.get('media_grade'),'Condition n/a'))
+            if seller is not None:
+                st.caption('Seller: '+safe(seller.get('store_name')))
         status_label=listing_availability_label(p)
         price_col,status_col=st.columns(2)
         price_col.metric('Price',money(p['price']))
-        if status_label=='Available':
-            with status_col:
+        with status_col:
+            if status_label=='Available':
                 status_badge('Live','success')
-        elif status_label=='Pending':
-            with status_col:
+            elif status_label=='Pending':
                 status_badge(status_label,'warning')
-        elif status_label=='Sold':
-            with status_col:
+            elif status_label=='Sold':
                 status_badge(status_label,'danger')
-        else:
-            with status_col:
+            else:
                 listing_status_badge(status_label)
-        if seller is not None:
-            st.caption('Seller: '+safe(seller.get('store_name')))
-            public_seller_trust_badge(seller)
-        if st.button('View Item',key=f"item_{int(p['id'])}",width='stretch'): st.session_state['product_id']=int(p['id']); st.rerun()
+        if has_listing_photos(int(p['id'])):
+            st.caption('📷 Seller photos included')
+        elif image:
+            st.caption('Reference image')
         if is_available_listing(p):
-            if st.button('Ask Seller',key=f"ask_item_{int(p['id'])}",width='stretch'):
+            b1,b2,b3,b4=st.columns(4)
+            if b1.button('View',key=f"item_{int(p['id'])}",width='stretch'):
+                st.session_state['product_id']=int(p['id']); st.rerun()
+            if b2.button('Ask',key=f"ask_item_{int(p['id'])}",width='stretch'):
                 set_pending_action('Ask Seller',p)
                 st.session_state['product_id']=int(p['id'])
                 st.session_state[f'open_inquiry_{int(p["id"])}']=True
                 if not is_authenticated():
                     request_marketplace_navigation('My Account')
                 st.rerun()
-            if st.button('Buy',key=f"buy_request_item_{int(p['id'])}",width='stretch'):
-                set_pending_action('Request to Buy',p)
-                st.session_state['product_id']=int(p['id'])
-                st.session_state[f'open_purchase_{int(p["id"])}']=True
-                if not is_authenticated():
-                    request_marketplace_navigation('My Account')
-                st.rerun()
-            if st.button('Make an Offer',key=f"offer_item_{int(p['id'])}",width='stretch'):
+            if b3.button('Offer',key=f"offer_item_{int(p['id'])}",width='stretch'):
                 set_pending_action('Make Offer',p)
                 st.session_state['product_id']=int(p['id'])
                 st.session_state[f'open_offer_{int(p["id"])}']=True
                 if not is_authenticated():
                     request_marketplace_navigation('My Account')
                 st.rerun()
-            if buyer_id and is_in_cart(buyer_id,int(p['id'])):
-                status_badge('In Cart','success')
-            elif st.button('Add to Cart',key=f"cart_add_item_{int(p['id'])}",width='stretch'):
-                if not is_authenticated():
-                    set_pending_action('Add to Cart',p)
-                    request_marketplace_navigation('My Account')
-                    st.rerun()
-                elif buyer_id:
-                    add_to_cart(buyer_id,p)
-                    st.rerun()
-                else:
-                    st.warning('Complete your buyer profile in My Account to use your cart.')
+            with b4:
+                if buyer_id and is_in_cart(buyer_id,int(p['id'])):
+                    status_badge('In Cart','success')
+                elif st.button('Cart',key=f"cart_add_item_{int(p['id'])}",width='stretch'):
+                    if not is_authenticated():
+                        set_pending_action('Add to Cart',p)
+                        request_marketplace_navigation('My Account')
+                        st.rerun()
+                    elif buyer_id:
+                        add_to_cart(buyer_id,p)
+                        st.rerun()
+                    else:
+                        st.warning('Complete your buyer profile in My Account to use your cart.')
         else:
+            if st.button('View',key=f"item_{int(p['id'])}",width='stretch'):
+                st.session_state['product_id']=int(p['id']); st.rerun()
             st.caption('Buyer actions are hidden unless the listing is live/public and available.')
         with st.expander('Report Listing',expanded=False):
             report_listing_form(p,seller,f'card_listing_{int(p["id"])}')
@@ -3127,7 +3028,6 @@ def seller_profile(sid):
         else: st.markdown('## 🏪')
     with col2:
         st.title(safe(s['store_name']))
-        public_seller_trust_badge(s)
         st.caption(f"Rating {s['rating']}% • Sales {s['completed_sales']} • Followers {followers(sid)}")
         render_seller_trust_badges(sid,'public')
         if safe(s['instagram']): st.write('Instagram: '+safe(s['instagram']))
@@ -3206,9 +3106,9 @@ def seller_profile(sid):
     if prods.empty: st.info('No public inventory yet. Draft, Hidden, Under Review, and Removed listings stay private or unavailable inside Seller Tools.')
     else:
         cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
-        cols=st.columns(3)
+        cols=st.columns(4)
         for i,(_,p) in enumerate(prods.iterrows()):
-            with cols[i%3]: product_card(p,buyer_id=cart_bid)
+            with cols[i%4]: product_card(p,buyer_id=cart_bid)
 def product_detail(pid):
     r=hosted_select('products',{'id':int(pid)},limit=1) if hosted_enabled() else df('SELECT * FROM products WHERE id=?',(int(pid),))
     if r.empty: st.error('Product missing.'); st.session_state.pop('product_id',None); return
@@ -3265,19 +3165,13 @@ def product_detail(pid):
                     if not is_authenticated():
                         request_marketplace_navigation('My Account')
                     st.rerun()
-                if st.button('Buy',key=f'detail_purchase_top_{pid}',width='stretch'):
-                    set_pending_action('Request to Buy',p)
-                    st.session_state[f'open_purchase_{pid}']=True
-                    if not is_authenticated():
-                        request_marketplace_navigation('My Account')
-                    st.rerun()
                 if st.button('Make an Offer',key=f'detail_offer_top_{pid}',width='stretch'):
                     set_pending_action('Make Offer',p)
                     st.session_state[f'open_offer_{pid}']=True
                     if not is_authenticated():
                         request_marketplace_navigation('My Account')
                     st.rerun()
-                st.caption("Buy sends a request to the seller to confirm it's still available. Once they accept, you'll get simple PayPal payment instructions right here — no card needed on this page.")
+                st.caption('Add to Cart below reserves nothing on its own -- check out when you\'re ready for one combined payment per seller.')
             if st.button('View seller public profile'): st.session_state['seller_id']=int(s['id']); st.session_state.pop('product_id',None); st.rerun()
     st.subheader('Description'); st.write(safe(p['description'],'No description.'))
     if safe(p.get('video_url')):
@@ -3294,17 +3188,9 @@ def product_detail(pid):
         st.info('Buyer actions appear only for public marketplace listings.')
         return
     if is_available:
-        # Buy is the action most buyers who reached this page actually want,
-        # so it's the one open by default -- Ask/Offer still auto-expand if
-        # that's specifically what was clicked (from the search grid, a
-        # pending sign-in redirect, etc.), same as before.
-        purchase_expanded=not bool(st.session_state.get(f'open_inquiry_{pid}',False)) and not bool(st.session_state.get(f'open_offer_{pid}',False))
         inquiry_expanded=bool(st.session_state.pop(f'open_inquiry_{pid}',False))
         with st.expander('Ask About This Item / Contact Seller',expanded=inquiry_expanded):
             render_buyer_inquiry_form(p,s,f'product_{pid}')
-        purchase_expanded=purchase_expanded or bool(st.session_state.pop(f'open_purchase_{pid}',False))
-        with st.expander('Buy',expanded=purchase_expanded):
-            render_purchase_request_form(p,f'product_{pid}')
         offer_expanded=bool(st.session_state.pop(f'open_offer_{pid}',False))
         with st.expander('Make an Offer',expanded=offer_expanded):
             render_offer_form(p,f'product_{pid}')
@@ -3313,7 +3199,7 @@ def product_detail(pid):
             status_badge('In Cart','success')
             st.caption('Already in your cart. Go to Cart to check out.')
         else:
-            if st.button('Add to Cart',key=f'cart_add_detail_{pid}'):
+            if st.button('Add to Cart',key=f'cart_add_detail_{pid}',width='stretch',type='primary'):
                 if not is_authenticated():
                     set_pending_action('Add to Cart',p)
                     request_marketplace_navigation('My Account')
@@ -3323,7 +3209,7 @@ def product_detail(pid):
                     st.rerun()
                 else:
                     st.warning('Complete your buyer profile in My Account to use your cart.')
-            st.caption('Collecting more than one item from this seller? Add to Cart and check out together for one combined payment.')
+            st.caption('Check out from your cart any time -- one combined payment per seller.')
     else:
         st.info(f"This listing is {listing_availability_label(p).lower()}, so public buyer actions are turned off.")
 
@@ -4281,9 +4167,9 @@ def marketplace():
         st.info('No matching live listings found. Try a different artist, title, barcode, or seller name.')
         return
     cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
-    cols=st.columns(2)
+    cols=st.columns(4)
     for i,(_,p) in enumerate(prods.iterrows()):
-        with cols[i%2]: product_card(p,buyer_id=cart_bid)
+        with cols[i%4]: product_card(p,buyer_id=cart_bid)
 def cart_page():
     header(); marketplace_context('House Of Wax Marketplace -> Cart'); st.header('My Cart')
     if not is_authenticated():
@@ -4373,7 +4259,6 @@ def seller_stores():
         with st.container(border=True):
             if safe(s['banner_url']): safe_image(safe(s['banner_url']),width='stretch',fallback_text='Banner image unavailable.')
             st.subheader(safe(s['store_name']))
-            public_seller_trust_badge(s)
             st.caption(f"Rating {s['rating']}% • Followers {followers(int(s['id']))}")
             st.write(safe(s['store_bio']))
             if badges(int(s['id'])): st.info('Badges: '+badges(int(s['id'])))

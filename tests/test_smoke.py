@@ -420,55 +420,6 @@ def _real_buyer_session(at, hw_app, buyer_id, buyer_email):
     at.run()
 
 
-def test_buy_now_reserves_listing_and_starts_five_day_payment_window():
-    # Regression guard for the new payment-window policy: clicking Buy Now
-    # used to create a purchase_request at status='New' and leave the
-    # listing_status untouched (Live) until the seller manually clicked
-    # "Mark Seller Accepted" -- an unbounded wait with no deadline, and the
-    # item stayed buyable by someone else in the meantime. Buy Now should now
-    # go straight to 'Seller Accepted', reserve the listing (Pending
-    # Pickup/Payment) so nobody else can buy it, and set a payment_due_at
-    # five days out -- all in the same click, no seller action required.
-    import app as hw_app
-    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
-    at = AppTest.from_file("app.py", default_timeout=30)
-    at.run()
-
-    buyer_id = hw_app.ensure_buyer()
-    seller_id = hw_app.ensure_seller()
-    product_id = _new_isolated_product(hw_app, seller_id, "Buy Now Window Test Album")
-    buyer = hw_app.get_buyer(buyer_id)
-
-    _real_buyer_session(at, hw_app, buyer_id, buyer["email"])
-    goto(at, "Search Music", area_key="marketplace_navigation")
-    at.session_state["product_id"] = int(product_id)
-    at.run()
-    assert not at.exception, at.exception
-
-    buy_button = next(b for b in at.button if b.key == f"purchase_buy_now_product_{product_id}")
-    buy_button.click().run()
-    assert not at.exception, at.exception
-
-    pr = hw_app.df("SELECT * FROM purchase_requests WHERE product_id=? ORDER BY id DESC LIMIT 1", (product_id,))
-    assert not pr.empty, "Expected a purchase_requests row to be created"
-    row = pr.iloc[0]
-    assert row["status"] == "Seller Accepted", f"Expected instant reservation, got status={row['status']!r}"
-    assert row["payment_due_at"], "Expected payment_due_at to be set"
-
-    from datetime import datetime as _dt
-    due = _dt.fromisoformat(row["payment_due_at"])
-    days_out = (due - _dt.now()).total_seconds() / 86400
-    assert 4.9 <= days_out <= 5.1, f"Expected ~5 days out, got {days_out:.2f} days"
-
-    product = hw_app.df("SELECT listing_status FROM products WHERE id=?", (product_id,))
-    assert product.iloc[0]["listing_status"] == "Pending Pickup/Payment", (
-        "Expected the listing to be reserved (taken off the market) immediately on Buy Now"
-    )
-
-    successes = [s.value for s in at.success]
-    assert any("Pay by" in s for s in successes), f"Expected a 'Pay by <date>' message, got {successes}"
-
-
 def test_missed_payment_window_releases_listing_and_strikes_buyer():
     # Regression guard: the auto-expiration side of the same policy. If a
     # buyer's payment_due_at passes while still 'Seller Accepted', the
@@ -505,6 +456,87 @@ def test_missed_payment_window_releases_listing_and_strikes_buyer():
 
     ending_strikes = int(hw_app.get_buyer(buyer_id).get("strikes") or 0)
     assert ending_strikes == starting_strikes + 1, f"Expected a strike added, got {starting_strikes} -> {ending_strikes}"
+
+
+# ---------- Buy Now removal + redundant Verified Seller badge removal (founder feedback) ----------
+
+def test_buy_button_is_gone_from_search_music_and_product_detail():
+    # Founder: "Buy is the same thing as add to cart for me. That can go."
+    # Buy Now was removed as a purchase path -- Add to Cart is now the only
+    # one. Regression guard against it creeping back in.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Buy Removal Test Album")
+
+    goto(at, "Search Music", area_key="marketplace_navigation")
+    assert not at.exception
+
+    button_keys = [b.key for b in at.button if b.key]
+    assert any(k.startswith("item_") for k in button_keys), "Expected the seeded listing card to actually render"
+    assert not any(k.startswith("buy_request_item_") for k in button_keys), "Buy button should be gone from listing cards"
+    button_labels = [b.proto.label for b in at.button]
+    assert "Buy" not in button_labels, f"Unexpected 'Buy' button still present: {button_labels}"
+
+    at.session_state["product_id"] = int(product_id)
+    at.run()
+    assert not at.exception
+    detail_button_keys = [b.key for b in at.button if b.key]
+    assert not any("purchase" in k.lower() for k in detail_button_keys), f"Unexpected purchase-related button on product_detail: {detail_button_keys}"
+
+
+def test_verified_seller_badge_is_gone():
+    # Founder: "Verified seller can go as well. That is redundant. If you
+    # are on here with postings, that means you can sell."
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    seller_id = hw_app.ensure_seller()
+    _new_isolated_product(hw_app, seller_id, "Verified Badge Removal Test Album")
+
+    goto(at, "Search Music", area_key="marketplace_navigation")
+    assert not at.exception
+    all_text = [m.value for m in at.markdown]
+    assert any("Verified Badge Removal Test Album" in t for t in all_text), "Expected the seeded listing card to actually render"
+    assert not any("Verified Seller" in t for t in all_text), "Verified Seller badge should no longer render"
+
+    goto(at, "Seller Stores", area_key="marketplace_navigation")
+    at.session_state["seller_id"] = int(seller_id)
+    at.run()
+    assert not at.exception
+    all_text = [m.value for m in at.markdown]
+    assert not any("Verified Seller" in t for t in all_text), "Verified Seller badge should not render on a seller's public profile"
+
+
+def test_signed_out_ask_seller_explains_why_youre_on_the_sign_in_page():
+    # Founder reported "Ask the seller doesn't work" -- root cause: clicking
+    # Ask Seller while signed out silently redirects to a bare Sign In form
+    # with zero context, which reads as the button doing nothing. Sign in
+    # should now explain what it's resuming.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    seller_id = hw_app.ensure_seller()
+    _new_isolated_product(hw_app, seller_id, "Ask Seller Redirect Test Album")
+
+    goto(at, "Search Music", area_key="marketplace_navigation")
+    assert not at.exception
+
+    ask_button = next(b for b in at.button if b.key and b.key.startswith("ask_item_"))
+    ask_button.click().run()
+    assert not at.exception
+
+    nav = at.session_state["marketplace_navigation"] if "marketplace_navigation" in at.session_state else None
+    assert nav == "My Account", "Expected the redirect to My Account"
+    infos = [i.value for i in at.info]
+    assert any("ask the seller" in i.lower() for i in infos), f"Expected a contextual sign-in message, got {infos}"
 
 
 def test_account_page_has_no_buying_selling_metric_banners():

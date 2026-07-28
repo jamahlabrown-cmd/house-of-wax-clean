@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.125 CLEANUP: DELETED 5 DEAD ORPHANED ADMIN PAGES, NOT WIRED TO ANY NAV'
+APP_VERSION='V25.43.126 CLEANUP: DELETED 16 MORE ORPHANED FUNCTIONS FOUND IN A FULL DEAD-CODE SWEEP'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -129,14 +129,6 @@ def hosted_database_config_status():
     has_supabase=detected.get('SUPABASE_URL') and detected.get('SUPABASE_ANON_KEY')
     has_database_url=detected.get('DATABASE_URL')
     return {'rows':rows,'has_supabase':has_supabase,'has_database_url':has_database_url,'hosted_config_detected':bool(has_supabase or has_database_url)}
-def auth_config_status():
-    keys=['AUTH_PROVIDER','SUPABASE_URL','SUPABASE_ANON_KEY','ADMIN_EMAILS']
-    rows=[]
-    for key in keys:
-        value=config_value(key)
-        rows.append({'Setting':key,'Status':'Configured' if value else 'Missing','Value':mask_secret(value)})
-    configured=any(row['Status']=='Configured' for row in rows)
-    return {'rows':rows,'auth_configured':configured}
 def database_mode():
     hosted=hosted_database_config_status()
     active=bool(hosted['has_supabase'])
@@ -314,12 +306,6 @@ def core_update(table_name, data, filters, sql='', params=(), quiet=False):
     return True
 def active_storage_label():
     return 'Supabase Hosted' if hosted_enabled() else 'Local SQLite'
-def warn_if_local_only(feature_label):
-    # These features have no Supabase-hosted table yet and always write to
-    # local SQLite, which is ephemeral on Streamlit Cloud. Surface that
-    # plainly instead of letting a live tester believe it persisted.
-    if hosted_enabled():
-        st.warning(f"{feature_label} is saved locally to this session only and will not survive a Streamlit Cloud restart. It is not yet stored in Supabase.")
 def mask_identifier(value):
     s=safe(value)
     if not s:
@@ -403,14 +389,8 @@ def seller_application_status(user=None):
     if seller is not None:
         return normalize_seller_status(seller.get('status'))
     return 'Not Applied'
-def has_buyer_capability():
-    return is_authenticated()
 def has_seller_capability():
     return is_authenticated() and linked_seller_id()>0
-def seller_is_approved_for_current_user():
-    sid=linked_seller_id()
-    seller=get_seller(sid) if sid else None
-    return seller_can_publish(seller) if seller is not None else False
 def linked_buyer_id():
     user=current_app_user()
     try:
@@ -994,12 +974,6 @@ def setting(k,d=''):
 def set_setting(k,v):
     run('CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY,value TEXT)')
     run('INSERT OR REPLACE INTO app_settings(key,value) VALUES(?,?)',(k,str(v)))
-def email_exists(t,email):
-    if not email:
-        return False
-    if hosted_enabled() and t in ['buyers','sellers']:
-        return not hosted_select(t,{'email':email.strip().lower()},limit=1).empty
-    return not df(f'SELECT id FROM {t} WHERE lower(email)=lower(?)',(email.strip(),)).empty
 
 SELLER_STATUSES=['Pending Seller Approval','Approved Seller','Suspended Seller']
 LISTING_STATUSES=['Draft','Live','Hidden','Sold','Reported','Under Review','Removed by House Of Wax']
@@ -1131,9 +1105,6 @@ def public_listing_query_statuses():
 
 def live_marketplace_statuses():
     return PUBLIC_LISTING_STATUSES
-
-def seller_is_public_marketplace_seller(seller):
-    return seller is not None and normalize_seller_status(seller.get('status'))=='Approved Seller'
 
 def current_account_role():
     return effective_account_type()
@@ -1489,8 +1460,9 @@ def setup():
     old_v25_43_122_announcement='V25.43.122'+' Fix: status badges/tags no longer look like buttons active'
     old_v25_43_123_announcement='V25.43.123'+' Remove: Buy Now + Verified Seller badge, compact listing cards, fix silent sign-in redirect active'
     old_v25_43_124_announcement='V25.43.124'+' Fix: stale "Request to Buy"/checkout copy in internal roadmap pages active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement]:
-        set_setting('announcement','V25.43.125 Cleanup: deleted 5 dead admin pages that were not wired to any nav active')
+    old_v25_43_125_announcement='V25.43.125'+' Cleanup: deleted 5 dead admin pages that were not wired to any nav active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement]:
+        set_setting('announcement','V25.43.126 Cleanup: deleted 16 more orphaned functions found in a full dead-code sweep active')
 setup()
 recovery_token_bridge()
 
@@ -2161,10 +2133,6 @@ def create_buyer(email,name='Test Buyer'):
         return int(pid)
     reread=hosted_select('buyers',{'email':email},limit=1) if hosted_enabled() else df('SELECT id FROM buyers WHERE lower(email)=lower(?)',(email,))
     return int(reread.iloc[0]['id']) if not reread.empty else 0
-def barcode_lookup(code):
-    if not code: return {}
-    r=hosted_select('products',{'barcode':code.strip()},order='created_at.desc',limit=1) if hosted_enabled() else df('''SELECT barcode,catalog_number,matrix_runout,category,artist,title,format,label,release_year,genre,media_grade,sleeve_grade,description,price,shipping_price,image_url FROM products WHERE barcode=? ORDER BY created_at DESC LIMIT 1''',(code.strip(),))
-    return {} if r.empty else r.iloc[0].to_dict()
 def badges(sid):
     r=hosted_select('seller_badges',{'seller_id':int(sid),'active':'Yes'}) if hosted_enabled() else df("SELECT badge_name FROM seller_badges WHERE seller_id=? AND active='Yes'",(int(sid),))
     return '' if r.empty else ' • '.join([safe(x) for x in r['badge_name'].tolist()])
@@ -3725,19 +3693,6 @@ def seed_content_series():
         if exists.empty:
             run("INSERT INTO content_series(series_name,description,audience,tone,default_format,active,created_at) VALUES(?,?,?,?,?,'Yes',?)",(*s,now()))
 
-def generate_repurposing_assets(title, summary, category, series_name):
-    title=safe(title)
-    summary=safe(summary)
-    category=safe(category,'House Of Wax')
-    series_name=safe(series_name,'Wax 101')
-    tag=category.replace(' ','').replace('&','')
-    short_caption=f"{title}\n\nHouse Of Wax note: {summary}\n\n#{tag} #HouseOfWax #MusicCulture #VinylCommunity"
-    reel_script=f"Hook: Here is something every House Of Wax collector should know about {title}.\n\nPoint 1: {summary}\n\nPoint 2: Slow down, verify details, and learn the language before you buy.\n\nClose: Follow House Of Wax for collecting knowledge, music culture, and marketplace trust."
-    newsletter=f"This week in {series_name}: {title}. {summary} Read it in the House Of Wax Knowledge Hub."
-    marketplace=f"Related marketplace reminder: use this knowledge when reviewing listings, condition notes, catalog details, and seller information."
-    return short_caption, reel_script, newsletter, marketplace
-
-
 def content_admin():
     seed_knowledge()
     seed_content_series()
@@ -4434,9 +4389,6 @@ def is_music_category(category):
 def normalize_barcode(code):
     return re.sub(r'[^0-9]', '', safe(code))
 
-def partial_barcode_ready(code, min_digits=5):
-    return len(normalize_barcode(code)) >= min_digits
-
 def barcode_match_label(result, artist='', title=''):
     match_type=safe(result.get('_barcode_match_type'))
     if match_type=='exact':
@@ -4586,12 +4538,6 @@ def discogs_token_status():
     try:
         token=st.secrets.get('DISCOGS_TOKEN','')
         return bool(token)
-    except Exception:
-        return False
-
-def resend_configured():
-    try:
-        return bool(st.secrets.get('RESEND_API_KEY',''))
     except Exception:
         return False
 
@@ -5170,77 +5116,6 @@ def barcode_length_status(barcode):
         return f'Valid barcode length ({len(code)} digits)'
     return f'Unusual barcode length ({len(code)} digits)'
 
-
-def lookup_musicbrainz_text_search(artist='', title='', barcode=''):
-    artist=safe(artist)
-    title=safe(title)
-    barcode=normalize_barcode(barcode)
-    query_parts=[]
-    if barcode:
-        query_parts.append(f'barcode:{barcode}')
-    if artist:
-        query_parts.append(f'artist:"{artist}"')
-    if title:
-        query_parts.append(f'release:"{title}"')
-    if not query_parts and (artist or title):
-        query_parts.append(f'{artist} {title}'.strip())
-    if not query_parts:
-        return []
-    try:
-        url='https://musicbrainz.org/ws/2/release/'
-        params={'query':' AND '.join(query_parts),'fmt':'json','limit':10}
-        headers={'User-Agent':'HouseOfWaxPrototype/1.0 (prototype lookup)'}
-        r=requests.get(url,params=params,headers=headers,timeout=10)
-        if r.status_code!=200:
-            return []
-        data=r.json()
-        results=[]
-        for rel in data.get('releases',[])[:10]:
-            rel_artist=''
-            credits=rel.get('artist-credit') or []
-            if credits:
-                parts=[]
-                for c in credits:
-                    if isinstance(c,dict):
-                        if 'artist' in c and isinstance(c['artist'],dict):
-                            parts.append(c['artist'].get('name',''))
-                        elif 'name' in c:
-                            parts.append(c.get('name',''))
-                rel_artist=' '.join([p for p in parts if p]).strip()
-            label=''
-            cat=''
-            infos=rel.get('label-info') or []
-            if infos:
-                first=infos[0] or {}
-                label=(first.get('label') or {}).get('name','') if isinstance(first.get('label'),dict) else ''
-                cat=first.get('catalog-number','')
-            fmt=''
-            media=rel.get('media') or []
-            if media:
-                fmt=media[0].get('format','')
-            year=safe(rel.get('date'))[:4]
-            rid=safe(rel.get('id'))
-            cover=f'https://coverartarchive.org/release/{rid}/front-500' if rid else ''
-            ext=f'https://musicbrainz.org/release/{rid}' if rid else ''
-            results.append({
-                'source':'MusicBrainz',
-                'external_id':rid,
-                'artist':rel_artist,
-                'title':safe(rel.get('title')),
-                'format':fmt,
-                'label':label,
-                'release_year':year,
-                'country':safe(rel.get('country')),
-                'genre':'',
-                'style':'',
-                'catalog_number':cat,
-                'image_url':cover,
-                'external_url':ext,
-                'raw_summary':'MusicBrainz artist/title search match'
-            })
-        return results
-    except Exception:
-        return []
 
 def lookup_discogs_text_search(artist='', title='', barcode=''):
     artist=safe(artist)
@@ -6122,38 +5997,6 @@ def show_barcode_diagnostics(diagnostics):
             st.info('Discogs is not connected. Add a DISCOGS_TOKEN in Streamlit secrets for stronger vinyl/CD/cassette lookup.')
 
 
-def lookup_barcode(barcode):
-    barcode=normalize_barcode(barcode)
-    if not barcode:
-        return []
-    # First check House Of Wax internal verified/release database.
-    internal=get_best_how_release(barcode)
-    if internal:
-        return mark_barcode_results([how_release_to_autofill(internal)],'exact',barcode)
-    cached=df("SELECT * FROM barcode_lookup_cache WHERE barcode=? ORDER BY id DESC LIMIT 10",(barcode,))
-    results=[]
-    if not cached.empty:
-        for _,r in cached.iterrows():
-            res=cache_row_to_autofill(r)
-            results.append(res)
-            try:
-                create_or_update_how_release(barcode,res)
-            except Exception:
-                pass
-        return mark_barcode_results(results,'exact',barcode)
-    results=lookup_discogs_barcode(barcode)
-    if not results:
-        results=lookup_musicbrainz_barcode(barcode)
-    for res in results:
-        try:
-            cache_lookup_result(barcode,res)
-            create_or_update_how_release(barcode,res)
-        except Exception:
-            pass
-    if results:
-        return mark_barcode_results(results,'exact',barcode)
-    return find_partial_barcode_matches(barcode)
-
 def render_barcode_lookup_widget(key_prefix='main'):
     seed_listing_media_policy()
     st.markdown('#### Step 1: Search by barcode (optional but recommended)')
@@ -6426,51 +6269,6 @@ def find_partial_barcode_matches(fragment, limit=12):
 def submit_release_correction(release_id, seller_id, field_name, old_value, suggested_value, note):
     run("""INSERT INTO how_release_corrections(release_id,seller_id,field_name,old_value,suggested_value,correction_note,status,created_at) VALUES(?,?,?,?,?,?,?,?)""",
         (release_id,seller_id,field_name,old_value,suggested_value,note,'Pending',now()))
-
-def release_database_admin():
-    st.subheader('House Of Wax Release Database')
-    st.write('This is the internal House Of Wax reference library built from barcode scans, Discogs/MusicBrainz results, seller corrections, and admin approval.')
-    q=st.text_input('Search release database',placeholder='barcode, artist, title, label, catalog number')
-    where=''
-    params=()
-    if q:
-        like=f"%{q}%"
-        where="WHERE barcode LIKE ? OR artist LIKE ? OR title LIKE ? OR label LIKE ? OR catalog_number LIKE ?"
-        params=(like,like,like,like,like)
-    releases=df(f"SELECT * FROM how_releases {where} ORDER BY id DESC LIMIT 200",params)
-    st.dataframe(releases,width='stretch')
-    if not releases.empty:
-        labels=[f"{int(r.id)} - {safe(r.artist)} - {safe(r.title)} [{safe(r.barcode)}]" for _,r in releases.iterrows()]
-        pick=st.selectbox('Review release',labels,key='v25_release_admin_pick')
-        rid=int(pick.split(' - ')[0])
-        row=df("SELECT * FROM how_releases WHERE id=?",(rid,)).iloc[0]
-        with st.form('release_review_form'):
-            c1,c2=st.columns(2)
-            artist=c1.text_input('Artist',value=safe(row.get('artist')))
-            title=c2.text_input('Title',value=safe(row.get('title')))
-            c3,c4,c5=st.columns(3)
-            fmt=c3.text_input('Format',value=safe(row.get('format')))
-            label=c4.text_input('Label',value=safe(row.get('label')))
-            year=c5.text_input('Release year',value=safe(row.get('release_year')))
-            c6,c7,c8=st.columns(3)
-            genre=c6.text_input('Genre',value=safe(row.get('genre')))
-            cat=c7.text_input('Catalog number',value=safe(row.get('catalog_number')))
-            confidence=c8.number_input('Confidence',min_value=0,max_value=100,value=int(row.get('source_confidence') or 50))
-            image=st.text_input('Image URL',value=safe(row.get('image_url')))
-            external=st.text_input('External release URL',value=safe(row.get('external_release_url')))
-            status=st.selectbox('Verification status',['Unverified','Needs Review','Approved','Rejected'],index=['Unverified','Needs Review','Approved','Rejected'].index(safe(row.get('verification_status'),'Unverified') if safe(row.get('verification_status')) in ['Unverified','Needs Review','Approved','Rejected'] else 'Unverified'))
-            notes=st.text_area('Admin notes',value=safe(row.get('admin_notes')))
-            save=st.form_submit_button('Save release review')
-            if save:
-                run("""UPDATE how_releases SET artist=?,title=?,format=?,label=?,release_year=?,genre=?,catalog_number=?,source_confidence=?,image_url=?,external_release_url=?,verification_status=?,admin_notes=?,updated_at=? WHERE id=?""",
-                    (artist,title,fmt,label,year,genre,cat,int(confidence),image,external,status,notes,now(),rid))
-                st.success('Release review saved.')
-        sources=df("SELECT * FROM how_release_sources WHERE release_id=? ORDER BY id DESC",(rid,))
-        corrections=df("SELECT * FROM how_release_corrections WHERE release_id=? ORDER BY id DESC",(rid,))
-        st.markdown('### Sources')
-        st.dataframe(sources,width='stretch')
-        st.markdown('### Seller corrections')
-        st.dataframe(corrections,width='stretch')
 
 def listing_quality_assessment(category='', artist='', title='', price=0, description='', mg='', sg='', image='', has_uploaded_photo=False, smart_confidence=''):
     try:
@@ -7454,12 +7252,6 @@ def seller_more_tools_tabs(sid):
                 st.success('Saved.')
             else:
                 st.error('Event could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
-def auctions():
-    header(); st.header('Auctions'); sid=seller_pick('auction_seller'); prods=df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Active','Approved','Public')",(sid,))
-    if not prods.empty:
-        with st.form('auction'): pid=st.selectbox('Product',prods['id'].tolist()); title=st.text_input('Auction title'); start=st.number_input('Starting bid',min_value=0.0,step=1.0); end=st.text_input('End time'); sub=st.form_submit_button('Create live auction')
-        if sub: run("INSERT INTO auctions(product_id,seller_id,auction_title,starting_bid,reserve_price,buy_now_price,bid_increment,start_time,end_time,status,notes,created_at) VALUES(?,?,?,?,?,?,1,?,?,'Live','',?)",(int(pid),sid,title,float(start),0,0,now(),end,now())); st.success('Auction created.')
-    st.dataframe(table('auctions'),width='stretch')
 def listing_review_queue():
     admin_context('House Of Wax Admin → Moderation Center')
     st.subheader('Moderation Center')
@@ -8082,38 +7874,6 @@ def admin():
 
 # ---------- V23 Launch Prep + Public Pages ----------
 
-def seller_standards():
-    header()
-    st.header('Seller Standards')
-    st.write('Sellers on House Of Wax should help build a trusted marketplace and music culture community.')
-    st.markdown('### Sellers are expected to')
-    st.info('Approved sellers can manage and publish listings in their own stores. Sellers are responsible for the accuracy, legality, condition, pricing, images, and descriptions of the items they post.')
-    st.write('- Describe items honestly.')
-    st.write('- Use clear condition notes.')
-    st.write('- Add barcode, catalog, matrix/runout, label, format, and release details when available.')
-    st.write('- Upload strong photos.')
-    st.write('- Price clearly.')
-    st.write('- Respond to buyers professionally.')
-    st.write('- Ship items safely and on time.')
-    st.write('- Respect House Of Wax trust standards.')
-    st.write('- Do not knowingly post counterfeit, stolen, misleading, illegal, hateful, violent, or prohibited items.')
-    st.markdown('### House Of Wax Official')
-    st.write('House Of Wax can also sell branded merchandise, official drops, curated goods, and platform items through the House Of Wax Official seller account.')
-
-def buyer_expectations():
-    header()
-    st.header('Buyer Expectations')
-    st.write('House Of Wax buyers should understand what they are buying and use the Knowledge Hub to collect smarter.')
-    st.markdown('### Buyers are expected to')
-    st.write('- Read item details before requesting to buy.')
-    st.write('- Review photos, condition notes, and seller information.')
-    st.write('- Ask questions before committing.')
-    st.write('- Pay promptly when payment is due.')
-    st.write('- Avoid buyer remorse disputes when an item was accurately described.')
-    st.write('- Leave fair feedback after the transaction.')
-    st.markdown('### Buying smarter')
-    st.write('Use the Knowledge Hub to learn grading, formats, barcodes, matrix/runouts, bootlegs, reissues, and marketplace trust before buying.')
-
 def policy_draft_notice():
     st.warning('Draft placeholder for prototype planning. Must be reviewed by a qualified attorney before public launch.')
 
@@ -8171,97 +7931,6 @@ def legal_policies():
     ]
     for item in checklist:
         st.write(f'- {item}')
-
-
-def seller_onboarding():
-    header()
-    marketplace_context('House Of Wax Marketplace → Seller Onboarding')
-    st.header('Seller Onboarding')
-    st.info('Use this guide to onboard early House Of Wax sellers, partners, and testers without adding risky production features.')
-
-    st.markdown('### Who House Of Wax is for')
-    for item in ['Record sellers','Collectors','Music merch sellers','Memorabilia sellers','Culture goods sellers']:
-        st.write(f'- {item}')
-
-    st.markdown('### Seller onboarding walkthrough')
-    steps=[
-        'Create seller profile',
-        'Add store/policy notes',
-        'Search or enter item',
-        'Confirm match',
-        'Add condition and seller details',
-        'Add real item photos',
-        'Preview listing',
-        'Review listing readiness',
-        'Save as Draft or Publish to My Store',
-        'Confirm seller account is approved',
-        'Respond to inquiries',
-        'Manage purchase requests',
-        'Mark Pending or Sold'
-    ]
-    for i,item in enumerate(steps,1):
-        st.write(f'{i}. {item}')
-
-    st.markdown('### Seller listing quality tips')
-    for item in ['Clear title','Accurate price','Honest condition','Real photos','Media/sleeve condition for music','Clear pickup/shipping notes','No counterfeit or unsafe items']:
-        st.write(f'- {item}')
-
-    st.markdown('### Seller trust tips')
-    for item in ['Complete profile','Respond professionally','Use exact item photos','Keep listings accurate','Update sold/pending status quickly']:
-        st.write(f'- {item}')
-
-    st.warning('Early seller onboarding is still prototype guidance. Public launch still needs real authentication, hosted data, final legal terms, seller agreements, and payment/checkout decisions.')
-
-def barcode_diagnostics_page():
-    header()
-    st.header('Barcode Lookup Diagnostics')
-    st.write('Use this page to test a barcode and see exactly which sources House Of Wax checks.')
-    code=st.text_input('Barcode to test',key='standalone_diag_barcode')
-    c1,c2=st.columns(2)
-    artist=c1.text_input('Artist fallback',key='standalone_diag_artist',placeholder='Example: Lady Gaga')
-    title=c2.text_input('Title fallback',key='standalone_diag_title',placeholder='Example: The Fame, Born This Way, Chromatica')
-    c3,c4=st.columns(2)
-    if c3.button('Run barcode diagnostic lookup',key='standalone_diag_run'):
-        matches,diagnostics=lookup_barcode_with_diagnostics(code)
-        st.session_state['standalone_diag_matches']=matches
-        st.session_state['standalone_diag_results']=diagnostics
-    if c4.button('Run artist/title search',key='standalone_text_diag_run'):
-        matches,diagnostics=lookup_by_artist_title_with_diagnostics(artist,title,code)
-        st.session_state['standalone_diag_matches']=matches
-        st.session_state['standalone_diag_results']=diagnostics
-    if st.button('Smart Search: Find Best Match',key='standalone_smart_best_match'):
-        best,ranked,diagnostics=run_smart_best_match_search(
-            st.session_state.get('standalone_diag_artist',''),
-            st.session_state.get('standalone_diag_title',''),
-            code
-        )
-        st.session_state['standalone_diag_matches']=ranked
-        st.session_state['standalone_diag_results']=diagnostics
-        st.session_state['standalone_best_match']=best
-    render_best_match_card(
-        st.session_state.get('standalone_best_match'),
-        'standalone_diag',
-        st.session_state.get('standalone_diag_matches',[]),
-        st.session_state.get('standalone_diag_artist',''),
-        st.session_state.get('standalone_diag_title',''),
-        code
-    )
-
-    show_barcode_diagnostics(st.session_state.get('standalone_diag_results',[]))
-    show_universal_search_links(st.session_state.get('standalone_diag_artist',''),st.session_state.get('standalone_diag_title',''),code)
-    manual_release_seed_form(st.session_state.get('standalone_diag_artist',''),st.session_state.get('standalone_diag_title',''),code,'standalone_diag')
-
-
-    matches=st.session_state.get('standalone_diag_matches',[])
-    if matches:
-        st.markdown('### Matches')
-        for i,m in enumerate(matches,1):
-            with st.container(border=True):
-                st.write(f"**{i}. {safe(m.get('artist'))} - {safe(m.get('title'))}**")
-                st.caption(f"{safe(m.get('source'))} • {safe(m.get('format'))} • {safe(m.get('release_year'))} • score {safe(m.get('_match_score'))}")
-                if safe(m.get('image_url')):
-                    safe_image(safe(m.get('image_url')),width=160,fallback_text='Match image unavailable.')
-                st.write(safe(m.get('external_url')))
 
 
 def app_mode():

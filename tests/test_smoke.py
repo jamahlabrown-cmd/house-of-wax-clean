@@ -458,6 +458,31 @@ def test_missed_payment_window_releases_listing_and_strikes_buyer():
     assert ending_strikes == starting_strikes + 1, f"Expected a strike added, got {starting_strikes} -> {ending_strikes}"
 
 
+# ---------- Admin content must not leak into consumer-facing pages via the public Testing Mode toggle ----------
+
+def test_founder_knowledge_section_requires_real_admin_not_just_testing_mode():
+    # Founder: "make sure the admin side does not mix with consumer side."
+    # The Knowledge Hub is a public, consumer-facing page -- but its "Admin /
+    # Founder Knowledge" section (funding roadmap, launch wedge notes) was
+    # gated by is_admin_unlocked(), which any anonymous visitor can trigger
+    # via the public Testing Mode toggle with no real login. It must require
+    # real admin auth (is_admin_user()) instead.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    goto(at, "Knowledge Hub")
+    assert not at.exception
+
+    all_text = [m.value for m in at.markdown]
+    assert not any("Admin / Founder Knowledge" in t for t in all_text), (
+        "Testing mode alone (no real admin login) should not unlock founder/business content on a public page"
+    )
+    assert not any("funding roadmap" in t.lower() for t in all_text), (
+        "Business-sensitive content should not be reachable via the public Testing Mode toggle"
+    )
+
+
 # ---------- Buyer/seller trust tier (founder: grade based on volume + averaged feedback) ----------
 
 def test_trust_tier_gates_silver_and_gold_behind_a_real_average():

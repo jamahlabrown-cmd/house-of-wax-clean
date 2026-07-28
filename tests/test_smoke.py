@@ -309,10 +309,20 @@ def _new_isolated_product(hw_app, seller_id, title):
     return int(hw_app.df("SELECT id FROM products WHERE title=? ORDER BY id DESC LIMIT 1", (title,)).iloc[0]['id'])
 
 
+def _new_isolated_buyer(hw_app, email_prefix):
+    # ensure_buyer() reuses whatever buyer row already exists in the shared
+    # SQLite file (same reasoning as _new_isolated_product above) -- and
+    # _real_buyer_session's app_users row is keyed on a unique auth_user_id
+    # AND a unique email, so any two tests sharing a buyer would collide on
+    # both. Give each test needing a real signed-in session its own buyer.
+    email = f"{email_prefix}@example.com"
+    return hw_app.create_buyer(email, email_prefix.replace("_", " ").title())
+
+
 def _real_buyer_session(at, hw_app, buyer_id, buyer_email):
     hw_app.run(
         "INSERT INTO app_users(auth_user_id,email,display_name,account_type,buyer_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
-        ("real-buyer-uuid", buyer_email, "Real Buyer", "Buyer", buyer_id, "No", "Active", hw_app.now(), hw_app.now()),
+        (f"real-buyer-uuid-{buyer_id}", buyer_email, "Real Buyer", "Buyer", buyer_id, "No", "Active", hw_app.now(), hw_app.now()),
     )
     at.session_state["auth_session"] = {"user_id": "real-buyer-uuid", "email": buyer_email, "access_token": "fake"}
     at.run()
@@ -432,6 +442,11 @@ def _reservation_failure_probe():
     hw_app.reserve_listing_for_payment(1, 1)
 
 
+def _restore_pending_action_probe():
+    import app as hw_app
+    hw_app.restore_pending_action()
+
+
 def test_reservation_failure_is_surfaced_not_silently_swallowed(monkeypatch):
     # Regression guard for a real production bug: reserve_listing_for_payment()
     # updates BOTH products.listing_status and purchase_requests.payment_due_at.
@@ -515,3 +530,99 @@ def test_expiry_sweep_buyer_strike_failure_is_quiet_not_a_random_error_banner(mo
 
     assert list(at.error) == [], f"Expected no error banner from the background sweep, got {[e.value for e in at.error]}"
     assert hw_app.PAYMENT_EXPIRY_STATUS["last_error"], "Expected the strike-write failure to be recorded, not silently dropped"
+
+
+# ---------- Cart (slice 2: add-to-cart) ----------
+
+def test_add_to_cart_is_idempotent_and_shows_in_cart_badge():
+    # A real signed-in buyer clicks Add to Cart on the product detail page --
+    # confirms exactly one cart_items row is created, and clicking again (or
+    # just re-rendering the page) doesn't create a duplicate: is_in_cart()
+    # should make add_to_cart() a no-op and the button should be replaced by
+    # an "In Cart" badge.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+
+    buyer_id = _new_isolated_buyer(hw_app, "add_to_cart_test_buyer")
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Add To Cart Test Album")
+    buyer = hw_app.get_buyer(buyer_id)
+
+    _real_buyer_session(at, hw_app, buyer_id, buyer["email"])
+    goto(at, "Search Music", area_key="marketplace_navigation")
+    at.session_state["product_id"] = int(product_id)
+    at.run()
+    assert not at.exception, at.exception
+
+    add_button = next(b for b in at.button if b.key == f"cart_add_detail_{product_id}")
+    add_button.click().run()
+    assert not at.exception, at.exception
+
+    cart_rows = hw_app.df("SELECT * FROM cart_items WHERE buyer_id=? AND product_id=?", (buyer_id, product_id))
+    assert len(cart_rows) == 1, f"Expected exactly one cart_items row, got {len(cart_rows)}"
+
+    # Re-render: the button should now be gone, replaced by the "In Cart" badge.
+    at.run()
+    assert not at.exception, at.exception
+    add_buttons = [b for b in at.button if b.key == f"cart_add_detail_{product_id}"]
+    assert add_buttons == [], "Expected the Add to Cart button to be replaced by an In Cart badge"
+
+    cart_rows_after = hw_app.df("SELECT * FROM cart_items WHERE buyer_id=? AND product_id=?", (buyer_id, product_id))
+    assert len(cart_rows_after) == 1, f"Expected still exactly one cart_items row after re-render, got {len(cart_rows_after)}"
+
+
+def test_anonymous_add_to_cart_resumes_after_sign_in():
+    # Anonymous visitor clicks Add to Cart -> gets redirected to sign in with
+    # a pending action saved -- then, once signed in, restore_pending_action()
+    # (called automatically post sign-in in the real app) should complete the
+    # add instead of just reopening a form, since Add to Cart has no form to
+    # reopen.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+
+    buyer_id = _new_isolated_buyer(hw_app, "anon_add_to_cart_test_buyer")
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Anonymous Add To Cart Test Album")
+    buyer = hw_app.get_buyer(buyer_id)
+
+    goto(at, "Search Music", area_key="marketplace_navigation")
+    at.session_state["product_id"] = int(product_id)
+    at.run()
+    assert not at.exception, at.exception
+
+    add_button = next(b for b in at.button if b.key == f"cart_add_detail_{product_id}")
+    add_button.click().run()
+    assert not at.exception, at.exception
+
+    action = at.session_state["pending_action"] if "pending_action" in at.session_state else {}
+    assert action.get("action_type") == "Add to Cart", f"Expected a pending Add to Cart action, got {action}"
+    assert hw_app.df("SELECT * FROM cart_items WHERE product_id=?", (product_id,)).empty, (
+        "Nothing should be in the cart yet -- the visitor was never signed in"
+    )
+
+    # Resume as a fresh probe rather than continuing to drive the same `at`
+    # through My Account: product_detail() rendered a Report Listing form
+    # above (report_listing_form), and AppTest's widget-state diffing trips
+    # on that form's keys surviving a goto() to an unrelated page -- a
+    # framework quirk, not something restore_pending_action() itself does.
+    # Carry the pending action + auth session over as plain session_state
+    # (not widget state) into a fresh probe that calls the exact same
+    # function the real "Back to Item" button calls.
+    resume_at = AppTest.from_function(_restore_pending_action_probe, default_timeout=30)
+    resume_at.session_state["pending_action"] = {
+        "action_type": "Add to Cart", "product_id": product_id, "seller_id": seller_id, "return_page": "Search Music",
+    }
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,buyer_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-buyer-uuid-{buyer_id}", buyer["email"], "Real Buyer", "Buyer", buyer_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    resume_at.session_state["auth_session"] = {"user_id": f"real-buyer-uuid-{buyer_id}", "email": buyer["email"], "access_token": "fake"}
+    resume_at.run()
+    assert not resume_at.exception, resume_at.exception
+
+    cart_rows = hw_app.df("SELECT * FROM cart_items WHERE buyer_id=? AND product_id=?", (buyer_id, product_id))
+    assert len(cart_rows) == 1, f"Expected the cart add to complete after sign-in, got {len(cart_rows)} rows"

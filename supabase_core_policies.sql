@@ -547,6 +547,22 @@ on want_list for all to authenticated
 using (is_admin_user())
 with check (is_admin_user());
 
+-- cart_items: a buyer's private pre-checkout cart, same ownership shape as
+-- want_list above. Checkout itself needs no new policy here -- it writes to
+-- purchase_requests (covered by "buyer create own purchase requests") and
+-- products (covered by "buyer reserve product for own purchase").
+drop policy if exists "buyer manage own cart" on public."cart_items";
+create policy "buyer manage own cart"
+on cart_items for all to authenticated
+using (buyer_id in (select buyer_id from app_users where auth_user_id = auth.uid()))
+with check (buyer_id in (select buyer_id from app_users where auth_user_id = auth.uid()));
+
+drop policy if exists "admin manage cart" on public."cart_items";
+create policy "admin manage cart"
+on cart_items for all to authenticated
+using (is_admin_user())
+with check (is_admin_user());
+
 -- Matching a new listing against every buyer's want_list needs to read
 -- across ALL buyers, not just the seller's own -- something RLS on
 -- want_list deliberately blocks above. app.py's find_want_list_matches_for_notify

@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.114 FIX: DATABASE STATUS COUNTS WERE MISLEADING UNDER TESTING MODE'
+APP_VERSION='V25.43.115 ADD: SHOPPING CART FOUNDATION, ADD TO CART ON EVERY LISTING'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -77,7 +77,7 @@ def supabase_config():
         url=url[:-8].rstrip('/')
     anon=safe(config_value('SUPABASE_ANON_KEY'))
     return url,anon
-CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies','want_list','seller_reviews','avatar_faq_videos','culture_posts']
+CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies','want_list','seller_reviews','avatar_faq_videos','culture_posts','cart_items']
 GRADE_SCALE=['Mint','Near Mint','VG+','VG','Good+','Good','Fair','Poor']
 GRADE_INDEX={g:i for i,g in enumerate(GRADE_SCALE)}
 GRADE_PRICE_MULTIPLIERS={'Mint':1.35,'Near Mint':1.20,'VG+':1.00,'VG':0.80,'Good+':0.65,'Good':0.50,'Fair':0.35,'Poor':0.20}
@@ -494,6 +494,12 @@ def restore_pending_action():
         st.session_state[f'open_purchase_{pid}']=True
     elif action.get('action_type')=='Make Offer':
         st.session_state[f'open_offer_{pid}']=True
+    elif action.get('action_type')=='Add to Cart':
+        bid=ensure_linked_buyer_profile()
+        if bid:
+            product_row=hosted_select('products',{'id':pid},limit=1) if hosted_enabled() else df('SELECT * FROM products WHERE id=?',(pid,))
+            if not product_row.empty:
+                add_to_cart(bid,product_row.iloc[0])
     return True
 def clear_pending_action():
     st.session_state.pop('pending_action',None)
@@ -1207,6 +1213,7 @@ def setup():
     cur.execute('''CREATE TABLE IF NOT EXISTS listing_inquiries(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,message TEXT,status TEXT DEFAULT 'New',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS purchase_requests(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,fulfillment_preference TEXT,offer_price REAL DEFAULT 0,buyer_message TEXT,status TEXT DEFAULT 'New',payment_due_at TEXT,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS want_list(id INTEGER PRIMARY KEY AUTOINCREMENT,buyer_id INTEGER,artist TEXT,title TEXT,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS cart_items(id INTEGER PRIMARY KEY AUTOINCREMENT,buyer_id INTEGER,product_id INTEGER,seller_id INTEGER,added_price REAL DEFAULT 0,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_reviews(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,buyer_id INTEGER,purchase_request_id INTEGER,product_id INTEGER,rating INTEGER,review_text TEXT,buyer_display_name TEXT,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS avatar_faq_videos(id INTEGER PRIMARY KEY AUTOINCREMENT,question TEXT,video_url TEXT,display_order INTEGER DEFAULT 0,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS tester_feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,tester_name TEXT,tester_type TEXT,page_flow TEXT,worked_well TEXT,confusing TEXT,felt_broken TEXT,missing TEXT,ease_rating INTEGER,would_use_again TEXT,open_notes TEXT,status TEXT DEFAULT 'New',created_at TEXT)''')
@@ -1471,8 +1478,9 @@ def setup():
     old_v25_43_111_announcement='V25.43.111'+' Simplify: account status banners removed, photo field moved to top of buyer profile active'
     old_v25_43_112_announcement='V25.43.112'+' Fix: Buy Now was silently failing to reserve the listing due to a missing RLS policy active'
     old_v25_43_113_announcement='V25.43.113'+' Fix: found and closed a second RLS gap (buyer strikes); background sweep no longer shows unrelated errors active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement]:
-        set_setting('announcement','V25.43.114 Fix: Database Status buyer/purchase counts now say when Testing mode cannot see them active')
+    old_v25_43_114_announcement='V25.43.114'+' Fix: Database Status buyer/purchase counts now say when Testing mode cannot see them active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement]:
+        set_setting('announcement','V25.43.115 Add: shopping cart foundation -- Add to Cart on every listing, more coming active')
 setup()
 recovery_token_bridge()
 
@@ -2932,7 +2940,7 @@ def filter_global_marketplace_listings(prods, keyword='', category='All', fmt='A
         shown=shown.sort_values('created_at',ascending=False,na_position='last') if 'created_at' in shown.columns else shown
     return shown
 
-def product_card(p):
+def product_card(p, buyer_id=None):
     with st.container(border=True):
         seller=get_seller(int(p['seller_id'])) if safe(p.get('seller_id')) else None
         image=listing_primary_image(p)
@@ -2987,6 +2995,18 @@ def product_card(p):
                 if not is_authenticated():
                     request_marketplace_navigation('My Account')
                 st.rerun()
+            if buyer_id and is_in_cart(buyer_id,int(p['id'])):
+                status_badge('In Cart','success')
+            elif st.button('Add to Cart',key=f"cart_add_item_{int(p['id'])}",width='stretch'):
+                if not is_authenticated():
+                    set_pending_action('Add to Cart',p)
+                    request_marketplace_navigation('My Account')
+                    st.rerun()
+                elif buyer_id:
+                    add_to_cart(buyer_id,p)
+                    st.rerun()
+                else:
+                    st.warning('Complete your buyer profile in My Account to use your cart.')
         else:
             st.caption('Buyer actions are hidden unless the listing is live/public and available.')
         with st.expander('Report Listing',expanded=False):
@@ -3080,9 +3100,10 @@ def seller_profile(sid):
     prods=hosted_select('products',{'seller_id':int(sid)},in_filters={'listing_status':public_listing_query_statuses()},order='created_at.desc') if hosted_enabled() else df("SELECT * FROM products WHERE seller_id=? AND listing_status IN ('Live','Active','Approved','Public','Pending Pickup/Payment','Pending','Sold') ORDER BY created_at DESC",(sid,))
     if prods.empty: st.info('No public inventory yet. Draft, Hidden, Under Review, and Removed listings stay private or unavailable inside Seller Tools.')
     else:
+        cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
         cols=st.columns(3)
         for i,(_,p) in enumerate(prods.iterrows()):
-            with cols[i%3]: product_card(p)
+            with cols[i%3]: product_card(p,buyer_id=cart_bid)
 def product_detail(pid):
     r=hosted_select('products',{'id':int(pid)},limit=1) if hosted_enabled() else df('SELECT * FROM products WHERE id=?',(int(pid),))
     if r.empty: st.error('Product missing.'); st.session_state.pop('product_id',None); return
@@ -3182,6 +3203,22 @@ def product_detail(pid):
         offer_expanded=bool(st.session_state.pop(f'open_offer_{pid}',False))
         with st.expander('Make an Offer',expanded=offer_expanded):
             render_offer_form(p,f'product_{pid}')
+        cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
+        if cart_bid and is_in_cart(cart_bid,pid):
+            status_badge('In Cart','success')
+            st.caption('Already in your cart. Go to Cart to check out.')
+        else:
+            if st.button('Add to Cart',key=f'cart_add_detail_{pid}'):
+                if not is_authenticated():
+                    set_pending_action('Add to Cart',p)
+                    request_marketplace_navigation('My Account')
+                    st.rerun()
+                elif cart_bid:
+                    add_to_cart(cart_bid,p)
+                    st.rerun()
+                else:
+                    st.warning('Complete your buyer profile in My Account to use your cart.')
+            st.caption('Collecting more than one item from this seller? Add to Cart and check out together for one combined payment.')
     else:
         st.info(f"This listing is {listing_availability_label(p).lower()}, so public buyer actions are turned off.")
 
@@ -4138,9 +4175,10 @@ def marketplace():
     if prods.empty:
         st.info('No matching live listings found. Try a different artist, title, barcode, or seller name.')
         return
+    cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
     cols=st.columns(2)
     for i,(_,p) in enumerate(prods.iterrows()):
-        with cols[i%2]: product_card(p)
+        with cols[i%2]: product_card(p,buyer_id=cart_bid)
 def seller_stores():
     header(); marketplace_context('House Of Wax Marketplace → Seller Stores'); st.header('Seller Stores')
     st.write('Every store here is run by a real seller with real inventory — browse their crates, not a warehouse.')
@@ -4635,6 +4673,68 @@ def want_list_manager(buyer_id):
             if c2.button('Remove',key=f'remove_want_{wid}'):
                 remove_want(wid)
                 st.rerun()
+
+def is_in_cart(buyer_id, product_id):
+    if not buyer_id or not product_id:
+        return False
+    rows=hosted_select('cart_items',{'buyer_id':int(buyer_id),'product_id':int(product_id)},limit=1) if hosted_enabled() else df("SELECT id FROM cart_items WHERE buyer_id=? AND product_id=?",(int(buyer_id),int(product_id)))
+    return not rows.empty
+
+def add_to_cart(buyer_id, product):
+    if not buyer_id or product is None:
+        return 0
+    product_id=int(product.get('id') or 0)
+    if not product_id or is_in_cart(buyer_id,product_id):
+        return 0
+    data={'buyer_id':int(buyer_id),'product_id':product_id,'seller_id':int(product.get('seller_id') or 0),'added_price':float(product.get('price') or 0),'created_at':now(),'updated_at':now()}
+    return core_insert('cart_items',data,"""INSERT INTO cart_items(buyer_id,product_id,seller_id,added_price,created_at,updated_at) VALUES(?,?,?,?,?,?)""",(data['buyer_id'],data['product_id'],data['seller_id'],data['added_price'],data['created_at'],data['updated_at']))
+
+def buyer_cart_items(buyer_id):
+    if not buyer_id:
+        return pd.DataFrame()
+    return hosted_select('cart_items',{'buyer_id':buyer_id},order='created_at.desc') if hosted_enabled() else df("SELECT * FROM cart_items WHERE buyer_id=? ORDER BY created_at DESC",(buyer_id,))
+
+def remove_from_cart(cart_item_id):
+    if hosted_enabled():
+        return hosted_delete('cart_items',{'id':int(cart_item_id)})
+    run('DELETE FROM cart_items WHERE id=?',(int(cart_item_id),))
+    return True
+
+def cart_count(buyer_id):
+    if not buyer_id:
+        return 0
+    return len(buyer_cart_items(buyer_id))
+
+def enrich_cart_rows(cart_df):
+    # Same enrichment pattern as enrich_activity_rows(), plus an `available`
+    # flag re-checked right now via is_available_listing() -- a cart can sit
+    # untouched for days, and the listing it points to may have sold, been
+    # hidden, or been removed since it was added.
+    if cart_df.empty:
+        return cart_df
+    out=cart_df.copy()
+    product_cache={}
+    seller_cache={}
+    for idx,row in out.iterrows():
+        pid=int(row.get('product_id') or 0)
+        if pid not in product_cache:
+            prow=hosted_select('products',{'id':pid},limit=1) if hosted_enabled() else df('SELECT * FROM products WHERE id=?',(pid,))
+            product_cache[pid]=prow.iloc[0].to_dict() if not prow.empty else {}
+        product=product_cache.get(pid,{})
+        sid=int(product.get('seller_id') or row.get('seller_id') or 0)
+        if sid and sid not in seller_cache:
+            seller_cache[sid]=get_seller(sid)
+        seller=seller_cache.get(sid)
+        out.at[idx,'seller_id']=sid
+        if product:
+            for col in ['artist','title','price','listing_status','image_url']:
+                out.at[idx,col]=safe(product.get(col))
+            out.at[idx,'available']=is_available_listing(product)
+        else:
+            out.at[idx,'available']=False
+        if seller is not None:
+            out.at[idx,'store_name']=safe(seller.get('store_name'))
+    return out
 
 def add_seller_review(seller_id, buyer_id, purchase_request_id, product_id, rating, review_text, buyer_display_name):
     data={'seller_id':int(seller_id),'buyer_id':int(buyer_id),'purchase_request_id':int(purchase_request_id),'product_id':int(product_id) if product_id else None,'rating':int(rating),'review_text':safe(review_text).strip(),'buyer_display_name':safe(buyer_display_name),'created_at':now(),'updated_at':now()}

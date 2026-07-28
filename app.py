@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.116 ADD: CART PAGE + CHECKOUT, GROUPED BY SELLER LIKE DISCOGS'
+APP_VERSION='V25.43.117 ADD: ONE COMBINED PAYMENT PER SELLER, NOT PER ITEM'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1480,8 +1480,9 @@ def setup():
     old_v25_43_113_announcement='V25.43.113'+' Fix: found and closed a second RLS gap (buyer strikes); background sweep no longer shows unrelated errors active'
     old_v25_43_114_announcement='V25.43.114'+' Fix: Database Status buyer/purchase counts now say when Testing mode cannot see them active'
     old_v25_43_115_announcement='V25.43.115'+' Add: shopping cart foundation -- Add to Cart on every listing, more coming active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement]:
-        set_setting('announcement','V25.43.116 Add: Cart page and checkout, grouped by seller like Discogs active')
+    old_v25_43_116_announcement='V25.43.116'+' Add: Cart page and checkout, grouped by seller like Discogs active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement]:
+        set_setting('announcement','V25.43.117 Add: one combined PayPal payment per seller instead of one per item active')
 setup()
 recovery_token_bridge()
 
@@ -2829,8 +2830,46 @@ def buyer_activity_tables(bid):
         purchases=enrich_activity_rows(hosted_select('purchase_requests',{'buyer_id':int(bid)},order='created_at.desc'))
     else:
         inquiries=df("""SELECT i.*,p.artist,p.title,p.listing_status,s.store_name FROM listing_inquiries i LEFT JOIN products p ON i.product_id=p.id LEFT JOIN sellers s ON i.seller_id=s.id WHERE i.buyer_id=? ORDER BY i.created_at DESC""",(int(bid),))
-        purchases=df("""SELECT pr.*,p.artist,p.title,p.listing_status,s.store_name FROM purchase_requests pr LEFT JOIN products p ON pr.product_id=p.id LEFT JOIN sellers s ON pr.seller_id=s.id WHERE pr.buyer_id=? ORDER BY pr.created_at DESC""",(int(bid),))
+        purchases=df("""SELECT pr.*,p.artist,p.title,p.price,p.listing_status,s.store_name FROM purchase_requests pr LEFT JOIN products p ON pr.product_id=p.id LEFT JOIN sellers s ON pr.seller_id=s.id WHERE pr.buyer_id=? ORDER BY pr.created_at DESC""",(int(bid),))
     return inquiries,purchases
+
+def seller_ready_to_pay_groups(bid):
+    # The actual point of a cart (per Discogs): pay once per seller, not
+    # once per item. Groups every purchase_requests row still awaiting
+    # payment by seller_id and sums them into one combined total -- reused
+    # both by "Ready to pay" in My Orders and by the Cart page's post-
+    # checkout confirmation, so there's exactly one place this math lives.
+    _,purchases=buyer_activity_tables(bid)
+    awaiting=purchases[purchases['status'].isin(['Seller Accepted','Pending Pickup/Payment'])] if 'status' in purchases.columns else purchases.iloc[0:0]
+    if awaiting.empty:
+        return []
+    groups=[]
+    for seller_id,rows in awaiting.groupby('seller_id'):
+        line_items=[]
+        total=0.0
+        for _,pr in rows.iterrows():
+            amount=float(pr.get('offer_price') or 0) or float(pr.get('price') or 0)
+            total+=amount
+            line_items.append({'id':int(pr['id']),'artist':safe(pr.get('artist')),'title':safe(pr.get('title')),'amount':amount,'status':safe(pr.get('status')),'due':safe(pr.get('payment_due_at'))})
+        groups.append({'seller_id':int(seller_id),'seller':get_seller_full(int(seller_id)),'store_name':safe(rows.iloc[0].get('store_name')),'line_items':line_items,'total':round(total,2)})
+    return groups
+
+def render_seller_payment_group(group, key_prefix):
+    with st.container(border=True):
+        st.write(f"**{group['store_name']}** — {len(group['line_items'])} item(s)")
+        for li in group['line_items']:
+            label=f"- {li['artist']} — {li['title']}: {money(li['amount'])}"
+            if li['due']:
+                label+=f" (pay by {datetime.fromisoformat(li['due']).strftime('%B %d, %Y')})"
+            st.write(label)
+        if group['total']<=0:
+            st.warning('These listings have no price set -- ask the seller through House Of Wax before paying.')
+            return
+        platform_cut=fee(group['total'])
+        seller_cut=round(group['total']-platform_cut,2)
+        st.write(f"**Total: {money(group['total'])}** = pay the seller {money(seller_cut)} + House Of Wax's platform fee ({commission_percent():.0f}%) {money(platform_cut)}, separately, directly.")
+        render_split_payment_line('Pay the seller',group['seller'].get('paypal_link') if group['seller'] is not None else '',seller_cut,"This part goes straight to the seller's PayPal.",key=f'{key_prefix}_seller_{group["seller_id"]}')
+        render_split_payment_line("Pay House Of Wax's platform fee",setting('house_of_wax_paypal_link'),platform_cut,'This part goes straight to House Of Wax.',key=f'{key_prefix}_platform_{group["seller_id"]}')
 
 def buyer_request_history(bid):
     st.subheader('Buyer inquiries and purchase requests')
@@ -4218,7 +4257,10 @@ def render_seller_cart_group(bid, seller_id, group):
         st.subheader(store_name)
         if result:
             if result.get('created_purchase_request_ids'):
-                st.success(f"Bought {len(result['created_purchase_request_ids'])} item(s) from {store_name}. Find payment instructions under My Account -> My Orders -> Ready to pay.")
+                st.success(f"Bought {len(result['created_purchase_request_ids'])} item(s) from {store_name}. Pay below -- this also appears under My Account -> My Orders -> Ready to pay any time you come back.")
+                paid_group=next((g for g in seller_ready_to_pay_groups(bid) if g['seller_id']==seller_id),None)
+                if paid_group:
+                    render_seller_payment_group(paid_group,key_prefix=f'cart_checkout_pay_{bid}')
             for skipped in result.get('skipped',[]):
                 st.warning(f"Could not buy {safe(skipped.get('artist')) or 'an item'} — {safe(skipped.get('title'))}: {safe(skipped.get('reason'))}. It's still in your cart.")
             if st.button('Dismiss',key=f'cart_checkout_dismiss_{seller_id}'):
@@ -4323,37 +4365,12 @@ def buyer_workspace_tabs(bid):
         else:
             cols=[c for c in ['id','store_name','artist','title','fulfillment_preference','offer_price','buyer_message','status','created_at'] if c in purchases.columns]
             st.dataframe(purchases[cols],width='stretch')
-            awaiting_payment=purchases[purchases['status'].isin(['Seller Accepted','Pending Pickup/Payment'])] if 'status' in purchases.columns else purchases.iloc[0:0]
-            if not awaiting_payment.empty:
+            payment_groups=seller_ready_to_pay_groups(bid)
+            if payment_groups:
                 st.markdown('#### Ready to pay')
-                st.caption("House Of Wax connects you with the seller but never holds your payment -- pay each of the two amounts below directly.")
-                for _,pr in awaiting_payment.iterrows():
-                    seller=get_seller_full(int(pr['seller_id'])) if safe(pr.get('seller_id')) else None
-                    amount=float(pr.get('offer_price') or 0) or float(pr.get('price') or 0)
-                    with st.container(border=True):
-                        st.write(f"**{safe(pr.get('artist'))} — {safe(pr.get('title'))}** from {safe(pr.get('store_name'))}")
-                        if safe(pr.get('status'))=='Seller Accepted' and safe(pr.get('payment_due_at')):
-                            st.warning(f"Pay by **{datetime.fromisoformat(safe(pr.get('payment_due_at'))).strftime('%B %d, %Y')}** or you'll lose this item.")
-                        if amount>0:
-                            platform_cut=fee(amount)
-                            seller_cut=round(amount-platform_cut,2)
-                            st.write(f"Total price: {money(amount)}")
-                            render_split_payment_line(
-                                'Pay the seller',
-                                seller.get('paypal_link') if seller is not None else '',
-                                seller_cut,
-                                "This part goes straight to the seller's PayPal. Message the seller through House Of Wax if there's a problem.",
-                                key=f'pay_seller_{int(pr["id"])}',
-                            )
-                            render_split_payment_line(
-                                "Pay House Of Wax's platform fee",
-                                setting('house_of_wax_paypal_link'),
-                                platform_cut,
-                                'This part goes straight to House Of Wax, separate from the seller.',
-                                key=f'pay_platform_{int(pr["id"])}',
-                            )
-                        else:
-                            st.warning('This listing has no price set -- ask the seller through House Of Wax before paying.')
+                st.caption("House Of Wax connects you with the seller but never holds your payment -- pay each seller's total directly, in one PayPal payment per seller, plus one platform fee payment per seller.")
+                for group in payment_groups:
+                    render_seller_payment_group(group,key_prefix=f'pay_{bid}')
             countered=purchases[purchases['status']=='Seller Countered'] if 'status' in purchases.columns else purchases.iloc[0:0]
             if not countered.empty:
                 st.markdown('#### Seller counter-offers awaiting your response')

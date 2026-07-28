@@ -785,3 +785,68 @@ def test_checkout_confirmation_still_shows_after_cart_group_empties():
     )
     assert hw_app.df("SELECT * FROM cart_items WHERE buyer_id=?", (buyer_id,)).empty
     assert hw_app.df("SELECT * FROM purchase_requests WHERE buyer_id=? AND product_id=?", (buyer_id, product_id)).iloc[0]["status"] == "Seller Accepted"
+
+
+# ---------- Cart (slice 5: combined per-seller payment) ----------
+
+def test_seller_ready_to_pay_groups_combines_multiple_items_into_one_total():
+    # The actual point of a cart, per Discogs: pay once per seller, not once
+    # per item. Three purchase_requests for the same buyer+seller, each tied
+    # to a different-priced product, should collapse into exactly one group
+    # whose total is the sum of all three -- not three separate line items.
+    # This is also the test that exercises the buyer_activity_tables()
+    # local-SQL fix (it was missing p.price, so every total silently came
+    # out to $0.00 in local/test mode before that fix).
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+
+    buyer_id = _new_isolated_buyer(hw_app, "combined_payment_test_buyer")
+    seller_id = hw_app.ensure_seller()
+    prices = [24.99, 15.00, 40.50]
+    for i, price in enumerate(prices):
+        product_id = _new_isolated_product(hw_app, seller_id, f"Combined Payment Test Album {i}")
+        hw_app.run("UPDATE products SET price=? WHERE id=?", (price, product_id))
+        hw_app.run(
+            "INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,status,payment_due_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+            (product_id, seller_id, buyer_id, "Combined Test Buyer", "combined@example.com", "Seller Accepted", hw_app.payment_due_at_string(), hw_app.now(), hw_app.now()),
+        )
+
+    groups = hw_app.seller_ready_to_pay_groups(buyer_id)
+    assert len(groups) == 1, f"Expected exactly one seller group, got {len(groups)}"
+    group = groups[0]
+    assert group["seller_id"] == seller_id
+    assert len(group["line_items"]) == 3, group["line_items"]
+    assert group["total"] == round(sum(prices), 2), f"Expected combined total {sum(prices)}, got {group['total']}"
+
+
+def test_my_orders_shows_one_combined_payment_per_seller_not_per_item():
+    # Full page-level check: two Seller Accepted orders from the same seller
+    # should render as ONE "Pay the seller" payment line under My Account ->
+    # My Orders -> Ready to pay, not two.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+
+    buyer_id = _new_isolated_buyer(hw_app, "my_orders_combined_test_buyer")
+    seller_id = hw_app.ensure_seller()
+    for i in range(2):
+        product_id = _new_isolated_product(hw_app, seller_id, f"My Orders Combined Test Album {i}")
+        hw_app.run(
+            "INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,status,payment_due_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+            (product_id, seller_id, buyer_id, "My Orders Test Buyer", "myorders@example.com", "Seller Accepted", hw_app.payment_due_at_string(), hw_app.now(), hw_app.now()),
+        )
+
+    hw_app.run("UPDATE sellers SET paypal_link=? WHERE id=?", ("seller@paypal.example.com", seller_id))
+
+    buyer = hw_app.get_buyer(buyer_id)
+    _real_buyer_session(at, hw_app, buyer_id, buyer["email"])
+    goto(at, "My Account", area_key="marketplace_navigation")
+    assert not at.exception, at.exception
+
+    writes = [m.value for m in at.markdown]
+    total_lines = [w for w in writes if w.startswith("**Total:")]
+    assert len(total_lines) == 1, f"Expected exactly one combined total line for this seller, got {total_lines}"
+    assert "49.98" in total_lines[0], (
+        f"Expected the combined total of both items ($24.99 demo price each = $49.98), got {total_lines[0]}"
+    )

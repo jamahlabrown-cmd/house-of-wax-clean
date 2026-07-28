@@ -513,6 +513,56 @@ def test_verified_seller_badge_is_gone():
     assert not any("Verified Seller" in t for t in all_text), "Verified Seller badge should not render on a seller's public profile"
 
 
+def test_listing_card_has_no_live_badge_or_reference_image_label():
+    # Founder: "Showing the listing is live needs to go too, we know it's by
+    # it being there" and "Reference photo label needs to go but leave the
+    # photo, take away the words." The photo itself (and genuinely useful
+    # negative signals like Pending/Sold) should still render.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Live Badge Removal Test Album")
+
+    goto(at, "Search Music", area_key="marketplace_navigation")
+    assert not at.exception
+    all_text = [m.value for m in at.markdown] + [c.value for c in at.caption]
+    assert any("Live Badge Removal Test Album" in t for t in all_text), "Expected the seeded listing card to actually render"
+    assert not any(">Live<" in t for t in all_text), "Redundant 'Live' badge should be gone"
+    assert not any("Reference image" in t for t in all_text), "'Reference image' label should be gone"
+
+    at.session_state["product_id"] = int(product_id)
+    at.run()
+    assert not at.exception
+    detail_text = [m.value for m in at.markdown] + [c.value for c in at.caption]
+    assert not any("Reference image" in t for t in detail_text), "'Reference image' label should be gone from product detail too"
+
+
+def test_seller_profile_has_no_auto_trust_badges():
+    # Founder: "profile complete, Approved Listing, Quality Listing trusted
+    # seller button can all go" -- these are the buyer-facing auto-generated
+    # badges from render_seller_trust_badges(sid, 'public'). The seller's own
+    # dashboard self-diagnostic view (context='seller') is a different call
+    # site and should be unaffected.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    seller_id = hw_app.ensure_seller()
+    _new_isolated_product(hw_app, seller_id, "Trust Badge Removal Test Album")
+
+    goto(at, "Seller Stores", area_key="marketplace_navigation")
+    at.session_state["seller_id"] = int(seller_id)
+    at.run()
+    assert not at.exception
+    all_text = [m.value for m in at.markdown]
+    for phrase in ["Profile Complete", "Approved Listings", "Quality Listings", "Trusted Seller", "New Seller"]:
+        assert not any(phrase in t for t in all_text), f"Expected '{phrase}' badge to be gone from the public seller profile"
+
+
 def test_signed_out_ask_seller_explains_why_youre_on_the_sign_in_page():
     # Founder reported "Ask the seller doesn't work" -- root cause: clicking
     # Ask Seller while signed out silently redirects to a bare Sign In form

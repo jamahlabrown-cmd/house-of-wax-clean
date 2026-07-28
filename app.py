@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.126 CLEANUP: DELETED 16 MORE ORPHANED FUNCTIONS FOUND IN A FULL DEAD-CODE SWEEP'
+APP_VERSION='V25.43.127 FIX: MOBILE BUTTON ROW, TRUST BADGES, LIVE/REFERENCE LABELS, BANNER SIZE'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1461,8 +1461,9 @@ def setup():
     old_v25_43_123_announcement='V25.43.123'+' Remove: Buy Now + Verified Seller badge, compact listing cards, fix silent sign-in redirect active'
     old_v25_43_124_announcement='V25.43.124'+' Fix: stale "Request to Buy"/checkout copy in internal roadmap pages active'
     old_v25_43_125_announcement='V25.43.125'+' Cleanup: deleted 5 dead admin pages that were not wired to any nav active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement]:
-        set_setting('announcement','V25.43.126 Cleanup: deleted 16 more orphaned functions found in a full dead-code sweep active')
+    old_v25_43_126_announcement='V25.43.126'+' Cleanup: deleted 16 more orphaned functions found in a full dead-code sweep active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement]:
+        set_setting('announcement','V25.43.127 Fix: mobile button row, trust badges, live/reference labels, banner size active')
 setup()
 recovery_token_bridge()
 
@@ -1852,6 +1853,25 @@ def apply_brand_style():
         .stButton > button {
             width: 100%;
             min-height: 2.7rem;
+        }
+
+        /* Listing-card action row (View/Ask/Offer/Cart): the general column
+           rule above stacks these into 4 full-width rows on mobile, which
+           reads as awkward vertical buttons instead of one compact row --
+           founder feedback. Override back to a horizontal row here, with
+           tighter padding/font so 4 buttons still fit a narrow screen. */
+        div[class*="st-key-card_actions_"] [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important;
+        }
+        div[class*="st-key-card_actions_"] [data-testid="stColumn"] {
+            min-width: 0 !important;
+            width: auto !important;
+            flex: 1 1 0 !important;
+        }
+        div[class*="st-key-card_actions_"] .stButton > button {
+            padding: .4rem .3rem;
+            min-height: 2.2rem;
+            font-size: .78rem;
         }
     }
 
@@ -2938,49 +2958,46 @@ def product_card(p, buyer_id=None):
         price_col,status_col=st.columns(2)
         price_col.metric('Price',money(p['price']))
         with status_col:
-            if status_label=='Available':
-                status_badge('Live','success')
-            elif status_label=='Pending':
+            if status_label=='Pending':
                 status_badge(status_label,'warning')
             elif status_label=='Sold':
                 status_badge(status_label,'danger')
-            else:
+            elif status_label!='Available':
                 listing_status_badge(status_label)
         if has_listing_photos(int(p['id'])):
             st.caption('📷 Seller photos included')
-        elif image:
-            st.caption('Reference image')
         if is_available_listing(p):
-            b1,b2,b3,b4=st.columns(4)
-            if b1.button('View',key=f"item_{int(p['id'])}",width='stretch'):
-                st.session_state['product_id']=int(p['id']); st.rerun()
-            if b2.button('Ask',key=f"ask_item_{int(p['id'])}",width='stretch'):
-                set_pending_action('Ask Seller',p)
-                st.session_state['product_id']=int(p['id'])
-                st.session_state[f'open_inquiry_{int(p["id"])}']=True
-                if not is_authenticated():
-                    request_marketplace_navigation('My Account')
-                st.rerun()
-            if b3.button('Offer',key=f"offer_item_{int(p['id'])}",width='stretch'):
-                set_pending_action('Make Offer',p)
-                st.session_state['product_id']=int(p['id'])
-                st.session_state[f'open_offer_{int(p["id"])}']=True
-                if not is_authenticated():
-                    request_marketplace_navigation('My Account')
-                st.rerun()
-            with b4:
-                if buyer_id and is_in_cart(buyer_id,int(p['id'])):
-                    status_badge('In Cart','success')
-                elif st.button('Cart',key=f"cart_add_item_{int(p['id'])}",width='stretch'):
+            with st.container(key=f"card_actions_{int(p['id'])}"):
+                b1,b2,b3,b4=st.columns(4)
+                if b1.button('View',key=f"item_{int(p['id'])}",width='stretch'):
+                    st.session_state['product_id']=int(p['id']); st.rerun()
+                if b2.button('Ask',key=f"ask_item_{int(p['id'])}",width='stretch'):
+                    set_pending_action('Ask Seller',p)
+                    st.session_state['product_id']=int(p['id'])
+                    st.session_state[f'open_inquiry_{int(p["id"])}']=True
                     if not is_authenticated():
-                        set_pending_action('Add to Cart',p)
                         request_marketplace_navigation('My Account')
-                        st.rerun()
-                    elif buyer_id:
-                        add_to_cart(buyer_id,p)
-                        st.rerun()
-                    else:
-                        st.warning('Complete your buyer profile in My Account to use your cart.')
+                    st.rerun()
+                if b3.button('Offer',key=f"offer_item_{int(p['id'])}",width='stretch'):
+                    set_pending_action('Make Offer',p)
+                    st.session_state['product_id']=int(p['id'])
+                    st.session_state[f'open_offer_{int(p["id"])}']=True
+                    if not is_authenticated():
+                        request_marketplace_navigation('My Account')
+                    st.rerun()
+                with b4:
+                    if buyer_id and is_in_cart(buyer_id,int(p['id'])):
+                        status_badge('In Cart','success')
+                    elif st.button('Cart',key=f"cart_add_item_{int(p['id'])}",width='stretch'):
+                        if not is_authenticated():
+                            set_pending_action('Add to Cart',p)
+                            request_marketplace_navigation('My Account')
+                            st.rerun()
+                        elif buyer_id:
+                            add_to_cart(buyer_id,p)
+                            st.rerun()
+                        else:
+                            st.warning('Complete your buyer profile in My Account to use your cart.')
         else:
             if st.button('View',key=f"item_{int(p['id'])}",width='stretch'):
                 st.session_state['product_id']=int(p['id']); st.rerun()
@@ -2991,7 +3008,7 @@ def seller_profile(sid):
     s=get_seller(sid)
     if s is None: st.error('Seller not found.'); return
     if st.button('← Back to marketplace'): st.session_state.pop('seller_id',None); st.rerun()
-    if safe(s['banner_url']): safe_image(safe(s['banner_url']),width='stretch',fallback_text='Banner image unavailable.')
+    if safe(s['banner_url']): safe_image(safe(s['banner_url']),width=500,fallback_text='Banner image unavailable.')
     col1,col2=st.columns([1,4])
     with col1:
         if safe(s['logo_url']): safe_image(safe(s['logo_url']),width='stretch',fallback_text='Logo image unavailable.')
@@ -2999,7 +3016,6 @@ def seller_profile(sid):
     with col2:
         st.title(safe(s['store_name']))
         st.caption(f"Rating {s['rating']}% • Sales {s['completed_sales']} • Followers {followers(sid)}")
-        render_seller_trust_badges(sid,'public')
         if safe(s['instagram']): st.write('Instagram: '+safe(s['instagram']))
         if safe(s['website']):
             site_url=safe(s['website']).strip()
@@ -3094,9 +3110,6 @@ def product_detail(pid):
         if has_listing_photos(int(pid)):
             status_badge('📷 Seller photos included','success')
             st.caption('This listing includes real photos of the seller\'s exact copy.')
-        elif primary_image:
-            status_badge('Reference image','warning')
-            st.caption('This is official release art, not a photo of the seller\'s exact copy. Ask the seller for condition photos if you want to see the real item before buying.')
         render_listing_photo_gallery(pid,primary_image,'public')
     with rcol:
         st.title(f"{safe(p['artist'])} — {safe(p['title'])}"); st.write('**Price:** '+money(p['price'])); st.write('**Shipping:** '+money(p['shipping_price']))
@@ -3126,7 +3139,6 @@ def product_detail(pid):
             st.link_button('View release info',release_url)
         if s is not None:
             st.write('**Seller:** '+safe(s.get('store_name')))
-            render_seller_trust_badges(int(s['id']),'public')
             if is_available:
                 st.caption('Questions before buying? Contact the seller through House Of Wax.')
                 if st.button('Contact Seller / Ask About This Item',key=f'detail_ask_top_{pid}',width='stretch'):
@@ -4214,7 +4226,7 @@ def seller_stores():
     if sellers.empty: st.info("No stores open yet — check back soon."); return
     for _,s in sellers.iterrows():
         with st.container(border=True):
-            if safe(s['banner_url']): safe_image(safe(s['banner_url']),width='stretch',fallback_text='Banner image unavailable.')
+            if safe(s['banner_url']): safe_image(safe(s['banner_url']),width=350,fallback_text='Banner image unavailable.')
             st.subheader(safe(s['store_name']))
             st.caption(f"Rating {s['rating']}% • Followers {followers(int(s['id']))}")
             st.write(safe(s['store_bio']))

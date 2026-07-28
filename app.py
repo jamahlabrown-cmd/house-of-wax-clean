@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.123 REMOVE: BUY NOW + VERIFIED SELLER BADGE, COMPACT LISTING CARDS, FIX SILENT SIGN-IN REDIRECT'
+APP_VERSION='V25.43.124 FIX: STALE "REQUEST TO BUY"/"CHECKOUT NOT LIVE" COPY IN INTERNAL ROADMAP PAGES'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1487,8 +1487,9 @@ def setup():
     old_v25_43_120_announcement='V25.43.120'+' Fix: the Privacy Policy, Terms of Service, and password-reset-link pages were dead ends with no way back active'
     old_v25_43_121_announcement='V25.43.121'+' Add: My Inventory hides sold/removed listings by default, with a checkbox to show them active'
     old_v25_43_122_announcement='V25.43.122'+' Fix: status badges/tags no longer look like buttons active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement]:
-        set_setting('announcement','V25.43.123 Remove: Buy Now + Verified Seller badge, compact listing cards, fix silent sign-in redirect active')
+    old_v25_43_123_announcement='V25.43.123'+' Remove: Buy Now + Verified Seller badge, compact listing cards, fix silent sign-in redirect active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement]:
+        set_setting('announcement','V25.43.124 Fix: stale "Request to Buy"/checkout copy in internal roadmap pages active')
 setup()
 recovery_token_bridge()
 
@@ -8136,7 +8137,7 @@ def legal_policies():
 
     st.markdown('### Buyer Guidelines Draft')
     policy_draft_notice()
-    for item in ['Ask clear questions before requesting to buy.','Use Request to Buy only when seriously interested.','Communicate respectfully with sellers and House Of Wax.','Inspect item details, photos, condition notes, seller information, and status labels.','Understand payment, shipping, pickup, returns, and dispute rules are not finalized yet.']:
+    for item in ['Ask clear questions before adding an item to your cart.','Add items to your cart only when seriously interested -- checking out reserves them for the seller.','Communicate respectfully with sellers and House Of Wax.','Inspect item details, photos, condition notes, seller information, and status labels.','Understand shipping, pickup, returns, and dispute rules are not finalized yet.']:
         st.write(f'- {item}')
 
     st.markdown('### Marketplace Rules Draft')
@@ -8222,7 +8223,7 @@ def demo_guide():
         st.write('1. Open Marketplace.')
         st.write('2. Open a Live listing.')
         st.write('3. Use Contact Seller / Ask About This Item for questions.')
-        st.write('4. Use Request to Buy (at the listed price) or Make an Offer (to propose a different price) when the buyer is ready. Checkout is not live yet; this sends a purchase request.')
+        st.write('4. Add to Cart (at the listed price) or Make an Offer (to propose a different price) when the buyer is ready. Check out from Cart for one combined PayPal payment per seller.')
         st.caption('Pending and Sold listings can appear as unavailable, but buyer action buttons stay hidden.')
     with c2:
         st.subheader('Seller flow')
@@ -8259,7 +8260,7 @@ def demo_guide():
     for item in ['Real login/authentication and permission checks','Hosted database storage such as Supabase/Postgres','Permanent hosted image storage','Payments, checkout, refunds, and order operations','Legal/privacy policy, seller terms, buyer terms, and marketplace rules']:
         st.write(f'- {item}')
     st.warning('Prototype storage is local. Uploaded photos and the SQLite database are not production hosting. The repo .gitignore protects local database and upload folders.')
-    st.caption('For partner, lender, grant, or investor conversations, open Pitch / Demo Package and Business Plan / Funding Roadmap from this same My House of Wax workspace. For the next build phase, open Seller Onboarding, Marketplace Launch Checklist, Production Readiness / Launch Roadmap, Auth + Roles Plan, Legal / Policies, Payment / Checkout Prep, and Admin Database Status.')
+    st.caption('For partner, lender, grant, or investor conversations, open Pitch / Demo Package and Business Plan / Funding Roadmap from this same My House of Wax workspace. For the next build phase, open Seller Onboarding, Marketplace Launch Checklist, Production Readiness / Launch Roadmap (covers the payment/checkout model too), Auth + Roles Plan, Legal / Policies, and Admin Database Status.')
 
 
 def pitch_demo_package():
@@ -8279,8 +8280,8 @@ def pitch_demo_package():
         st.write('House Of Wax makes the listing process more guided and gives the platform tools to approve sellers, receive reports, and moderate problem listings after publishing.')
 
     st.markdown('### Marketplace concept')
-    st.write('Buyers browse live listings, view item details, ask sellers questions, and request to buy. Approved sellers build richer listings with search data, photos, condition notes, listing readiness, profile context, and trust badges. Admin/moderation tools help House Of Wax approve sellers, review reports, track inquiries, track purchase requests, and watch database health.')
-    st.caption('Checkout is not live yet. Request to Buy and Make an Offer are the current purchase-intent workflows while payment decisions are prepared.')
+    st.write('Buyers browse live listings, view item details, ask sellers questions, and add items to a cart. Approved sellers build richer listings with search data, photos, condition notes, listing readiness, profile context, and trust badges. Admin/moderation tools help House Of Wax approve sellers, review reports, track inquiries, track purchase requests, and watch database health.')
+    st.caption("Checkout is live: buyers check out from Cart and pay each seller directly via PayPal, automatically split between the seller's cut and House Of Wax's platform fee.")
     st.caption('The Knowledge Center / Education Hub supports the pitch by showing how House Of Wax teaches buyers, sellers, and early testers before the marketplace scales.')
 
     c3,c4,c5=st.columns(3)
@@ -8289,7 +8290,8 @@ def pitch_demo_package():
         st.write('- Browse Marketplace.')
         st.write('- View a live listing.')
         st.write('- Contact Seller / Ask About This Item.')
-        st.write('- Request to Buy or Make an Offer.')
+        st.write('- Add to Cart or Make an Offer.')
+        st.write('- Check out from Cart -- one combined PayPal payment per seller.')
         st.write('- Follow inquiry and purchase request history.')
     with c4:
         st.subheader('Seller flow')
@@ -8315,7 +8317,7 @@ def pitch_demo_package():
         'Step 1: Open Marketplace',
         'Step 2: View a live listing',
         'Step 3: Contact seller',
-        'Step 4: Request to buy',
+        'Step 4: Add to cart and check out',
         'Step 5: Switch to Seller role',
         'Step 6: Upload a listing',
         'Step 7: Publish to My Store',
@@ -8328,11 +8330,11 @@ def pitch_demo_package():
     st.caption('What to show someone: start with the Marketplace, then show the guided seller upload, then show the Admin Moderation Center. That tells the whole story quickly.')
 
     st.markdown('### What Works Now')
-    for item in ['Marketplace','Seller upload flow','Smart search','Drafts and direct publishing','Listing readiness','Seller profiles','Trust badges','Buyer inquiries','Request to buy','Pending/Sold inventory status','Role separation prototype','Photo upload prototype','Database status/export','Moderation Center']:
+    for item in ['Marketplace','Seller upload flow','Smart search','Drafts and direct publishing','Listing readiness','Seller profiles','Trust badges','Buyer inquiries','Cart and checkout','Pending/Sold inventory status','Role separation prototype','Photo upload prototype','Database status/export','Moderation Center']:
         st.write(f'- {item}')
 
     st.markdown('### What Comes Next for Production')
-    for item in ['Real authentication/login','Hosted database','Permanent cloud image storage','Payments or checkout','Shipping/pickup rules','Legal pages','Seller agreement','Privacy policy','Better admin security','More real-user testing']:
+    for item in ['Real authentication/login','Hosted database','Permanent cloud image storage','Shipping/pickup rules','Legal pages','Seller agreement','Privacy policy','Better admin security','More real-user testing']:
         st.write(f'- {item}')
     st.caption('For the build sequence behind these items, open Production Readiness / Launch Roadmap. For seller readiness, open Seller Onboarding and Marketplace Launch Checklist. For business/funding readiness, open Business Plan / Funding Roadmap. For login, policies, and payment direction, open Auth + Roles Plan, Legal / Policies, and Payment / Checkout Prep.')
 
@@ -8349,10 +8351,10 @@ def production_readiness_roadmap():
 
     st.markdown('### What is working now')
     working_now=[
-        ('Marketplace browsing','Live/public listings can appear with images, status, seller information, inquiry, and request-to-buy actions.','Medium'),
+        ('Marketplace browsing','Live/public listings can appear with images, status, seller information, inquiry, cart, and checkout actions.','Medium'),
         ('Seller upload flow','Approved sellers can create guided listings with search data, details, photos, preview, readiness, draft, and direct publishing.','Medium'),
         ('Moderation Center','Admin can approve sellers, review reports, add notes, hide/remove listings, and suspend/reinstate sellers.','Medium'),
-        ('Buyer inquiries and purchase requests','Buyers can ask about items and request to buy through controlled House Of Wax forms.','Medium'),
+        ('Buyer inquiries, cart, and checkout','Buyers can ask about items, add them to a cart, and check out with one combined PayPal payment per seller.','Medium'),
         ('Seller profiles and trust badges','Seller profile details, platform indicators, and listing quality signals are visible.','Low'),
         ('Database health/export','Admin can view local database status and safe export options for key tables.','Low')
     ]
@@ -8366,7 +8368,7 @@ def production_readiness_roadmap():
         ('Local photo storage','Uploaded files use prototype storage and need cloud storage before launch.','High'),
         ('Testing/Admin mode','Admin tools are intentionally visible for demo/testing and must be locked behind real permissions.','High'),
         ('Manual review operations','Review and status tools work, but need stronger audit trails and permissions before scale.','Medium'),
-        ('No real checkout','Request to Buy is an intent workflow, not a payment/order fulfillment system.','Medium')
+        ('Manual payment confirmation','Cart checkout produces PayPal payment links, but House Of Wax does not verify or reconcile payment automatically -- buyers and sellers confirm directly.','Medium')
     ]
     for name,desc,risk in prototype_only:
         st.write(f'- **{name}** — {desc} Risk level: {risk}.')
@@ -8377,7 +8379,6 @@ def production_readiness_roadmap():
         ('Hosted database','Move from local SQLite to hosted storage such as Supabase/Postgres. Start with the Hosted Database / Supabase Prep checklist in Admin Database Status.','High'),
         ('Cloud image storage','Store listing photos in permanent hosted storage with safe access rules.','High'),
         ('Admin security hardening','Protect admin tools with real admin login, role checks, and private data controls.','High'),
-        ('Payment or checkout decision','Decide whether House Of Wax handles payments directly or routes seller-managed transactions.','Medium'),
         ('Shipping/pickup rules','Define shipping, pickup, local handoff, cancellation, and inventory status rules.','Medium'),
         ('Legal pages and seller agreement','Add privacy policy, buyer terms, seller terms, marketplace rules, and content policies.','High'),
         ('Beta testing with real sellers','Test listing readiness, seller publishing, buyer messages, report/moderation, and status workflows with trusted sellers.','Medium')
@@ -8390,7 +8391,6 @@ def production_readiness_roadmap():
         'Real authentication/login',
         'Hosted database',
         'Cloud image storage',
-        'Payment or checkout decision',
         'Shipping/pickup rules',
         'Legal pages and seller agreement',
         'Admin security hardening',
@@ -8407,9 +8407,9 @@ def production_readiness_roadmap():
     st.markdown('### Legal and policy prep now')
     st.write('Open Legal / Policies to review draft privacy, terms, seller agreement, buyer guidelines, marketplace rules, prohibited items, returns/pickup/shipping/disputes, and the production legal checklist.')
     st.write('These policy pages are prototype planning placeholders and must be reviewed by a qualified attorney before public launch.')
-    st.markdown('### Payment / Checkout prep now')
-    st.write('Open Payment / Checkout Prep to compare request-to-buy, seller-managed payment, House Of Wax-managed checkout, local pickup, shipping, and hybrid purchase models.')
-    st.write('Recommended path: keep Request to Buy first, add admin-tracked pending/sold status next, then consider Stripe checkout only after real auth, hosted database, permanent image storage, legal terms, seller agreement, and refund/dispute policy are ready.')
+    st.markdown('### Payment / checkout model')
+    st.write('House Of Wax made the payment decision: it never touches buyer money. Buyers add items to a cart and check out per seller for one combined total, then pay the seller and House Of Wax\'s platform fee directly and separately via PayPal links -- House Of Wax is a bridge and moderator, not a payment processor.')
+    st.write('What is still manual: House Of Wax does not verify or reconcile PayPal payments automatically. Buyers and sellers confirm payment directly, and the 5-day payment window with an automatic buyer strike covers the no-pay case. A hosted payment processor (e.g. Stripe) is not planned unless that hands-off model changes.')
     st.markdown('### Seller onboarding and launch checklist now')
     st.write('Open Seller Onboarding to walk early sellers through profile setup, listing creation, photos, readiness, publishing, inquiries, purchase requests, and pending/sold status management.')
     st.write('Open Marketplace Launch Checklist to track prototype-ready items, public launch blockers, early seller testing, and buyer testing.')
@@ -8426,7 +8426,7 @@ def auth_roles_plan():
 
     st.markdown('### Future roles')
     roles=[
-        ('Buyer',['Marketplace','Listing details','Contact seller','Request to buy','Their own inquiries','Their own purchase requests','Saved/favorite items if added later']),
+        ('Buyer',['Marketplace','Listing details','Contact seller','Cart and checkout','Their own inquiries','Their own purchase requests','Saved/favorite items if added later']),
         ('Seller',['Seller dashboard','Upload/listing tools','Their own listings','Listing statuses and reviewer notes','Their seller profile','Their own buyer inquiries','Their own purchase requests']),
         ('Admin',['Moderation Center','Seller/listing moderation','Inquiry monitoring','Purchase request monitoring','Data health/export','User/seller controls when added later']),
         ('House Of Wax Official',['Official listings','Branded merch/listings','Official inventory tools','Same safe protections as seller tools, plus admin approval if needed'])
@@ -8491,7 +8491,7 @@ def auth_login_prep():
 
     st.markdown('### Recommended future role permissions')
     role_permissions=[
-        ('Buyer','Can access Marketplace, listing details, Contact Seller, Request to Buy, their own inquiries, their own purchase requests, and future saved/favorite items.','Cannot access seller dashboards, other buyers private data, seller private tools, or admin tools.'),
+        ('Buyer','Can access Marketplace, listing details, Contact Seller, Cart and checkout, their own inquiries, their own purchase requests, and future saved/favorite items.','Cannot access seller dashboards, other buyers private data, seller private tools, or admin tools.'),
         ('Seller','Can access Seller dashboard, upload/listing tools, their own listings, listing statuses, reviewer notes, seller profile, their buyer inquiries, and their purchase requests.','Cannot access other sellers private data, admin moderation tools, or buyer-only private account areas.'),
         ('Admin','Can access Moderation Center, seller/listing moderation, inquiry monitoring, purchase request monitoring, data health/export, and future user/seller controls.','Should not be available without real admin login and audit-friendly permission checks.'),
         ('House Of Wax Official','Can manage official listings, branded merch/listings, official inventory tools, and seller-like workflows with platform oversight.','Should still follow safe seller protections and admin approval rules if needed.')

@@ -140,6 +140,50 @@ def test_add_inventory_step2_artist_title_are_outside_the_form():
     assert live_artist_keys and live_title_keys, "Live artist/title fields should exist outside the form"
 
 
+# ---------- Dead-end query-param screens have a way back (regression guard for the Patti Hansen "white screen" report) ----------
+
+def test_privacy_policy_screen_has_a_way_back():
+    # Regression guard: ?legal=privacy runs before the sidebar/menu exists
+    # and calls st.stop() right after rendering -- and the query param
+    # persists across reruns, so without an escape button a visitor who
+    # clicked "Privacy Policy" was stuck there permanently, with no menu,
+    # until they manually edited the URL or closed the browser. This is the
+    # "white screen, had to close the browser" bug from the UX review.
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.query_params["legal"] = "privacy"
+    at.run()
+    assert not at.exception
+    back_buttons = [b for b in at.button if b.key == "privacy_policy_back"]
+    assert back_buttons, "Privacy policy screen should have a way back to the app"
+    back_buttons[0].click().run()
+    assert not at.exception
+    assert "legal" not in at.query_params
+
+
+def test_terms_of_service_screen_has_a_way_back():
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.query_params["legal"] = "terms"
+    at.run()
+    assert not at.exception
+    back_buttons = [b for b in at.button if b.key == "terms_of_service_back"]
+    assert back_buttons, "Terms of service screen should have a way back to the app"
+    back_buttons[0].click().run()
+    assert not at.exception
+    assert "legal" not in at.query_params
+
+
+def test_invalid_password_reset_link_screen_has_a_way_back():
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.query_params["recovery_token"] = "expired-or-bogus-token"
+    at.run()
+    assert not at.exception
+    back_buttons = [b for b in at.button if b.key == "password_reset_screen_back"]
+    assert back_buttons, "Password reset screen should have a way back to the app"
+    back_buttons[0].click().run()
+    assert not at.exception
+    assert "recovery_token" not in at.query_params
+
+
 def test_core_update_fails_loudly_without_sql_in_local_mode():
     # Regression guard: core_update used to silently return True in local-
     # SQLite mode when a caller omitted sql/params, meaning "nothing was

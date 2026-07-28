@@ -850,3 +850,24 @@ def test_my_orders_shows_one_combined_payment_per_seller_not_per_item():
     assert "49.98" in total_lines[0], (
         f"Expected the combined total of both items ($24.99 demo price each = $49.98), got {total_lines[0]}"
     )
+
+
+def test_mobile_quick_nav_bar_includes_cart():
+    # Regression guard: mobile_navigation_bar() (the "Go to" quick-nav row
+    # shown at the top of every page) keeps its own hardcoded button list,
+    # entirely separate from the sidebar's marketplace_menu -- adding 'Cart'
+    # to the sidebar list earlier did nothing for this bar, so the Cart page
+    # was unreachable from the prominent top-of-page nav that most people,
+    # especially on mobile, actually use.
+    import app as hw_app
+    at = fresh_app()
+    goto(at, "Home")
+    assert not at.exception, at.exception
+
+    cart_buttons = [b for b in at.button if b.key == "mobile_nav_cart"]
+    assert len(cart_buttons) == 1, f"Expected exactly one Cart button in the mobile quick-nav, got {len(cart_buttons)}"
+
+    cart_buttons[0].click().run()
+    assert not at.exception, at.exception
+    headers = [h.value for h in at.header]
+    assert any("My Cart" in h for h in headers), f"Expected the Cart button to navigate to the Cart page, got headers={headers}"

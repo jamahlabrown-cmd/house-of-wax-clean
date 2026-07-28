@@ -626,3 +626,162 @@ def test_anonymous_add_to_cart_resumes_after_sign_in():
 
     cart_rows = hw_app.df("SELECT * FROM cart_items WHERE buyer_id=? AND product_id=?", (buyer_id, product_id))
     assert len(cart_rows) == 1, f"Expected the cart add to complete after sign-in, got {len(cart_rows)} rows"
+
+
+# ---------- Cart (slice 3/4: cart page + checkout) ----------
+
+def test_checkout_creates_seller_accepted_purchase_requests_and_reserves_listings():
+    # Checking out one seller's cart group should be the multi-item version
+    # of Buy Now: each item becomes a purchase_requests row straight at
+    # 'Seller Accepted' with a ~5-day payment_due_at, each product is
+    # reserved (Pending Pickup/Payment), and only THAT seller's cart_items
+    # rows are consumed -- an item from a different seller in the same cart
+    # must be left untouched, proving checkout is scoped per seller-group.
+    import app as hw_app
+    from datetime import datetime as _dt
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+
+    buyer_id = _new_isolated_buyer(hw_app, "checkout_test_buyer")
+    seller_a = hw_app.ensure_seller()
+    hw_app.run(
+        '''INSERT INTO sellers(store_name,owner_name,email,phone,city,state,website,instagram,store_bio,seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,disputes,strikes,auction_override,access_code,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+        ('Checkout Test Seller B', 'Owner B', 'checkout-seller-b@example.com', '', '', '', '', '', '', '', '', '', '', 'Approved Seller', 'Verified Seller', 100, 0, 0, 0, 'Yes', '', hw_app.now()),
+    )
+    seller_b = int(hw_app.df("SELECT id FROM sellers WHERE email=?", ('checkout-seller-b@example.com',)).iloc[0]['id'])
+
+    product_a1 = _new_isolated_product(hw_app, seller_a, "Checkout Seller A Item 1")
+    product_a2 = _new_isolated_product(hw_app, seller_a, "Checkout Seller A Item 2")
+    product_b1 = _new_isolated_product(hw_app, seller_b, "Checkout Seller B Item 1")
+
+    for pid, sid in [(product_a1, seller_a), (product_a2, seller_a), (product_b1, seller_b)]:
+        hw_app.run(
+            "INSERT INTO cart_items(buyer_id,product_id,seller_id,added_price,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+            (buyer_id, pid, sid, 24.99, hw_app.now(), hw_app.now()),
+        )
+
+    cart_a_rows = hw_app.df("SELECT id,product_id FROM cart_items WHERE buyer_id=? AND seller_id=?", (buyer_id, seller_a))
+    result = hw_app.checkout_seller_cart_group(buyer_id, seller_a, cart_a_rows.to_dict("records"))
+
+    assert len(result["created_purchase_request_ids"]) == 2, result
+    assert result["skipped"] == [], result
+
+    prs = hw_app.df("SELECT * FROM purchase_requests WHERE buyer_id=? AND seller_id=?", (buyer_id, seller_a))
+    assert len(prs) == 2
+    for _, pr in prs.iterrows():
+        assert pr["status"] == "Seller Accepted", pr["status"]
+        assert pr["payment_due_at"], "Expected payment_due_at to be set"
+        days_out = (_dt.fromisoformat(pr["payment_due_at"]) - _dt.now()).total_seconds() / 86400
+        assert 4.9 <= days_out <= 5.1, f"Expected ~5 days out, got {days_out:.2f}"
+
+    for pid in (product_a1, product_a2):
+        status = hw_app.df("SELECT listing_status FROM products WHERE id=?", (pid,)).iloc[0]["listing_status"]
+        assert status == "Pending Pickup/Payment", f"product {pid} status={status}"
+
+    remaining_cart = hw_app.df("SELECT * FROM cart_items WHERE buyer_id=?", (buyer_id,))
+    assert len(remaining_cart) == 1, f"Expected only seller B's item left in cart, got {len(remaining_cart)} rows"
+    assert int(remaining_cart.iloc[0]["product_id"]) == product_b1
+
+
+def test_checkout_skips_item_bought_out_from_under_buyer():
+    # Simulate another buyer beating this one to an item between it being
+    # added to the cart and checkout: the sold item should be reported under
+    # `skipped` with a reason (not silently dropped) and stay in the cart,
+    # while the still-available sibling item in the same seller group still
+    # succeeds normally.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+
+    buyer_id = _new_isolated_buyer(hw_app, "checkout_skip_test_buyer")
+    seller_id = hw_app.ensure_seller()
+    product_ok = _new_isolated_product(hw_app, seller_id, "Checkout Skip Test Still Available")
+    product_sold = _new_isolated_product(hw_app, seller_id, "Checkout Skip Test Already Sold")
+
+    for pid in (product_ok, product_sold):
+        hw_app.run(
+            "INSERT INTO cart_items(buyer_id,product_id,seller_id,added_price,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+            (buyer_id, pid, seller_id, 24.99, hw_app.now(), hw_app.now()),
+        )
+    hw_app.run("UPDATE products SET listing_status='Sold' WHERE id=?", (product_sold,))
+
+    cart_rows = hw_app.df("SELECT id,product_id FROM cart_items WHERE buyer_id=? AND seller_id=?", (buyer_id, seller_id))
+    result = hw_app.checkout_seller_cart_group(buyer_id, seller_id, cart_rows.to_dict("records"))
+
+    assert len(result["created_purchase_request_ids"]) == 1, result
+    assert len(result["skipped"]) == 1, result
+    assert result["skipped"][0]["product_id"] == product_sold
+
+    remaining_cart = hw_app.df("SELECT product_id FROM cart_items WHERE buyer_id=?", (buyer_id,))
+    assert list(remaining_cart["product_id"]) == [product_sold], (
+        "Expected the sold item to remain in the cart and the purchased item to be gone"
+    )
+
+    prs = hw_app.df("SELECT product_id FROM purchase_requests WHERE buyer_id=?", (buyer_id,))
+    assert list(prs["product_id"]) == [product_ok]
+
+
+def test_cart_page_shows_unavailable_item_without_crashing():
+    # A cart can sit untouched for days -- the listing it points to may have
+    # sold, been hidden, or been removed since it was added. The Cart page
+    # should surface that clearly instead of raising.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+
+    buyer_id = _new_isolated_buyer(hw_app, "cart_unavailable_test_buyer")
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Cart Unavailable Test Album")
+    hw_app.run(
+        "INSERT INTO cart_items(buyer_id,product_id,seller_id,added_price,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+        (buyer_id, product_id, seller_id, 24.99, hw_app.now(), hw_app.now()),
+    )
+    hw_app.run("UPDATE products SET listing_status='Sold' WHERE id=?", (product_id,))
+
+    buyer = hw_app.get_buyer(buyer_id)
+    _real_buyer_session(at, hw_app, buyer_id, buyer["email"])
+    goto(at, "Cart", area_key="marketplace_navigation")
+    assert not at.exception, at.exception
+
+    warnings = [w.value for w in at.warning]
+    assert any("no longer available" in w.lower() for w in warnings), (
+        f"Expected an unavailable-listing message, got warnings={warnings}"
+    )
+
+
+def test_checkout_confirmation_still_shows_after_cart_group_empties():
+    # Regression guard: a seller's cart group disappears the instant checkout
+    # succeeds (its items just left cart_items) -- render_seller_cart_group()
+    # is only called for groups still present in the cart, so the very
+    # success message checkout was supposed to produce never rendered. Caught
+    # by hand in a live browser check, not by the direct-function checkout
+    # tests above (which don't exercise the page's post-checkout render at
+    # all). Clicking Checkout on the Cart page should show a confirmation
+    # even though the group it was for is now gone.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+
+    buyer_id = _new_isolated_buyer(hw_app, "checkout_confirmation_test_buyer")
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Checkout Confirmation Test Album")
+    hw_app.run(
+        "INSERT INTO cart_items(buyer_id,product_id,seller_id,added_price,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+        (buyer_id, product_id, seller_id, 24.99, hw_app.now(), hw_app.now()),
+    )
+
+    buyer = hw_app.get_buyer(buyer_id)
+    _real_buyer_session(at, hw_app, buyer_id, buyer["email"])
+    goto(at, "Cart", area_key="marketplace_navigation")
+    assert not at.exception, at.exception
+
+    checkout_button = next(b for b in at.button if b.key == f"cart_checkout_{seller_id}")
+    checkout_button.click().run()
+    assert not at.exception, at.exception
+
+    successes = [s.value for s in at.success]
+    assert any("Bought 1 item" in s for s in successes), (
+        f"Expected a post-checkout confirmation to survive the now-empty cart group, got successes={successes}"
+    )
+    assert hw_app.df("SELECT * FROM cart_items WHERE buyer_id=?", (buyer_id,)).empty
+    assert hw_app.df("SELECT * FROM purchase_requests WHERE buyer_id=? AND product_id=?", (buyer_id, product_id)).iloc[0]["status"] == "Seller Accepted"

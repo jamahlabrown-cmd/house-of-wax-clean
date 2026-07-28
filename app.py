@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.115 ADD: SHOPPING CART FOUNDATION, ADD TO CART ON EVERY LISTING'
+APP_VERSION='V25.43.116 ADD: CART PAGE + CHECKOUT, GROUPED BY SELLER LIKE DISCOGS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1479,8 +1479,9 @@ def setup():
     old_v25_43_112_announcement='V25.43.112'+' Fix: Buy Now was silently failing to reserve the listing due to a missing RLS policy active'
     old_v25_43_113_announcement='V25.43.113'+' Fix: found and closed a second RLS gap (buyer strikes); background sweep no longer shows unrelated errors active'
     old_v25_43_114_announcement='V25.43.114'+' Fix: Database Status buyer/purchase counts now say when Testing mode cannot see them active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement]:
-        set_setting('announcement','V25.43.115 Add: shopping cart foundation -- Add to Cart on every listing, more coming active')
+    old_v25_43_115_announcement='V25.43.115'+' Add: shopping cart foundation -- Add to Cart on every listing, more coming active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement]:
+        set_setting('announcement','V25.43.116 Add: Cart page and checkout, grouped by seller like Discogs active')
 setup()
 recovery_token_bridge()
 
@@ -4179,6 +4180,82 @@ def marketplace():
     cols=st.columns(2)
     for i,(_,p) in enumerate(prods.iterrows()):
         with cols[i%2]: product_card(p,buyer_id=cart_bid)
+def cart_page():
+    header(); marketplace_context('House Of Wax Marketplace -> Cart'); st.header('My Cart')
+    if not is_authenticated():
+        st.info('Sign in to use your cart.')
+        if st.button('Sign in or create Buyer account',key='cart_signin',width='stretch'):
+            request_marketplace_navigation('My Account')
+            st.rerun()
+        return
+    bid=ensure_linked_buyer_profile()
+    if not bid:
+        st.warning('Complete your buyer profile in My Account to use your cart.')
+        return
+    st.caption("Items are grouped by seller, since each seller is paid and ships separately -- check out one seller's items at a time.")
+    rows=enrich_cart_rows(buyer_cart_items(bid))
+    groups={int(seller_id):group for seller_id,group in rows.groupby('seller_id')} if not rows.empty else {}
+    # A seller's cart group disappears the moment checkout succeeds (its
+    # items just left cart_items) -- but the confirmation for that checkout
+    # still needs to show. Render every seller_id with either a remaining
+    # cart group OR a just-stashed checkout result, not just the former.
+    result_seller_ids={int(k.rsplit('_',1)[-1]) for k in st.session_state.keys() if k.startswith('cart_checkout_result_') and st.session_state[k]}
+    all_seller_ids=sorted(set(groups.keys()) | result_seller_ids)
+    if not all_seller_ids:
+        st.info('Your cart is empty. Add items from Search Music or a seller\'s store.')
+        return
+    for seller_id in all_seller_ids:
+        render_seller_cart_group(bid,seller_id,groups.get(seller_id))
+
+def render_seller_cart_group(bid, seller_id, group):
+    result_key=f'cart_checkout_result_{seller_id}'
+    result=st.session_state.get(result_key)
+    store_name=safe(group.iloc[0].get('store_name')) if group is not None and not group.empty else ''
+    if not store_name:
+        seller_lookup=get_seller(seller_id)
+        store_name=safe(seller_lookup.get('store_name'),'Seller') if seller_lookup is not None else 'Seller'
+    with st.container(border=True):
+        st.subheader(store_name)
+        if result:
+            if result.get('created_purchase_request_ids'):
+                st.success(f"Bought {len(result['created_purchase_request_ids'])} item(s) from {store_name}. Find payment instructions under My Account -> My Orders -> Ready to pay.")
+            for skipped in result.get('skipped',[]):
+                st.warning(f"Could not buy {safe(skipped.get('artist')) or 'an item'} — {safe(skipped.get('title'))}: {safe(skipped.get('reason'))}. It's still in your cart.")
+            if st.button('Dismiss',key=f'cart_checkout_dismiss_{seller_id}'):
+                st.session_state.pop(result_key,None)
+                st.rerun()
+        if group is None or group.empty:
+            return
+        available_rows=group[group['available']==True]
+        unavailable_rows=group[group['available']!=True]
+        subtotal=0.0
+        for _,row in available_rows.iterrows():
+            cart_id=int(row['id'])
+            c1,c2,c3=st.columns([3,1,1])
+            c1.write(f"**{safe(row.get('artist'))} — {safe(row.get('title'))}**")
+            price=float(row.get('price') or 0)
+            subtotal+=price
+            c2.write(money(price))
+            if c3.button('Remove',key=f'cart_remove_{cart_id}'):
+                remove_from_cart(cart_id)
+                st.rerun()
+        for _,row in unavailable_rows.iterrows():
+            cart_id=int(row['id'])
+            reason=listing_availability_label(row) if safe(row.get('listing_status')) else 'Listing no longer exists'
+            c1,c2=st.columns([4,1])
+            c1.warning(f"{safe(row.get('artist')) or 'This item'} — {safe(row.get('title'))}: no longer available ({reason}).")
+            if c2.button('Remove',key=f'cart_remove_{cart_id}'):
+                remove_from_cart(cart_id)
+                st.rerun()
+        if available_rows.empty:
+            st.caption('Nothing available to check out in this group -- remove the unavailable item(s) above.')
+            return
+        st.write(f"**Subtotal ({len(available_rows)} item(s)): {money(subtotal)}**")
+        if st.button(f'Checkout with {store_name}',key=f'cart_checkout_{seller_id}',type='primary'):
+            cart_rows=[{'id':int(r['id']),'product_id':int(r['product_id'])} for _,r in available_rows.iterrows()]
+            st.session_state[result_key]=checkout_seller_cart_group(bid,seller_id,cart_rows)
+            st.rerun()
+
 def seller_stores():
     header(); marketplace_context('House Of Wax Marketplace → Seller Stores'); st.header('Seller Stores')
     st.write('Every store here is run by a real seller with real inventory — browse their crates, not a warehouse.')
@@ -6849,6 +6926,39 @@ def reserve_listing_for_payment(request_id, product_id):
         st.error("This order was recorded, but House Of Wax could not reserve the listing itself -- it may still show as available to others. This is a platform error, not something you did wrong. Message House Of Wax through Report Seller / Report Listing so it can be fixed by hand.")
     return due
 
+def checkout_seller_cart_group(buyer_id, seller_id, cart_rows):
+    # The multi-item version of send_purchase_request() inside
+    # render_purchase_request_form() -- same fields, same direct jump to
+    # 'Seller Accepted', same reserve_listing_for_payment call, just looped
+    # over every cart line for one seller. Each item's availability is
+    # re-checked right now (not trusted from the cart page's earlier render)
+    # -- the same race Buy Now already has today, not a new one cart
+    # introduces. A skipped item stays in the cart instead of vanishing.
+    buyer=get_buyer(buyer_id)
+    buyer_name=safe(buyer.get('name')) if buyer is not None else ''
+    buyer_contact=(safe(buyer.get('email')) or safe(buyer.get('phone'))) if buyer is not None else ''
+    created_ids=[]
+    skipped=[]
+    for row in cart_rows:
+        pid=int(row['product_id'])
+        product_row=hosted_select('products',{'id':pid},limit=1) if hosted_enabled() else df('SELECT * FROM products WHERE id=?',(pid,))
+        if product_row.empty:
+            skipped.append({'product_id':pid,'reason':'Listing no longer exists'})
+            continue
+        p=product_row.iloc[0]
+        if not is_available_listing(p):
+            skipped.append({'product_id':pid,'artist':safe(p.get('artist')),'title':safe(p.get('title')),'reason':listing_availability_label(p)})
+            continue
+        data={'product_id':pid,'seller_id':int(seller_id),'buyer_id':int(buyer_id),'buyer_name':buyer_name,'buyer_contact':buyer_contact,'preferred_contact_method':'House Of Wax message','fulfillment_preference':'Shipping','offer_price':0.0,'buyer_message':'','status':'Seller Accepted','created_at':now(),'updated_at':now()}
+        new_id=core_insert('purchase_requests',data,'''INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,preferred_contact_method,fulfillment_preference,offer_price,buyer_message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['product_id','seller_id','buyer_id','buyer_name','buyer_contact','preferred_contact_method','fulfillment_preference','offer_price','buyer_message','status','created_at','updated_at']))
+        if new_id or not hosted_enabled():
+            reserve_listing_for_payment(new_id or 0,pid)
+            created_ids.append(new_id or 0)
+            remove_from_cart(int(row['id']))
+        else:
+            skipped.append({'product_id':pid,'artist':safe(p.get('artist')),'title':safe(p.get('title')),'reason':'Order could not be saved (platform error)'})
+    return {'created_purchase_request_ids':created_ids,'skipped':skipped}
+
 def update_purchase_request_status(request_id, status, seller_id=None, quiet=False):
     if seller_id is None:
         req=hosted_select('purchase_requests',{'id':int(request_id)},limit=1) if hosted_enabled() else df('SELECT product_id FROM purchase_requests WHERE id=?',(int(request_id),))
@@ -8539,13 +8649,16 @@ area=st.sidebar.radio('Choose area',area_options,key='house_of_wax_area')
 if area=='House Of Wax Marketplace':
     st.sidebar.markdown('### House Of Wax Marketplace')
     st.sidebar.caption('Simple buyer path: Home, Search Music, Seller Stores, and My Account.')
-    marketplace_menu=['Home','Search Music','Knowledge Hub','Seller Stores','My Account']
+    marketplace_menu=['Home','Search Music','Knowledge Hub','Seller Stores','Cart','My Account']
     if has_seller_capability() or is_admin_unlocked():
         marketplace_menu.append('Seller Dashboard')
     apply_pending_marketplace_navigation(marketplace_menu)
     if st.session_state.get('marketplace_navigation') not in marketplace_menu:
         st.session_state['marketplace_navigation']='Search Music' if st.session_state.get('marketplace_navigation')=='Marketplace' else 'Home'
-    menu=st.sidebar.radio('Marketplace navigation',marketplace_menu,key='marketplace_navigation')
+    nav_cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
+    nav_cart_n=cart_count(nav_cart_bid) if nav_cart_bid else 0
+    menu=st.sidebar.radio('Marketplace navigation',marketplace_menu,key='marketplace_navigation',
+        format_func=lambda opt: f'Cart ({nav_cart_n})' if opt=='Cart' and nav_cart_n else opt)
 else:
     pending_seller_apps=pending_seller_application_count()
     st.sidebar.markdown('### House Of Wax Admin'+(f' ⚠️ {pending_seller_apps} pending' if pending_seller_apps else ''))
@@ -8571,6 +8684,7 @@ try:
         if menu=='Home': home()
         elif menu=='Search Music': marketplace()
         elif menu=='Seller Stores': seller_stores()
+        elif menu=='Cart': cart_page()
         elif menu=='My Account':
             account_page()
         elif menu=='Seller Dashboard': seller_dashboard()

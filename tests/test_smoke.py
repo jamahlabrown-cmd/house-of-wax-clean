@@ -324,6 +324,41 @@ def test_seller_status_banner_removed_from_dashboard():
     assert count_status_banner() == 0, "My Inventory should not show the seller status banner"
 
 
+def test_my_inventory_hides_sold_listings_by_default():
+    # Additional suggestion from the Patti Hansen UX review: "allow
+    # completed listings to be archived or hidden" -- My Inventory used to
+    # show every listing forever in one flat table, so a seller's Sold
+    # history permanently cluttered the view with no way to get it out of
+    # the way. Sold/removed listings should now be hidden by default,
+    # behind a "Show sold/removed listings" checkbox.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    seller_id = _new_isolated_seller(hw_app, "Archive Test Seller")
+    live_id = _new_isolated_product(hw_app, seller_id, "Still For Sale")
+    sold_id = _new_isolated_product(hw_app, seller_id, "Already Sold")
+    hw_app.run("UPDATE products SET listing_status='Sold' WHERE id=?", (sold_id,))
+
+    at.session_state["seller_tool_seller_id"] = seller_id
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section").set_value("My Inventory").run()
+    assert not at.exception
+
+    listing_ids = [str(i) for i in at.selectbox(key="primary_my_inventory_listing_id").options]
+    assert str(live_id) in listing_ids, "Live listing should be visible by default"
+    assert str(sold_id) not in listing_ids, "Sold listing should be hidden by default"
+
+    checkboxes = [c for c in at.checkbox if c.key == "primary_my_inventory_show_sold"]
+    assert checkboxes, "Expected a 'Show sold/removed listings' checkbox"
+    checkboxes[0].set_value(True).run()
+
+    listing_ids = [str(i) for i in at.selectbox(key="primary_my_inventory_listing_id").options]
+    assert str(sold_id) in listing_ids, "Sold listing should appear once the checkbox is checked"
+
+
 def test_buyer_can_save_avatar_url_to_profile():
     # Regression guard: buyers had no photo/avatar column at all (unlike
     # sellers, which have logo_url/banner_url), so there was no way for a
@@ -340,6 +375,18 @@ def test_buyer_can_save_avatar_url_to_profile():
     assert ok
     b = hw_app.get_buyer(buyer_id)
     assert b.get("avatar_url") == "house_of_wax_uploads/buyer_avatars/test.png"
+
+
+def _new_isolated_seller(hw_app, store_name):
+    # ensure_seller() reuses whatever seller row already exists in the
+    # shared SQLite file (same reasoning as _new_isolated_product below).
+    # Give each test needing its own seller/inventory a dedicated row.
+    email = store_name.lower().replace(" ", "-") + "@example.com"
+    data = {'store_name': store_name, 'owner_name': 'Test Owner', 'email': email, 'phone': '', 'city': '', 'state': '', 'website': '', 'instagram': '', 'store_bio': '', 'seller_story': '', 'specialties': '', 'logo_url': '', 'banner_url': '', 'status': 'Approved Seller', 'seller_level': 'Verified Seller', 'rating': 100, 'completed_sales': 0, 'disputes': 0, 'strikes': 0, 'auction_override': 'Yes', 'access_code': '', 'created_at': hw_app.now()}
+    keys = list(data.keys())
+    placeholders = ",".join("?" for _ in keys)
+    hw_app.run(f"INSERT INTO sellers({','.join(keys)}) VALUES({placeholders})", tuple(data[k] for k in keys))
+    return int(hw_app.df("SELECT id FROM sellers WHERE email=? ORDER BY id DESC LIMIT 1", (email,)).iloc[0]['id'])
 
 
 def _new_isolated_product(hw_app, seller_id, title):

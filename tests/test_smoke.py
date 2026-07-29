@@ -1166,3 +1166,20 @@ def test_mobile_quick_nav_bar_includes_cart():
     assert not at.exception, at.exception
     headers = [h.value for h in at.header]
     assert any("My Cart" in h for h in headers), f"Expected the Cart button to navigate to the Cart page, got headers={headers}"
+
+
+def test_knowledge_hub_does_not_point_public_visitors_at_hidden_tester_section():
+    # The Knowledge Hub is a public, consumer-facing page. It carried an
+    # unconditional caption pointing every visitor at "Tester Start Here" on
+    # the Home page -- but that section only renders for is_admin_unlocked(),
+    # so a real customer got sent looking for something they can't see. The
+    # caption should only appear for admin/testing-mode visitors, same as the
+    # section it references.
+    at = fresh_app()
+    goto(at, "Knowledge Hub")
+    assert not at.exception, at.exception
+
+    all_text = [m.value for m in at.markdown] + [c.value for c in at.caption]
+    assert not any("Tester Start Here" in t for t in all_text), (
+        "Public visitors should not be told about the admin-only Tester Start Here section"
+    )

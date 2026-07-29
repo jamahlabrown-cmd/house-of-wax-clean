@@ -1183,3 +1183,81 @@ def test_knowledge_hub_does_not_point_public_visitors_at_hidden_tester_section()
     assert not any("Tester Start Here" in t for t in all_text), (
         "Public visitors should not be told about the admin-only Tester Start Here section"
     )
+
+
+# ---------- Knowledge Hub AI research queue (founder: grow the Knowledge Hub daily via web research, reviewed before publish) ----------
+
+def test_ai_research_queue_publish_flow():
+    # A scheduled job (scripts/knowledge_hub_researcher.py) drafts one new
+    # Knowledge Hub article a day via Claude + live web search, saved as
+    # status='Draft', source_type='AI Research' -- never auto-published.
+    # This guards the admin review queue: a pending draft shows up for
+    # review, Publish flips it live, and it then actually reaches the
+    # public-facing Knowledge Hub under its own byline.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    ts = hw_app.now()
+    hw_app.run(
+        """INSERT INTO knowledge_posts(title,category,audience,level,summary,body,house_tip,status,featured,source_type,sources,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        ("AI Research Queue Test Article", "Genre Education", "Collectors", "Beginner",
+         "Test summary.", "Test body.", "Test tip.", "Draft", "No", "AI Research",
+         "Example Source — https://example.com", ts, ts),
+    )
+    pid = int(hw_app.df("SELECT id FROM knowledge_posts WHERE title='AI Research Queue Test Article'").iloc[0]["id"])
+
+    at.sidebar.radio(key="house_of_wax_area").set_value("House Of Wax Admin").run()
+    at.sidebar.radio(key="admin_navigation").set_value("Content Admin").run()
+    assert not at.exception, at.exception
+
+    title_inputs = [t for t in at.text_input if t.key == f"aiq_title_{pid}"]
+    assert len(title_inputs) == 1, "Expected the pending AI draft to show up in the review queue"
+    assert title_inputs[0].value == "AI Research Queue Test Article"
+
+    publish_buttons = [b for b in at.button if b.key == f"aiq_publish_{pid}"]
+    assert len(publish_buttons) == 1, "Expected a Publish button for the pending draft"
+    publish_buttons[0].click().run()
+    assert not at.exception, at.exception
+
+    row = hw_app.df("SELECT status FROM knowledge_posts WHERE id=?", (pid,)).iloc[0]
+    assert row["status"] == "Published", "Publish should flip the draft to Published"
+
+    at2 = fresh_app()
+    goto(at2, "Knowledge Hub")
+    assert not at2.exception, at2.exception
+    headings = [s.value for s in at2.subheader]
+    assert any("AI Research Queue Test Article" in h for h in headings), (
+        "Published AI-researched article should now appear on the public Knowledge Hub"
+    )
+
+
+def test_ai_research_queue_reject_deletes_draft():
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    ts = hw_app.now()
+    hw_app.run(
+        """INSERT INTO knowledge_posts(title,category,audience,level,summary,body,house_tip,status,featured,source_type,sources,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        ("AI Research Queue Reject Test Article", "Genre Education", "Collectors", "Beginner",
+         "Test summary.", "Test body.", "Test tip.", "Draft", "No", "AI Research",
+         "", ts, ts),
+    )
+    pid = int(hw_app.df("SELECT id FROM knowledge_posts WHERE title='AI Research Queue Reject Test Article'").iloc[0]["id"])
+
+    at.sidebar.radio(key="house_of_wax_area").set_value("House Of Wax Admin").run()
+    at.sidebar.radio(key="admin_navigation").set_value("Content Admin").run()
+    assert not at.exception, at.exception
+
+    reject_buttons = [b for b in at.button if b.key == f"aiq_reject_{pid}"]
+    assert len(reject_buttons) == 1
+    reject_buttons[0].click().run()
+    assert not at.exception, at.exception
+
+    remaining = hw_app.df("SELECT id FROM knowledge_posts WHERE id=?", (pid,))
+    assert remaining.empty, "Reject should delete the draft"

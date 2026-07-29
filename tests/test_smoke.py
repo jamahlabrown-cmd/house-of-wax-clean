@@ -377,6 +377,45 @@ def test_buyer_can_save_avatar_url_to_profile():
     assert b.get("avatar_url") == "house_of_wax_uploads/buyer_avatars/test.png"
 
 
+def test_buyer_profile_has_one_photo_spot_not_two(monkeypatch):
+    # Founder, live screenshot of My Account -> Buying -> My Profile: "There
+    # are two place in the buyer section to put profile photos please delete
+    # ons [one]." The page showed a standalone preview of the buyer's saved
+    # avatar_url image sitting above the "Profile photo - optional" file
+    # uploader -- two visually separate photo elements doing overlapping
+    # jobs. Keep the single functional upload control, drop the passive
+    # preview above it.
+    #
+    # st.image isn't a typed element AppTest exposes (no at.image / no
+    # at.get("image") support), same gap as st.link_button -- so this
+    # monkeypatches st.image directly to count real calls instead.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    buyer_id = _new_isolated_buyer(hw_app, "photo_spot_buyer")
+    hw_app.run(
+        "UPDATE buyers SET avatar_url=? WHERE id=?",
+        ("https://example.com/existing-avatar.png", buyer_id),
+    )
+    buyer_email = hw_app.get_buyer(buyer_id)["email"]
+
+    image_calls = []
+    real_image = hw_app.st.image
+    monkeypatch.setattr(hw_app.st, "image", lambda *a, **k: image_calls.append((a, k)) or real_image(*a, **k))
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    _real_buyer_session(at, hw_app, buyer_id, buyer_email)
+    goto(at, "My Account")
+    at.run()
+    assert not at.exception, at.exception
+
+    uploaders = [u for u in at.get("file_uploader") if "Profile photo" in (u.label or "")]
+    assert len(uploaders) == 1, f"Expected exactly one profile photo uploader, got {len(uploaders)}"
+    assert len(image_calls) == 0, (
+        f"Founder: only one photo spot in the buyer section -- expected no standalone avatar preview, got st.image() called {len(image_calls)} time(s)"
+    )
+
+
 def _new_isolated_seller(hw_app, store_name):
     # ensure_seller() reuses whatever seller row already exists in the
     # shared SQLite file (same reasoning as _new_isolated_product below).

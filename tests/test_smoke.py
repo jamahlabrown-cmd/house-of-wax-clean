@@ -1370,3 +1370,51 @@ def test_support_request_submission_saves_and_shows_in_admin_queue():
     assert any("Cannot find my order confirmation." in t for t in all_text), (
         "Submitted support request should show up in the admin Support Requests queue"
     )
+
+
+def test_insert_only_tables_use_return_minimal_not_representation(monkeypatch):
+    # Regression guard: support_requests and release_photo_library both have
+    # an anon/authenticated INSERT policy but deliberately no matching SELECT
+    # policy (visitors shouldn't browse each other's submissions; the photo
+    # library isn't meant to be queried row-by-row from the client). Without
+    # being in INSERT_ONLY_NO_READBACK_TABLES, hosted_insert() defaults to
+    # Prefer: return=representation, which asks Postgres to SELECT the row
+    # back as part of the same statement -- that SELECT fails RLS, and
+    # Postgres reports the *entire* insert as a row-level-security violation
+    # even though (in Postgres generally) the write would otherwise have
+    # gone through. This bug shipped once already (V25.43.135) and was hard
+    # to diagnose live, because every other layer -- the policy itself,
+    # `set role anon` in the SQL editor, table exposure, schema cache -- was
+    # correct; only the Prefer header was wrong. Guard it so it can't ship
+    # silently again for any future insert-only, no-readback table.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "supabase_config", lambda: ("https://example.invalid", "fake-anon-key"))
+    monkeypatch.setattr(hw_app, "auth_access_token", lambda: "")
+
+    captured_headers = {}
+
+    class FakeResponse:
+        status_code = 200
+        ok = True
+        text = "[]"
+        def json(self):
+            return []
+
+    def fake_request(method, url, headers=None, params=None, json=None, timeout=None):
+        captured_headers["Prefer"] = (headers or {}).get("Prefer")
+        return FakeResponse()
+
+    monkeypatch.setattr(hw_app.requests, "request", fake_request)
+
+    for table in ["support_requests", "release_photo_library", "tester_feedback", "listing_reports"]:
+        assert table in hw_app.INSERT_ONLY_NO_READBACK_TABLES, (
+            f"{table} has an insert policy but no anon/authenticated SELECT policy -- "
+            "it must be in INSERT_ONLY_NO_READBACK_TABLES or inserts will fail with a "
+            "misleading RLS error even though the policy itself is correct"
+        )
+        captured_headers.clear()
+        hw_app.hosted_insert(table, {"created_at": "now"})
+        assert captured_headers.get("Prefer") == "return=minimal", (
+            f"Expected {table} insert to use Prefer: return=minimal, got {captured_headers.get('Prefer')!r}"
+        )

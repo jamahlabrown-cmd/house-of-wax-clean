@@ -1418,3 +1418,34 @@ def test_insert_only_tables_use_return_minimal_not_representation(monkeypatch):
         assert captured_headers.get("Prefer") == "return=minimal", (
             f"Expected {table} insert to use Prefer: return=minimal, got {captured_headers.get('Prefer')!r}"
         )
+
+
+# ---------- Glossary (founder: "it's blank and should show terms to get people clicking and wanting to learn") ----------
+
+def test_glossary_shows_terms_without_needing_to_click():
+    # Regression/design guard: the glossary used to be a plain list of
+    # collapsed st.expander rows under a bare "Collector glossary" heading --
+    # nothing was visible until a visitor already knew a term to search for
+    # or clicked one open blind. Term name and definition should render
+    # directly in a visible card.
+    at = fresh_app()
+    goto(at, "Knowledge Hub")
+    assert not at.exception, at.exception
+    markdown_text = [m.value for m in at.markdown]
+    assert any("**Catalog Number**" in t for t in markdown_text), (
+        "Expected the glossary term name to render directly as visible bold text, not hidden behind a click"
+    )
+
+
+def test_glossary_search_and_category_filter_narrow_results():
+    at = fresh_app()
+    goto(at, "Knowledge Hub")
+    assert not at.exception, at.exception
+
+    search_inputs = [t for t in at.text_input if (t.label or "") == "Search glossary"]
+    assert search_inputs, "Expected a glossary search box"
+    search_inputs[0].set_value("runout").run()
+    assert not at.exception, at.exception
+    markdown_text = [m.value for m in at.markdown]
+    assert any("Matrix / Runout" in t for t in markdown_text)
+    assert not any("Reissue" in t for t in markdown_text), "Search should narrow out non-matching terms"

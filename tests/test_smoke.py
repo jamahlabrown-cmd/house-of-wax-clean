@@ -1458,7 +1458,7 @@ def test_use_this_release_fills_sticky_artist_title_fields():
     # widget keys (upload_live_artist_*/upload_live_title_*) so the price box
     # can react live to typing -- but a keyed Streamlit widget is "sticky"
     # and ignores a fresh value= once that key already holds a stored value.
-    # Clicking "Use this release" updated v24_autofill_listing (so most
+    # Clicking "Use recommended match" updated v24_autofill_listing (so most
     # fields refreshed correctly) but never touched the artist/title keys
     # directly, so those two fields -- and the price suggestion, which is
     # gated on artist being non-empty -- stayed blank after picking a match.
@@ -1481,12 +1481,12 @@ def test_use_this_release_fills_sticky_artist_title_fields():
         "catalog_number": "CAT123", "image_url": "", "external_url": "https://www.discogs.com/release/123",
         "source": "Discogs", "country": "US",
     }
-    at.session_state["v24_barcode_matches_primary_add_inventory"] = [fake_match]
+    at.session_state["v25_best_match_primary_add_inventory"] = fake_match
     at.run()
     assert not at.exception, at.exception
 
-    use_buttons = [b for b in at.button if b.key == "v24_use_match_primary_add_inventory"]
-    assert use_buttons, "Expected a 'Use this release' button for the seeded match"
+    use_buttons = [b for b in at.button if b.key == "use_recommended_match_primary_add_inventory"]
+    assert use_buttons, "Expected a 'Use recommended match' button for the seeded match"
     use_buttons[0].click().run()
     assert not at.exception, at.exception
 
@@ -1571,3 +1571,72 @@ def test_photo_library_save_omits_seller_id_when_none_given(monkeypatch):
         "source_seller_id should be omitted (letting Postgres store NULL) when no seller is involved, "
         f"got payload {captured['payload']!r}"
     )
+
+
+def test_barcode_flow_is_a_single_unified_search_no_duplicate_ui():
+    # Founder, second round of feedback (after V25.43.138 only fixed one of
+    # two parallel barcode-match code paths): "I don't want any reference to
+    # use best match. I still see the discogs link. Why is smart match button
+    # still there? mark recommended match should be gone. use recommended
+    # match or add your own is the only choices. I don't want to see this
+    # Backup source links -- only if smart search fails" (i.e. don't always
+    # show it). This guards against the whole class of duplicate-UI
+    # regressions, not just the one path fixed in V25.43.138.
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section").set_value("Add Inventory").run()
+    assert not at.exception, at.exception
+
+    # No separate "Smart Search" trigger -- only one search button ("Search"
+    # for barcode, "Search all music sources" for artist/title), both landing
+    # on the same recommended-match card.
+    button_labels = [b.label or "" for b in at.button]
+    assert not any("Smart Search" in l for l in button_labels), (
+        "Founder: 'Why is smart match button still there?' -- there should be only one unified search"
+    )
+    assert not any("Mark recommended match as wrong" in l or "wrong" in l.lower() for l in button_labels), (
+        "Founder: 'mark recommended match should be gone'"
+    )
+
+    # Backup source links must not render before any search has been
+    # attempted -- founder: "Backup source links -- only if smart search
+    # fails", i.e. not shown unconditionally.
+    markdown_text = " ".join(m.value or "" for m in at.markdown)
+    assert "Backup source links" not in markdown_text, (
+        "Backup source links should only appear after a search is attempted and finds nothing"
+    )
+
+    fake_match = {
+        "artist": "USA For Africa", "title": "We Are the World", "barcode": "4988005678901",
+        "format": "Vinyl", "label": "Columbia", "release_year": "1985", "genre": "Pop",
+        "catalog_number": "CAT123", "image_url": "", "external_url": "https://www.discogs.com/release/123",
+        "source": "Discogs", "country": "US",
+    }
+    at.session_state["v25_best_match_primary_add_inventory"] = fake_match
+    at.session_state["v25_search_attempted_primary_add_inventory"] = True
+    at.run()
+    assert not at.exception, at.exception
+
+    button_labels = [b.label or "" for b in at.button]
+    only_two_choices = {"Use recommended match", "Enter manually"}
+    match_card_buttons = [
+        b for b in at.button
+        if (b.key or "").endswith("_primary_add_inventory") and (b.key or "").startswith(("use_recommended_match", "enter_manually_recommended"))
+    ]
+    assert {b.label for b in match_card_buttons} <= only_two_choices, (
+        f"Recommended match card should only offer 'Use recommended match' / 'Enter manually', got {[b.label for b in match_card_buttons]}"
+    )
+    assert not any("Smart Search" in l for l in button_labels)
+    assert not any("wrong" in l.lower() for l in button_labels)
+
+    markdown_text = " ".join(m.value or "" for m in at.markdown)
+    write_text = " ".join(str(w.value) for w in at.get("text") if getattr(w, "value", None))
+    combined = markdown_text + " " + write_text
+    assert "discogs.com" not in combined.lower(), (
+        "Founder: 'I still see the discogs link' -- the recommended match card should not show the Discogs source URL"
+    )
+    assert "Source URL" not in combined
+    # A match was found, so backup links still should not render.
+    assert "Backup source links" not in markdown_text

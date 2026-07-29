@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.138 FIX+UPDATE: ADD INVENTORY AUTO-FILL, PHOTO LIBRARY FK, DISCOGS LINKS, MENU/ARROW, SKU/CLUTTER CLEANUP'
+APP_VERSION='V25.43.139 CLEANUP: UNIFIED BARCODE SEARCH, REMOVED DUPLICATE SMART SEARCH UI, HID BACKUP LINKS UNTIL NEEDED'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1505,8 +1505,9 @@ def setup():
     old_v25_43_135_announcement='V25.43.135'+' Add: Support page + shared release photo library active'
     old_v25_43_136_announcement='V25.43.136'+' Fix: support request submissions failed RLS due to missing return=minimal active'
     old_v25_43_137_announcement='V25.43.137'+' Update: redesigned glossary as a browsable card grid active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement]:
-        set_setting('announcement','V25.43.138 Fix+update: Add Inventory auto-fill, photo library FK, Discogs links, Menu/arrow, SKU/clutter cleanup active')
+    old_v25_43_138_announcement='V25.43.138'+' Fix+update: Add Inventory auto-fill, photo library FK, Discogs links, Menu/arrow, SKU/clutter cleanup active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement]:
+        set_setting('announcement','V25.43.139 Cleanup: unified barcode search, removed duplicate Smart Search UI, hid backup links until needed active')
 setup()
 recovery_token_bridge()
 
@@ -4589,17 +4590,6 @@ def photo_library_save(barcode, artist, title, image_url, source, seller_id=0):
     data={'barcode':clean_barcode,'artist':artist,'title':title,'image_url':image_url,'source':source,'source_seller_id':int(seller_id) if seller_id else None,'created_at':now(),'updated_at':now()}
     core_insert('release_photo_library',data,'''INSERT INTO release_photo_library(barcode,artist,title,image_url,source,source_seller_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['barcode','artist','title','image_url','source','source_seller_id','created_at','updated_at']))
 
-def barcode_match_label(result, artist='', title=''):
-    match_type=safe(result.get('_barcode_match_type'))
-    if match_type=='exact':
-        return 'Strong match'
-    if match_type=='partial':
-        details=search_match_details(result,artist,title)
-        if details['artist_matched'] and details['title_matched']:
-            return 'Possible match'
-        return 'Broad match'
-    return match_confidence_label(result,artist,title)
-
 def mark_barcode_results(results, match_type, fragment=''):
     marked=[]
     for res in results:
@@ -5571,14 +5561,6 @@ def run_smart_best_match_search(artist='', title='', barcode=''):
         diagnostics.append({'Step':'Smart best-match picker','Status':'No best match','Details':'No automatic source returned a usable candidate. Use manual seed to build House Of Wax database.'})
     return best,ranked,diagnostics
 
-def match_identity(result):
-    return (
-        safe(result.get('source')).lower(),
-        safe(result.get('external_id')).lower(),
-        safe(result.get('artist')).lower(),
-        safe(result.get('title')).lower()
-    )
-
 def search_match_details(result, artist='', title=''):
     result_artist=safe(result.get('artist'))
     result_title=safe(result.get('title'))
@@ -5610,62 +5592,27 @@ def match_confidence_label(result, artist='', title=''):
         return 'Medium'
     return 'Weak'
 
-def match_explanation(result, artist='', title=''):
-    details=search_match_details(result,artist,title)
-    reasons=[]
-    if details['artist_matched'] and details['title_matched']:
-        reasons.append('artist and title matched the search terms')
-    elif details['artist_matched']:
-        reasons.append('artist matched, but the title needs review')
-    elif details['title_matched']:
-        reasons.append('title matched, but the artist needs review')
-    else:
-        reasons.append('artist and title did not strongly match')
-    reasons.append('image found' if details['has_image'] else 'no image found')
-    found=[]
-    if details['has_year']:
-        found.append('year')
-    if details['has_label']:
-        found.append('label')
-    if details['has_source']:
-        found.append('source')
-    reasons.append(('found '+', '.join(found)) if found else 'limited year/label/source details')
-    return 'Chosen because '+', '.join(reasons)+'.'
-
 def use_search_match(result, key_prefix='main'):
     st.session_state['v24_autofill_listing']=result
     st.session_state['v24_autofill_barcode']=normalize_barcode(result.get('barcode')) or st.session_state.get(f'v24_lookup_barcode_clean_{key_prefix}','')
+    # Artist/Title live outside the form below with their own widget keys (so
+    # the price box can react as you type) -- a keyed Streamlit widget is
+    # "sticky" and ignores a fresh value= once that key already holds a
+    # stored value, so without setting these directly the fields (and the
+    # price suggestion, which is gated on artist being non-empty) stayed
+    # blank after picking the recommended match.
+    st.session_state[f'upload_live_artist_{key_prefix}']=safe(result.get('artist'))
+    st.session_state[f'upload_live_title_{key_prefix}']=safe(result.get('title'))
     try:
         rid=create_or_update_how_release(st.session_state['v24_autofill_barcode'],result)
         st.session_state['v25_release_id']=rid
     except Exception:
         pass
 
-def save_wrong_match_correction(result, barcode='', key_prefix='main'):
-    code=normalize_barcode(barcode) or st.session_state.get(f'v24_lookup_barcode_clean_{key_prefix}','')
-    summary=f"{safe(result.get('artist'))} - {safe(result.get('title'))} ({safe(result.get('source'))}, {safe(result.get('release_year'))})"
-    note='Seller marked Smart Search recommended match as wrong.'
-    release_id=None
-    try:
-        release_id=create_or_update_how_release(code,result,note) if code else None
-    except Exception:
-        release_id=None
-    try:
-        submit_release_correction(release_id,0,'recommended_match',summary,'Marked wrong',note)
-        return True
-    except Exception:
-        if code:
-            try:
-                create_or_update_how_release(code,result,note)
-                return True
-            except Exception:
-                return False
-        return False
-
-def render_best_match_card(best, key_prefix='main', ranked=None, artist='', title='', barcode=''):
+def render_best_match_card(best, key_prefix='main', artist='', title='', barcode=''):
     if not best:
         return
-    st.markdown('### Recommended best match')
+    st.markdown('### Recommended match')
     with st.container(border=True):
         c1,c2=st.columns([1,2])
         with c1:
@@ -5680,45 +5627,18 @@ def render_best_match_card(best, key_prefix='main', ranked=None, artist='', titl
             st.write(f"**Format:** {safe(best.get('format'))}")
             st.write(f"**Label:** {safe(best.get('label'))}")
             st.write(f"**Year:** {safe(best.get('release_year'))}")
-            if safe(best.get('external_url')):
-                st.write(f"**Source URL:** {safe(best.get('external_url'))}")
             confidence=match_confidence_label(best,artist,title)
             st.write(f"**Confidence:** {confidence}")
-            st.caption(f"Match score: {safe(best.get('_final_score')) or safe(best.get('_match_score'))}")
-            st.write(match_explanation(best,artist,title))
-            if st.button('Use recommended match',key=f'use_recommended_match_{key_prefix}'):
-                use_search_match(best,key_prefix)
-                st.success('Recommended match loaded into listing draft.')
-            if st.button('Mark recommended match as wrong',key=f'mark_recommended_wrong_{key_prefix}'):
-                saved=save_wrong_match_correction(best,barcode,key_prefix)
-                st.session_state[f'v25_wrong_match_{key_prefix}']=True
-                if saved:
-                    st.warning('Marked wrong and saved for House Of Wax review.')
-                else:
-                    st.warning('Marked wrong for this session. Add a manual correction if this item has no barcode yet.')
-
-    alternates=[]
-    best_key=match_identity(best)
-    for item in ranked or []:
-        if match_identity(item)!=best_key:
-            alternates.append(item)
-        if len(alternates)>=3:
-            break
-    if alternates:
-        st.markdown('### Top 3 Alternate Matches')
-        for i,item in enumerate(alternates,1):
-            with st.container(border=True):
-                c1,c2=st.columns([1,3])
-                with c1:
-                    if safe(item.get('image_url')):
-                        safe_image(safe(item.get('image_url')),width='stretch',fallback_text='Search result image unavailable.')
-                with c2:
-                    st.write(f"**{i}. {safe(item.get('artist'))} - {safe(item.get('title'))}**")
-                    st.caption(f"{safe(item.get('source'))} • {safe(item.get('format'))} • {safe(item.get('release_year'))} • score {safe(item.get('_match_score'))}")
-                    st.write(match_explanation(item,artist,title))
-                    if st.button('Use this alternate',key=f'use_alternate_match_{key_prefix}_{i}'):
-                        use_search_match(item,key_prefix)
-                        st.success('Alternate match loaded into listing draft.')
+        a,c=st.columns(2)
+        if a.button('Use recommended match',key=f'use_recommended_match_{key_prefix}',width='stretch'):
+            use_search_match(best,key_prefix)
+            st.success('Recommended match loaded into listing draft. Scroll to the Add Product form and review before saving.')
+        if c.button('Enter manually',key=f'enter_manually_recommended_{key_prefix}',width='stretch'):
+            st.session_state['v24_autofill_listing']={}
+            st.session_state['v24_autofill_barcode']=normalize_barcode(barcode)
+            st.session_state[f'upload_live_artist_{key_prefix}']=''
+            st.session_state[f'upload_live_title_{key_prefix}']=''
+            st.info('Scroll to Add Inventory and enter the item details manually.')
 
 
 def show_universal_search_links(artist='', title='', barcode=''):
@@ -6267,129 +6187,57 @@ def render_barcode_lookup_widget(key_prefix='main'):
     render_source_health_panel(key_prefix)
     c1,c2=st.columns([2,1])
     barcode=c1.text_input('Scan or enter barcode / UPC',key=f'v24_lookup_barcode_{key_prefix}',placeholder='Click here, scan, or type at least 5-6 digits',help='Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches.')
-    lookup_clicked=c2.button('Lookup barcode',key=f'v24_lookup_button_{key_prefix}')
+    lookup_clicked=c2.button('Search',key=f'v24_lookup_button_{key_prefix}')
 
     with st.expander('No barcode match? Broad search by artist and album title'):
         a1,a2=st.columns(2)
         search_artist=a1.text_input('Artist',key=f'v25_search_artist_{key_prefix}',placeholder='Example: Lady Gaga')
         search_title=a2.text_input('Album / release title',key=f'v25_search_title_{key_prefix}',placeholder='Example: The Fame, Born This Way, Chromatica')
         text_search_clicked=st.button('Search all music sources',key=f'v25_text_search_button_{key_prefix}')
+
+    # One search, one result: both triggers run the same smart best-match
+    # search and land on the same "Recommended match" card below, instead of
+    # a separate "Smart Search" button and a separate multi-result list that
+    # duplicated the same information two different ways -- founder feedback
+    # that the barcode flow showed too many overlapping choices for a
+    # novice seller to make sense of.
     if lookup_clicked:
         code=normalize_barcode(barcode)
         if not code:
-            st.error('Enter or scan a barcode first.')
+            st.error('Enter or scan a barcode first, or use artist/title search below.')
         elif len(code)<5:
-            st.error('Enter at least 5 digits for partial barcode search, or use artist/title search or manual entry.')
+            st.error('Enter at least 5 digits, or use artist/title search or manual entry.')
         else:
-            with st.spinner('Looking up barcode...'):
-                matches,diagnostics=lookup_barcode_with_diagnostics(code)
+            with st.spinner('Searching House Of Wax and outside sources for the best match...'):
+                best,ranked,diagnostics=run_smart_best_match_search(search_artist,search_title,code)
+            best=ensure_release_has_image(best) if best else best
             st.session_state[f'v25_lookup_diagnostics_{key_prefix}']=diagnostics
-            if matches:
-                st.session_state[f'v24_barcode_matches_{key_prefix}']=matches
-                st.session_state[f'v24_lookup_barcode_clean_{key_prefix}']=code
-                st.success(f'Found {len(matches)} possible match(es). Choose one below to auto-fill the listing draft.')
-            else:
-                st.warning('No exact or partial barcode matches found. Try artist/title search or enter the item manually.')
+            st.session_state[f'v25_best_match_{key_prefix}']=best
+            st.session_state[f'v24_lookup_barcode_clean_{key_prefix}']=code
+            st.session_state[f'v25_search_attempted_{key_prefix}']=True
+            if not best:
+                st.warning('No strong match found. Try artist/title search below, or enter the item manually.')
 
     if text_search_clicked:
-        with st.spinner('Searching Discogs, Apple/iTunes, and MusicBrainz...'):
-            matches,diagnostics=lookup_by_artist_title_with_diagnostics(search_artist,search_title,barcode)
-        st.session_state[f'v25_lookup_diagnostics_{key_prefix}']=diagnostics
-        if matches:
-            st.session_state[f'v24_barcode_matches_{key_prefix}']=matches
-            st.session_state[f'v24_lookup_barcode_clean_{key_prefix}']=normalize_barcode(barcode)
-            best=choose_best_search_result(matches,search_artist,search_title,barcode)
-            st.session_state[f'v25_best_match_{key_prefix}']=best
-            st.success(f'Found {len(matches)} possible match(es). A recommended best match was selected below.')
-        else:
-            st.warning('No artist/title match found. Review diagnostics below, then manually enter the product if needed.')
-
-    st.markdown('### Smart best-match search')
-    st.caption('This searches all connected sources inside the app, ranks the candidates, and presents one recommended match.')
-    if st.button('Smart Search: Find Best Match',key=f'v25_smart_search_button_{key_prefix}'):
-        with st.spinner('Searching all connected sources and choosing the best match...'):
-            best,ranked,diagnostics=run_smart_best_match_search(
-                st.session_state.get(f'v25_search_artist_{key_prefix}',''),
-                st.session_state.get(f'v25_search_title_{key_prefix}',''),
-                barcode
-            )
+        with st.spinner('Searching House Of Wax and outside sources for the best match...'):
+            best,ranked,diagnostics=run_smart_best_match_search(search_artist,search_title,barcode)
+        best=ensure_release_has_image(best) if best else best
         st.session_state[f'v25_lookup_diagnostics_{key_prefix}']=diagnostics
         st.session_state[f'v25_best_match_{key_prefix}']=best
-        st.session_state[f'v24_barcode_matches_{key_prefix}']=ranked
         st.session_state[f'v24_lookup_barcode_clean_{key_prefix}']=normalize_barcode(barcode)
-        if best:
-            st.success('Smart search selected a recommended best match.')
-        else:
-            st.warning('Smart search could not find a strong match. Use manual seed or backup links.')
+        st.session_state[f'v25_search_attempted_{key_prefix}']=True
+        if not best:
+            st.warning('No strong match found. Review the backup links below, or enter the item manually.')
 
     current_artist=st.session_state.get(f'v25_search_artist_{key_prefix}','')
     current_title=st.session_state.get(f'v25_search_title_{key_prefix}','')
-    render_best_match_card(
-        st.session_state.get(f'v25_best_match_{key_prefix}'),
-        key_prefix,
-        st.session_state.get(f'v24_barcode_matches_{key_prefix}',[]),
-        current_artist,
-        current_title,
-        barcode
-    )
+    best_match=st.session_state.get(f'v25_best_match_{key_prefix}')
+    render_best_match_card(best_match,key_prefix,current_artist,current_title,barcode)
 
-    show_barcode_diagnostics(st.session_state.get(f'v25_lookup_diagnostics_{key_prefix}',[]))
-    show_universal_search_links(current_artist,current_title,barcode)
+    if st.session_state.get(f'v25_search_attempted_{key_prefix}') and not best_match:
+        show_barcode_diagnostics(st.session_state.get(f'v25_lookup_diagnostics_{key_prefix}',[]))
+        show_universal_search_links(current_artist,current_title,barcode)
     manual_release_seed_form(current_artist,current_title,barcode,key_prefix)
-
-
-
-    matches=st.session_state.get(f'v24_barcode_matches_{key_prefix}',[])
-    if matches:
-        partial_count=sum(1 for m in matches if safe(m.get('_barcode_match_type'))=='partial')
-        if partial_count:
-            st.markdown('### Possible matches from partial barcode')
-            st.caption('These are possible or broad matches, not exact barcode matches. Review full barcode and release details before using one.')
-        labels=[f"{i+1}. {safe(m.get('artist'))} - {safe(m.get('title'))} ({barcode_match_label(m,current_artist,current_title)}, {safe(m.get('source'))}, {safe(m.get('release_year'))})" for i,m in enumerate(matches)]
-        pick=st.selectbox('Possible barcode matches',labels,key=f'v24_match_select_{key_prefix}')
-        idx=int(pick.split('.',1)[0])-1
-        selected=ensure_release_has_image(matches[idx])
-        colA,colB=st.columns([1,2])
-        with colA:
-            if safe(selected.get('image_url')):
-                safe_image(safe(selected.get('image_url')),width='stretch',fallback_text='Release image unavailable.')
-            else:
-                st.info('No image returned.')
-        with colB:
-            st.write(f"**Match type:** {barcode_match_label(selected,current_artist,current_title)}")
-            st.write(f"**Full barcode:** {safe(selected.get('barcode'),'Not listed')}")
-            st.write(f"**Artist:** {safe(selected.get('artist'))}")
-            st.write(f"**Title:** {safe(selected.get('title'))}")
-            st.write(f"**Format:** {safe(selected.get('format'))}")
-            st.write(f"**Label:** {safe(selected.get('label'))}")
-            st.write(f"**Year:** {safe(selected.get('release_year'))}")
-            st.write(f"**Country:** {safe(selected.get('country'),'Not listed')}")
-            st.write(f"**Catalog number:** {safe(selected.get('catalog_number'),'Not listed')}")
-            st.write(f"**Source:** {safe(selected.get('source'))}")
-        a,c=st.columns(2)
-        if a.button('Use this release',key=f'v24_use_match_{key_prefix}',width='stretch'):
-            st.session_state['v24_autofill_listing']=selected
-            st.session_state['v24_autofill_barcode']=normalize_barcode(selected.get('barcode')) or st.session_state.get(f'v24_lookup_barcode_clean_{key_prefix}',normalize_barcode(barcode))
-            # Artist/Title live outside the form below with their own widget
-            # keys (so the price box can react as you type) -- Streamlit
-            # widgets with a key are "sticky" and ignore a new value= once
-            # that key already has a stored value, so without setting these
-            # directly the fields (and the price suggestion, which is gated
-            # on artist being non-empty) stayed blank after picking a match.
-            st.session_state[f'upload_live_artist_{key_prefix}']=safe(selected.get('artist'))
-            st.session_state[f'upload_live_title_{key_prefix}']=safe(selected.get('title'))
-            try:
-                rid=create_or_update_how_release(st.session_state['v24_autofill_barcode'],selected)
-                st.session_state['v25_release_id']=rid
-            except Exception:
-                pass
-            st.success('Listing draft filled and saved to the House Of Wax release database. Scroll to the Add Product form and review before saving.')
-        if c.button('Enter manually',key=f'v42_enter_manually_{key_prefix}',width='stretch'):
-            st.session_state['v24_autofill_listing']={}
-            st.session_state['v24_autofill_barcode']=normalize_barcode(barcode)
-            st.session_state[f'upload_live_artist_{key_prefix}']=''
-            st.session_state[f'upload_live_title_{key_prefix}']=''
-            st.info('Scroll to Add Inventory and enter the item details manually.')
 
 def v24_listing_defaults():
     selected=st.session_state.get('v24_autofill_listing',{})

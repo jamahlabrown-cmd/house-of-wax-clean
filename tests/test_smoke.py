@@ -1449,3 +1449,125 @@ def test_glossary_search_and_category_filter_narrow_results():
     markdown_text = [m.value for m in at.markdown]
     assert any("Matrix / Runout" in t for t in markdown_text)
     assert not any("Reissue" in t for t in markdown_text), "Search should narrow out non-matching terms"
+
+
+# ---------- Add Inventory barcode-match cleanup (founder: artist/title didn't auto-fill, no price suggestion, remove SKU/None-of-these/External URL) ----------
+
+def test_use_this_release_fills_sticky_artist_title_fields():
+    # Regression guard: Artist/Title live outside st.form with explicit
+    # widget keys (upload_live_artist_*/upload_live_title_*) so the price box
+    # can react live to typing -- but a keyed Streamlit widget is "sticky"
+    # and ignores a fresh value= once that key already holds a stored value.
+    # Clicking "Use this release" updated v24_autofill_listing (so most
+    # fields refreshed correctly) but never touched the artist/title keys
+    # directly, so those two fields -- and the price suggestion, which is
+    # gated on artist being non-empty -- stayed blank after picking a match.
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section").set_value("Add Inventory").run()
+    assert not at.exception, at.exception
+
+    # Touch the sticky keys first, same as a fresh page load would (empty),
+    # to prove the fix re-fills them rather than happening to work only
+    # because they were never rendered yet.
+    assert "upload_live_artist_primary_add_inventory" in at.session_state
+    assert "upload_live_title_primary_add_inventory" in at.session_state
+
+    fake_match = {
+        "artist": "USA For Africa", "title": "We Are the World", "barcode": "4988005678901",
+        "format": "Vinyl", "label": "Columbia", "release_year": "1985", "genre": "Pop",
+        "catalog_number": "CAT123", "image_url": "", "external_url": "https://www.discogs.com/release/123",
+        "source": "Discogs", "country": "US",
+    }
+    at.session_state["v24_barcode_matches_primary_add_inventory"] = [fake_match]
+    at.run()
+    assert not at.exception, at.exception
+
+    use_buttons = [b for b in at.button if b.key == "v24_use_match_primary_add_inventory"]
+    assert use_buttons, "Expected a 'Use this release' button for the seeded match"
+    use_buttons[0].click().run()
+    assert not at.exception, at.exception
+
+    assert at.session_state["upload_live_artist_primary_add_inventory"] == "USA For Africa"
+    assert at.session_state["upload_live_title_primary_add_inventory"] == "We Are the World"
+    artist_inputs = [t for t in at.text_input if t.key == "upload_live_artist_primary_add_inventory"]
+    assert artist_inputs and artist_inputs[0].value == "USA For Africa", (
+        "Artist field should show the picked release's artist, not stay blank"
+    )
+
+
+def test_none_of_these_button_removed_and_sku_field_removed():
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section").set_value("Add Inventory").run()
+    assert not at.exception, at.exception
+
+    button_labels = [b.label for b in at.button]
+    assert not any("None of these" in (l or "") for l in button_labels), (
+        "Founder: remove the 'None of these - search another way' button"
+    )
+    input_labels = [t.label for t in at.text_input]
+    assert not any((l or "").startswith("SKU") for l in input_labels), "Founder: remove the SKU field"
+    assert not any("External release URL" in (l or "") for l in input_labels), (
+        "External release URL should no longer be a seller-editable field"
+    )
+
+
+def test_product_detail_does_not_link_buyers_to_discogs():
+    # Founder: "We are letting people leave us and go to a competitor site."
+    # st.link_button isn't tracked by at.button -- AppTest exposes it only
+    # via the generic at.get("link_button").
+    import app as hw_app
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Discogs Link Removal Test Album")
+    hw_app.run(
+        "UPDATE products SET external_release_url=? WHERE id=?",
+        ("https://www.discogs.com/release/33282990", product_id),
+    )
+    at = fresh_app()
+    goto(at, "Search Music")
+    at.session_state["product_id"] = product_id
+    at.run()
+    assert not at.exception, at.exception
+    link_buttons = at.get("link_button")
+    assert not any("View release info" in (lb.label or "") for lb in link_buttons), (
+        "Product detail should not send buyers to an external release URL"
+    )
+
+
+def test_photo_library_save_omits_seller_id_when_none_given(monkeypatch):
+    # Regression guard: source_seller_id references sellers(id) with no
+    # NOT NULL constraint, but photo_library_save() defaulted a missing
+    # seller_id to the integer 0 instead of NULL -- 0 is never a real seller
+    # id, so every "Release Art" save (no seller involved) violated the
+    # foreign key constraint and failed outright in production.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "supabase_config", lambda: ("https://example.invalid", "fake-anon-key"))
+    monkeypatch.setattr(hw_app, "auth_access_token", lambda: "")
+
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+        ok = True
+        text = "[]"
+        def json(self):
+            return []
+
+    def fake_request(method, url, headers=None, params=None, json=None, timeout=None):
+        captured["payload"] = json
+        return FakeResponse()
+
+    monkeypatch.setattr(hw_app.requests, "request", fake_request)
+    monkeypatch.setattr(hw_app, "hosted_select", lambda *a, **k: __import__("pandas").DataFrame())
+
+    hw_app.photo_library_save("602547234567", "Some Artist", "Some Album", "https://example.com/cover.jpg", "Release Art")
+    assert "source_seller_id" not in captured["payload"], (
+        "source_seller_id should be omitted (letting Postgres store NULL) when no seller is involved, "
+        f"got payload {captured['payload']!r}"
+    )

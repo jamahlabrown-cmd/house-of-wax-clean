@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.137 UPDATE: REDESIGNED GLOSSARY AS A BROWSABLE CARD GRID'
+APP_VERSION='V25.43.138 FIX+UPDATE: ADD INVENTORY AUTO-FILL, PHOTO LIBRARY FK, DISCOGS LINKS, MENU/ARROW, SKU/CLUTTER CLEANUP'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1164,7 +1164,7 @@ def admin_access_warning():
 
 def mobile_navigation_bar():
     st.markdown('### Go to')
-    st.caption('Every page lives here — the » icon in the top-left corner also opens the full menu, if you prefer.')
+    st.caption('Every page lives here — the Menu button in the top-left corner also opens the full menu, if you prefer.')
     primary=['Home','Search Music','Knowledge Hub','My Account']
     cols=st.columns(len(primary))
     for i,label in enumerate(primary):
@@ -1504,8 +1504,9 @@ def setup():
     old_v25_43_134_announcement='V25.43.134'+' Update: sharper, less corporate voice for AI content and social copy active'
     old_v25_43_135_announcement='V25.43.135'+' Add: Support page + shared release photo library active'
     old_v25_43_136_announcement='V25.43.136'+' Fix: support request submissions failed RLS due to missing return=minimal active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement]:
-        set_setting('announcement','V25.43.137 Update: redesigned glossary as a browsable card grid active')
+    old_v25_43_137_announcement='V25.43.137'+' Update: redesigned glossary as a browsable card grid active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement]:
+        set_setting('announcement','V25.43.138 Fix+update: Add Inventory auto-fill, photo library FK, Discogs links, Menu/arrow, SKU/clutter cleanup active')
 setup()
 recovery_token_bridge()
 
@@ -1710,36 +1711,36 @@ def apply_brand_style():
         color: #0b0b0b !important;
     }
 
+    /* One visible control, not an icon plus a separate "Menu" label sitting
+       next to it (founder feedback: the arrow and the Menu pill "seem to be
+       the same thing"). Hide the native icon and let a single ::after fill
+       the button's own box with just the word "Menu". */
     [data-testid="stExpandSidebarButton"],
     [data-testid="stSidebarCollapseButton"] {
         background: var(--how-gold) !important;
-        border-radius: 8px !important;
+        border-radius: 999px !important;
         opacity: 1 !important;
         position: relative !important;
-        overflow: visible !important;
+        overflow: hidden !important;
+        min-width: 64px !important;
+        padding: 4px 14px !important;
     }
 
     [data-testid="stExpandSidebarButton"] svg,
-    [data-testid="stSidebarCollapseButton"] svg {
-        fill: #0b0b0b !important;
-        color: #0b0b0b !important;
+    [data-testid="stSidebarCollapseButton"] svg,
+    [data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"],
+    [data-testid="stSidebarCollapseButton"] [data-testid="stIconMaterial"] {
+        display: none !important;
     }
 
-    [data-testid="stExpandSidebarButton"]::after {
+    [data-testid="stExpandSidebarButton"]::after,
+    [data-testid="stSidebarCollapseButton"]::after {
         content: "Menu";
-        position: absolute;
-        left: 100%;
-        top: 50%;
-        transform: translateY(-50%);
-        margin-left: 8px;
-        background: var(--how-gold);
         color: #0b0b0b;
         font-size: .72rem;
         font-weight: 700;
         letter-spacing: .06em;
         text-transform: uppercase;
-        padding: 4px 10px;
-        border-radius: 6px;
         white-space: nowrap;
         pointer-events: none;
     }
@@ -3180,11 +3181,6 @@ def product_detail(pid):
         if status_label!='Available':
             st.warning(status_label)
         for label,col in [('Category','category'),('Format','format'),('Label','label'),('Release year','release_year'),('Barcode / UPC / EAN','barcode'),('Catalog #','catalog_number'),('Matrix / runout','matrix_runout'),('Condition','media_grade')]: st.write(f"**{label}:** {safe(p[col],'Not listed')}")
-        if safe(p.get('external_release_url')):
-            release_url=safe(p.get('external_release_url')).strip()
-            if not release_url.startswith(('http://','https://')):
-                release_url='https://'+release_url
-            st.link_button('View release info',release_url)
         if s is not None:
             st.write('**Seller:** '+safe(s.get('store_name')))
             if is_available:
@@ -4590,7 +4586,7 @@ def photo_library_save(barcode, artist, title, image_url, source, seller_id=0):
     existing=hosted_select('release_photo_library',{'image_url':image_url},limit=1) if hosted_enabled() else df('SELECT id FROM release_photo_library WHERE image_url=?',(image_url,))
     if not existing.empty:
         return
-    data={'barcode':clean_barcode,'artist':artist,'title':title,'image_url':image_url,'source':source,'source_seller_id':int(seller_id or 0),'created_at':now(),'updated_at':now()}
+    data={'barcode':clean_barcode,'artist':artist,'title':title,'image_url':image_url,'source':source,'source_seller_id':int(seller_id) if seller_id else None,'created_at':now(),'updated_at':now()}
     core_insert('release_photo_library',data,'''INSERT INTO release_photo_library(barcode,artist,title,image_url,source,source_seller_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['barcode','artist','title','image_url','source','source_seller_id','created_at','updated_at']))
 
 def barcode_match_label(result, artist='', title=''):
@@ -6370,25 +6366,29 @@ def render_barcode_lookup_widget(key_prefix='main'):
             st.write(f"**Country:** {safe(selected.get('country'),'Not listed')}")
             st.write(f"**Catalog number:** {safe(selected.get('catalog_number'),'Not listed')}")
             st.write(f"**Source:** {safe(selected.get('source'))}")
-            if safe(selected.get('external_url')):
-                st.write(f"External release URL: {safe(selected.get('external_url'))}")
-        a,b,c=st.columns(3)
-        if a.button('Use this release',key=f'v24_use_match_{key_prefix}'):
+        a,c=st.columns(2)
+        if a.button('Use this release',key=f'v24_use_match_{key_prefix}',width='stretch'):
             st.session_state['v24_autofill_listing']=selected
             st.session_state['v24_autofill_barcode']=normalize_barcode(selected.get('barcode')) or st.session_state.get(f'v24_lookup_barcode_clean_{key_prefix}',normalize_barcode(barcode))
+            # Artist/Title live outside the form below with their own widget
+            # keys (so the price box can react as you type) -- Streamlit
+            # widgets with a key are "sticky" and ignore a new value= once
+            # that key already has a stored value, so without setting these
+            # directly the fields (and the price suggestion, which is gated
+            # on artist being non-empty) stayed blank after picking a match.
+            st.session_state[f'upload_live_artist_{key_prefix}']=safe(selected.get('artist'))
+            st.session_state[f'upload_live_title_{key_prefix}']=safe(selected.get('title'))
             try:
                 rid=create_or_update_how_release(st.session_state['v24_autofill_barcode'],selected)
                 st.session_state['v25_release_id']=rid
             except Exception:
                 pass
             st.success('Listing draft filled and saved to the House Of Wax release database. Scroll to the Add Product form and review before saving.')
-        if b.button('None of these - search another way',key=f'v42_none_of_these_{key_prefix}'):
-            st.session_state[f'v24_barcode_matches_{key_prefix}']=[]
-            st.info('Use artist/title search above or try a longer barcode fragment.')
-            st.rerun()
-        if c.button('Enter manually',key=f'v42_enter_manually_{key_prefix}'):
+        if c.button('Enter manually',key=f'v42_enter_manually_{key_prefix}',width='stretch'):
             st.session_state['v24_autofill_listing']={}
             st.session_state['v24_autofill_barcode']=normalize_barcode(barcode)
+            st.session_state[f'upload_live_artist_{key_prefix}']=''
+            st.session_state[f'upload_live_title_{key_prefix}']=''
             st.info('Scroll to Add Inventory and enter the item details manually.')
 
 def v24_listing_defaults():
@@ -6687,11 +6687,15 @@ def upload_product(sid,key):
             barcode=c1.text_input('Barcode / UPC / EAN',value=defaults.get('barcode',''),help='Filled in from Step 1\'s barcode search. You can correct it here if it looks wrong.')
             catalog=c2.text_input('Catalog number - auto-filled if found',value=defaults.get('catalog_number',''))
             matrix=c3.text_input('Matrix / runout - optional')
-            external_release_url=st.text_input('External release URL - optional',value=defaults.get('external_url',''))
+            # Kept as internal metadata (links the listing back to the House
+            # Of Wax release database / admin correction tooling) but no
+            # longer editable here or shown to buyers -- founder: showing a
+            # competitor's (Discogs) URL sends buyers off the platform.
+            external_release_url=defaults.get('external_url','')
 
         st.markdown('#### Step 4: Add your selling details')
         st.caption('Now add the details that are specific to the copy you are selling.')
-        sku=st.text_input('SKU - optional')
+        sku=''
         if is_music_category(category):
             st.info('For most music listings, the album cover image is enough to get started. Your own photos are optional.')
         else:

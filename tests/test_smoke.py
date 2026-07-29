@@ -1261,3 +1261,112 @@ def test_ai_research_queue_reject_deletes_draft():
 
     remaining = hw_app.df("SELECT id FROM knowledge_posts WHERE id=?", (pid,))
     assert remaining.empty, "Reject should delete the draft"
+
+
+# ---------- Shared release photo library (founder: reuse photos across future listings of the same release) ----------
+
+def test_photo_library_reuses_photo_across_listings_by_barcode():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    hw_app.photo_library_save("602547234567", "Test Artist", "Test Album", "https://example.com/cover.jpg", "Release Art")
+    found = hw_app.photo_library_lookup("602547234567", "Different Artist Typed", "Different Title Typed")
+    assert found == "https://example.com/cover.jpg", (
+        "A later listing with the same barcode should reuse the cached photo even if the artist/title text differs"
+    )
+
+
+def test_photo_library_falls_back_to_artist_title_when_no_barcode():
+    import app as hw_app
+    hw_app.photo_library_save("", "Some Artist", "Some Album", "https://example.com/seller-photo.jpg", "Seller Photo", 5)
+    found = hw_app.photo_library_lookup("", "some artist", "some album")
+    assert found == "https://example.com/seller-photo.jpg", "Lookup should match on artist/title case-insensitively when there's no barcode"
+
+
+def test_photo_library_prefers_official_release_art_over_seller_photo():
+    import app as hw_app
+    hw_app.photo_library_save("999888777", "Pref Artist", "Pref Album", "https://example.com/seller.jpg", "Seller Photo", 1)
+    hw_app.photo_library_save("999888777", "Pref Artist", "Pref Album", "https://example.com/official.jpg", "Release Art")
+    found = hw_app.photo_library_lookup("999888777", "Pref Artist", "Pref Album")
+    assert found == "https://example.com/official.jpg", (
+        "Official release art should be preferred over a seller's own photo when both are cached for the same release"
+    )
+
+
+def test_upload_product_prefills_reference_image_from_photo_library():
+    # End-to-end guard: a photo cached from an earlier listing should actually
+    # reach the Add Inventory "Reference image" field, not just the helper
+    # functions in isolation.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    hw_app.photo_library_save("111222333444", "Library Artist", "Library Album", "https://example.com/from-library.jpg", "Release Art")
+
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section").set_value("Add Inventory").run()
+    assert not at.exception, at.exception
+
+    artist_input = next(t for t in at.text_input if t.key and t.key.startswith("upload_live_artist_"))
+    artist_input.set_value("Library Artist").run()
+    title_input = next(t for t in at.text_input if t.key and t.key.startswith("upload_live_title_"))
+    title_input.set_value("Library Album").run()
+    barcode_input = next(t for t in at.text_input if (t.label or "").startswith("Barcode / UPC / EAN"))
+    barcode_input.set_value("111222333444").run()
+    assert not at.exception, at.exception
+
+    ref_image_input = next(t for t in at.text_input if (t.label or "").startswith("Reference image"))
+    assert ref_image_input.value == "https://example.com/from-library.jpg", (
+        "Reference image should auto-fill from the photo library once artist/title/barcode match a cached entry"
+    )
+
+
+# ---------- Support / Contact page (founder: replace/supplement the per-listing Report button with a general support path) ----------
+
+def test_support_page_reachable_via_query_param_and_has_a_way_back():
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.query_params["support"] = "1"
+    at.run()
+    assert not at.exception, at.exception
+    headers = [h.value for h in at.header]
+    assert any("Support" in h for h in headers), "Expected the Support page to render"
+    back_buttons = [b for b in at.button if b.key == "support_back"]
+    assert back_buttons, "Support screen should have a way back to the app"
+    back_buttons[0].click().run()
+    assert not at.exception, at.exception
+    assert "support" not in at.query_params
+
+
+def test_support_request_submission_saves_and_shows_in_admin_queue():
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.query_params["support"] = "1"
+    at.run()
+    assert not at.exception, at.exception
+
+    name_input = next(t for t in at.text_input if (t.label or "").startswith("Your name"))
+    name_input.set_value("Test Person").run()
+    email_input = next(t for t in at.text_input if (t.label or "").startswith("Your email"))
+    email_input.set_value("test@example.com").run()
+    message_input = next(t for t in at.text_area if (t.label or "").startswith("Tell us what is going on"))
+    message_input.set_value("Cannot find my order confirmation.").run()
+    submit_buttons = [b for b in at.button if (b.label or "") == "Send to House Of Wax"]
+    assert submit_buttons, "Expected the support form submit button"
+    submit_buttons[0].click().run()
+    assert not at.exception, at.exception
+
+    saved = hw_app.df("SELECT * FROM support_requests WHERE email='test@example.com'")
+    assert len(saved) == 1, "Expected exactly one saved support request"
+    assert saved.iloc[0]["message"] == "Cannot find my order confirmation."
+    assert saved.iloc[0]["status"] == "Open"
+
+    at2 = AppTest.from_file("app.py", default_timeout=30)
+    at2.session_state["testing_mode_enabled"] = True
+    at2.run()
+    at2.sidebar.radio(key="house_of_wax_area").set_value("House Of Wax Admin").run()
+    at2.sidebar.radio(key="admin_navigation").set_value("Support Requests").run()
+    assert not at2.exception, at2.exception
+    all_text = [m.value for m in at2.markdown]
+    assert any("Cannot find my order confirmation." in t for t in all_text), (
+        "Submitted support request should show up in the admin Support Requests queue"
+    )

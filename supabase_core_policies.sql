@@ -35,6 +35,8 @@ alter table listing_inquiries enable row level security;
 alter table purchase_requests enable row level security;
 alter table tester_feedback enable row level security;
 alter table listing_reports enable row level security;
+alter table release_photo_library enable row level security;
+alter table support_requests enable row level security;
 alter table knowledge_posts enable row level security;
 alter table glossary_terms enable row level security;
 alter table homepage_blocks enable row level security;
@@ -486,6 +488,45 @@ drop policy if exists "anon submit tester feedback" on public."tester_feedback";
 create policy "anon submit tester feedback"
 on tester_feedback for insert to anon
 with check (true);
+
+-- release_photo_library: a shared cache any signed-in seller can read from
+-- and add to (reused cover art / seller photos across future listings of
+-- the same release) -- not owner-scoped, since the whole point is reuse
+-- across different sellers.
+drop policy if exists "authenticated read photo library" on public."release_photo_library";
+create policy "authenticated read photo library"
+on release_photo_library for select to authenticated
+using (true);
+
+drop policy if exists "authenticated add to photo library" on public."release_photo_library";
+create policy "authenticated add to photo library"
+on release_photo_library for insert to authenticated
+with check (true);
+
+drop policy if exists "admin manage photo library" on public."release_photo_library";
+create policy "admin manage photo library"
+on release_photo_library for all to authenticated
+using (is_admin_user())
+with check (is_admin_user());
+
+-- support_requests: the public Support page has no sign-in gate, same as
+-- listing_reports/tester_feedback -- anon and authenticated can both submit,
+-- but only admin can read them back (insert-only for everyone else).
+drop policy if exists "anon submit support requests" on public."support_requests";
+create policy "anon submit support requests"
+on support_requests for insert to anon
+with check (true);
+
+drop policy if exists "authenticated submit support requests" on public."support_requests";
+create policy "authenticated submit support requests"
+on support_requests for insert to authenticated
+with check (true);
+
+drop policy if exists "admin manage support requests" on public."support_requests";
+create policy "admin manage support requests"
+on support_requests for all to authenticated
+using (is_admin_user())
+with check (is_admin_user());
 
 -- Admin management should be handled by secure server/service tooling or custom claims.
 -- Do not expose service_role keys in Streamlit.

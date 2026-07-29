@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.134 UPDATE: SHARPER, LESS CORPORATE VOICE FOR AI CONTENT AND SOCIAL COPY'
+APP_VERSION='V25.43.135 ADD: SUPPORT PAGE + SHARED RELEASE PHOTO LIBRARY'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -77,7 +77,7 @@ def supabase_config():
         url=url[:-8].rstrip('/')
     anon=safe(config_value('SUPABASE_ANON_KEY'))
     return url,anon
-CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies','want_list','seller_reviews','buyer_reviews','avatar_faq_videos','culture_posts','cart_items']
+CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies','want_list','seller_reviews','buyer_reviews','avatar_faq_videos','culture_posts','cart_items','release_photo_library','support_requests']
 GRADE_SCALE=['Mint','Near Mint','VG+','VG','Good+','Good','Fair','Poor']
 GRADE_INDEX={g:i for i,g in enumerate(GRADE_SCALE)}
 GRADE_PRICE_MULTIPLIERS={'Mint':1.35,'Near Mint':1.20,'VG+':1.00,'VG':0.80,'Good+':0.65,'Good':0.50,'Fair':0.35,'Poor':0.20}
@@ -802,7 +802,7 @@ def dead_end_screen_recovery_link(key):
     # tester got stuck and had to close the browser entirely to get back.
     # Always give a way back to the normal app from here.
     if st.button('← Back to House Of Wax',key=key):
-        for stuck_param in ('legal','recovery_token'):
+        for stuck_param in ('legal','recovery_token','support'):
             try: del st.query_params[stuck_param]
             except Exception: pass
         st.rerun()
@@ -880,6 +880,35 @@ def public_terms_of_service():
     st.write('We may update these terms as House Of Wax changes. The date above reflects the most recent update.')
     st.markdown('### Contact us')
     st.write('Questions about these terms can be sent to hello@shophouseofwax.com.')
+
+SUPPORT_CATEGORIES=['Account help','Buying a listing','Selling / seller application','Payments','Report a bug','Other']
+
+def public_support_page():
+    header()
+    dead_end_screen_recovery_link('support_back')
+    st.header('Contact House Of Wax Support')
+    st.write("Have a question, ran into a problem, or something's not working right? Tell us what's going on and we'll get back to you.")
+    st.caption('Reporting a specific listing or seller for a rules violation instead? Use the Report Listing / Report Seller link on that item -- it goes straight to moderation and gets reviewed faster than a general message.')
+    with st.form('support_request_form'):
+        name=st.text_input('Your name - optional')
+        email=st.text_input('Your email - required so House Of Wax can reply')
+        category=st.selectbox('What is this about?',SUPPORT_CATEGORIES)
+        message=st.text_area('Tell us what is going on')
+        submitted=st.form_submit_button('Send to House Of Wax')
+    if submitted:
+        if not safe(email).strip():
+            st.warning('Add your email so House Of Wax can reply to you.')
+        elif not safe(message).strip():
+            st.warning('Add a message describing what you need help with.')
+        else:
+            data={'name':name,'email':email,'category':category,'message':message,'status':'Open','created_at':now(),'updated_at':now()}
+            new_id=core_insert('support_requests',data,'''INSERT INTO support_requests(name,email,category,message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)''',tuple(data[k] for k in ['name','email','category','message','status','created_at','updated_at']))
+            if new_id or not hosted_enabled():
+                st.success('Message sent. House Of Wax will reply to the email you provided.')
+            else:
+                st.error('Message could not be sent. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
+    st.caption('You can also reach us directly at hello@shophouseofwax.com.')
+
 def conn(): return sqlite3.connect(DB)
 def run(sql,p=()):
     c=conn(); c.execute(sql,p); c.commit(); c.close()
@@ -1178,6 +1207,7 @@ def setup():
     cur.execute('''CREATE TABLE IF NOT EXISTS sellers(id INTEGER PRIMARY KEY AUTOINCREMENT,store_name TEXT,owner_name TEXT,email TEXT UNIQUE,phone TEXT,city TEXT,state TEXT,website TEXT,instagram TEXT,store_bio TEXT,seller_story TEXT,specialties TEXT,logo_url TEXT,banner_url TEXT,status TEXT DEFAULT 'Pending Seller Approval',seller_level TEXT DEFAULT 'Verified Seller',rating REAL DEFAULT 100,completed_sales INTEGER DEFAULT 0,disputes INTEGER DEFAULT 0,strikes INTEGER DEFAULT 0,auction_override TEXT DEFAULT 'Yes',access_code TEXT,rules_accepted TEXT DEFAULT 'No',rules_accepted_at TEXT,paypal_link TEXT,created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS products(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,sku TEXT,barcode TEXT,catalog_number TEXT,matrix_runout TEXT,category TEXT,artist TEXT,title TEXT,format TEXT,label TEXT,release_year TEXT,genre TEXT,media_grade TEXT,sleeve_grade TEXT,condition_notes TEXT,description TEXT,price REAL DEFAULT 0,quantity INTEGER DEFAULT 1,shipping_price REAL DEFAULT 0,image_url TEXT,video_url TEXT,audio_url TEXT,external_release_url TEXT,listing_status TEXT DEFAULT 'Draft',listing_type TEXT DEFAULT 'Fixed Price',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS product_gallery(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,image_url TEXT,caption TEXT,created_at TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS release_photo_library(id INTEGER PRIMARY KEY AUTOINCREMENT,barcode TEXT,artist TEXT,title TEXT,image_url TEXT,source TEXT,source_seller_id INTEGER DEFAULT 0,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,order_type TEXT,status TEXT DEFAULT 'New',item_price REAL DEFAULT 0,shipping_price REAL DEFAULT 0,platform_fee REAL DEFAULT 0,seller_payout REAL DEFAULT 0,buyer_message TEXT,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER,reviewer_type TEXT,reviewer_id INTEGER,reviewee_type TEXT,reviewee_id INTEGER,rating INTEGER,comment TEXT,public TEXT DEFAULT 'Yes',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,sender_type TEXT,subject TEXT,message TEXT,status TEXT DEFAULT 'New',created_at TEXT)''')
@@ -1190,6 +1220,7 @@ def setup():
     cur.execute('''CREATE TABLE IF NOT EXISTS avatar_faq_videos(id INTEGER PRIMARY KEY AUTOINCREMENT,question TEXT,video_url TEXT,display_order INTEGER DEFAULT 0,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS tester_feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,tester_name TEXT,tester_type TEXT,page_flow TEXT,worked_well TEXT,confusing TEXT,felt_broken TEXT,missing TEXT,ease_rating INTEGER,would_use_again TEXT,open_notes TEXT,status TEXT DEFAULT 'New',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS listing_reports(id INTEGER PRIMARY KEY AUTOINCREMENT,listing_id INTEGER,seller_id INTEGER,reporter_name TEXT,reporter_contact TEXT,reason TEXT,details TEXT,status TEXT DEFAULT 'Open',created_at TEXT,updated_at TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS support_requests(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT,email TEXT,category TEXT,message TEXT,status TEXT DEFAULT 'Open',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_followers(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,buyer_id INTEGER,created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_badges(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,badge_name TEXT,badge_type TEXT,active TEXT DEFAULT 'Yes',created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS store_announcements(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,title TEXT,body TEXT,status TEXT DEFAULT 'Active',created_at TEXT)''')
@@ -1470,8 +1501,9 @@ def setup():
     old_v25_43_131_announcement='V25.43.131'+' Fix: Knowledge Hub no longer points public visitors at the hidden Tester Start Here section active'
     old_v25_43_132_announcement='V25.43.132'+' Add: daily AI research queue for the Knowledge Hub active'
     old_v25_43_133_announcement='V25.43.133'+' Fix: listing card buttons no longer wrap into tall stacked buttons on desktop active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement]:
-        set_setting('announcement','V25.43.134 Update: sharper, less corporate voice for AI content and social copy active')
+    old_v25_43_134_announcement='V25.43.134'+' Update: sharper, less corporate voice for AI content and social copy active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement]:
+        set_setting('announcement','V25.43.135 Add: Support page + shared release photo library active')
 setup()
 recovery_token_bridge()
 
@@ -3386,6 +3418,39 @@ def admin_tester_feedback_view():
                     st.markdown(f'**{label}**')
                     st.write(safe(row.get(col)))
 
+def admin_support_requests_view():
+    st.subheader('Support Requests')
+    st.caption('General questions and issues submitted from the public Support page. Listing/seller rules violations go through Moderation Center instead.')
+    requests_df=table('support_requests')
+    if requests_df.empty:
+        st.info('No support requests yet.')
+        return
+    status_options=['Open','In Progress','Resolved']
+    open_count=int((requests_df['status'].fillna('Open').isin(['Open','In Progress'])).sum())
+    st.metric('Open or in progress',open_count)
+    show_filter=st.selectbox('Show',['Open + In Progress','All','Resolved'],key='support_status_filter')
+    if show_filter=='Open + In Progress':
+        filtered=requests_df[requests_df['status'].fillna('Open').isin(['Open','In Progress'])]
+    elif show_filter=='Resolved':
+        filtered=requests_df[requests_df['status']=='Resolved']
+    else:
+        filtered=requests_df
+    filtered=filtered.sort_values('id',ascending=False)
+    if filtered.empty:
+        st.info('Nothing matches this filter.')
+        return
+    for _,row in filtered.iterrows():
+        rid=int(row['id'])
+        with st.container(border=True):
+            st.write(f"**{safe(row.get('category'))}** — {safe(row.get('name')) or 'No name given'} ({safe(row.get('email'))})")
+            st.caption(f"Submitted {safe(row.get('created_at'))} — status: {safe(row.get('status'),'Open')}")
+            st.write(safe(row.get('message')))
+            new_status=st.selectbox('Status',status_options,index=status_options.index(safe(row.get('status'),'Open')) if safe(row.get('status'),'Open') in status_options else 0,key=f'support_status_{rid}')
+            if st.button('Update status',key=f'support_update_{rid}'):
+                core_update('support_requests',{'status':new_status,'updated_at':now()},{'id':rid},'UPDATE support_requests SET status=?,updated_at=? WHERE id=?',(new_status,now(),rid))
+                st.success('Status updated.')
+                st.rerun()
+
 def knowledge_center_education_hub():
     st.write('Everything we know about buying and selling records honestly — condition, photos, trust, and the standards we hold every seller to.')
     st.info("We're starting with vinyl and music collectibles — merch, memorabilia, and more culture goods are next.")
@@ -4466,6 +4531,44 @@ def is_music_category(category):
 
 def normalize_barcode(code):
     return re.sub(r'[^0-9]', '', safe(code))
+
+# ---------- Shared release photo library ----------
+# Every barcode/Discogs/MusicBrainz lookup during Add Inventory already finds
+# cover art, and sellers can optionally upload their own photo -- this table
+# caches both so the next listing for the same release (by any seller) can
+# reuse a photo instead of re-querying external APIs or starting from
+# scratch. Reference art (Discogs/MusicBrainz) is preferred for the "Reference
+# image" field since that field is explicitly official release art, not a
+# claim about the seller's exact copy; a prior seller's real photo is offered
+# as a fallback when no official art exists at all.
+def photo_library_lookup(barcode, artist, title):
+    clean_barcode=normalize_barcode(barcode)
+    rows=table('release_photo_library')
+    if rows.empty:
+        return ''
+    matches=pd.DataFrame()
+    if clean_barcode:
+        matches=rows[rows['barcode'].fillna('').apply(normalize_barcode)==clean_barcode]
+    if matches.empty and safe(artist) and safe(title):
+        matches=rows[(rows['artist'].fillna('').str.strip().str.lower()==safe(artist).strip().lower()) & (rows['title'].fillna('').str.strip().str.lower()==safe(title).strip().lower())]
+    if matches.empty:
+        return ''
+    for preferred_source in ['Release Art','Seller Photo']:
+        by_source=matches[matches['source']==preferred_source]
+        if not by_source.empty:
+            return safe(by_source.sort_values('id',ascending=False).iloc[0]['image_url'])
+    return safe(matches.sort_values('id',ascending=False).iloc[0]['image_url'])
+
+def photo_library_save(barcode, artist, title, image_url, source, seller_id=0):
+    image_url=safe(image_url).strip()
+    if not image_url or not (safe(artist) and safe(title)):
+        return
+    clean_barcode=normalize_barcode(barcode)
+    existing=hosted_select('release_photo_library',{'image_url':image_url},limit=1) if hosted_enabled() else df('SELECT id FROM release_photo_library WHERE image_url=?',(image_url,))
+    if not existing.empty:
+        return
+    data={'barcode':clean_barcode,'artist':artist,'title':title,'image_url':image_url,'source':source,'source_seller_id':int(seller_id or 0),'created_at':now(),'updated_at':now()}
+    core_insert('release_photo_library',data,'''INSERT INTO release_photo_library(barcode,artist,title,image_url,source,source_seller_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)''',tuple(data[k] for k in ['barcode','artist','title','image_url','source','source_seller_id','created_at','updated_at']))
 
 def barcode_match_label(result, artist='', title=''):
     match_type=safe(result.get('_barcode_match_type'))
@@ -6596,7 +6699,8 @@ def upload_product(sid,key):
             st.caption('Photos upload to permanent cloud storage and survive redeploys.')
         else:
             st.caption('Local dev mode: photos save to this machine only, for testing. Once Supabase is connected, uploads go to permanent cloud storage instead.')
-        refimgurl=st.text_input('Reference image - official release art, auto-filled if found',value=defaults.get('image_url',''),help='This is official release art from the House Of Wax database or outside sources (Discogs/MusicBrainz), not a photo of your exact copy. It is shown to buyers labeled as reference art.')
+        library_image=photo_library_lookup(barcode,artist,title)
+        refimgurl=st.text_input('Reference image - official release art, auto-filled if found',value=library_image or defaults.get('image_url',''),help='This is official release art from Discogs/MusicBrainz, or a photo saved to the House Of Wax photo library from a previous listing of this release -- not necessarily a photo of your exact copy. It is shown to buyers labeled as reference art.')
         if safe(refimgurl):
             st.success('Reference image found automatically. No action needed.')
         else:
@@ -6673,6 +6777,10 @@ def upload_product(sid,key):
         saved_main=save_file(main_img,'product_images')
         saved_supporting=save_files(supporting_imgs,'product_images')
         saved_condition=save_files(condition_imgs,'product_images')
+        if refimgurl:
+            photo_library_save(barcode,artist,title,refimgurl,'Release Art')
+        if saved_main:
+            photo_library_save(barcode,artist,title,saved_main,'Seller Photo',sid)
         image=saved_main or imgurl
         description=desc or f'{artist} — {title}. {notes}'
         listing_status='Live' if publish_listing else 'Draft'
@@ -8128,6 +8236,9 @@ if safe(st.query_params.get('legal'))=='privacy':
 if safe(st.query_params.get('legal'))=='terms':
     public_terms_of_service()
     st.stop()
+if safe(st.query_params.get('support')):
+    public_support_page()
+    st.stop()
 testing_mode=app_mode()
 apply_share_deep_link()
 area_options=['House Of Wax Marketplace']
@@ -8151,12 +8262,12 @@ else:
     pending_seller_apps=pending_seller_application_count()
     st.sidebar.markdown('### House Of Wax Admin'+(f' ⚠️ {pending_seller_apps} pending' if pending_seller_apps else ''))
     st.sidebar.caption('Platform management: seller approval, moderation, reports, tester feedback, database status, Supabase diagnostics, and testing.')
-    admin_menu=['Admin Dashboard','User Directory','Buyer Lookup','Seller Applications','Moderation Center','Content Admin','Homepage Editor','Legal / Policies','Tester Feedback','Database Status / Diagnostics','Test Setup']
+    admin_menu=['Admin Dashboard','User Directory','Buyer Lookup','Seller Applications','Moderation Center','Content Admin','Homepage Editor','Legal / Policies','Support Requests','Tester Feedback','Database Status / Diagnostics','Test Setup']
     pending_admin_nav=st.session_state.pop('pending_admin_navigation',None)
     if pending_admin_nav in admin_menu:
         st.session_state['admin_navigation']=pending_admin_nav
     menu=st.sidebar.radio('Admin navigation',admin_menu,key='admin_navigation')
-st.sidebar.caption('[Privacy Policy](?legal=privacy) · [Terms of Service](?legal=terms)')
+st.sidebar.caption('[Privacy Policy](?legal=privacy) · [Terms of Service](?legal=terms) · [Support](?support=1)')
 if area=='House Of Wax Marketplace' and menu not in ('My Account','Seller Dashboard'):
     # My Account and Seller Dashboard are the signed-in user's own space --
     # they shouldn't also be pushed back out toward Marketplace/Knowledge Hub
@@ -8226,6 +8337,13 @@ try:
             admin_context('House Of Wax Admin → Homepage Editor')
             if is_admin_unlocked():
                 homepage_editor()
+            else:
+                st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+        elif menu=='Support Requests':
+            header()
+            admin_context('House Of Wax Admin → Support Requests')
+            if is_admin_unlocked():
+                admin_support_requests_view()
             else:
                 st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
         elif menu=='Tester Feedback':

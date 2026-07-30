@@ -170,6 +170,12 @@ def research_article(client, existing_titles, forced_category=None):
     text = ''.join(block.text for block in response.content if block.type == 'text').strip()
     article = extract_json_object(text)
 
+    # Citations on the final text block only exist when the model cites a
+    # span of prose -- but the final message here is required to be ONLY a
+    # raw JSON object, which has nowhere for inline citation markup to
+    # attach, even when real web searches happened. Also pull source URLs
+    # directly from the web_search_tool_result blocks (the actual search
+    # results Claude received) so real searches still get credited.
     sources = []
     seen = set()
     for block in response.content:
@@ -179,6 +185,12 @@ def research_article(client, existing_titles, forced_category=None):
                 if url and url not in seen:
                     seen.add(url)
                     sources.append((getattr(c, 'title', None) or url, url))
+        elif block.type == 'web_search_tool_result':
+            for r in (getattr(block, 'content', None) or []):
+                url = getattr(r, 'url', None)
+                if url and url not in seen:
+                    seen.add(url)
+                    sources.append((getattr(r, 'title', None) or url, url))
 
     return article, sources
 

@@ -1553,6 +1553,49 @@ def test_researcher_forces_trending_category_and_prompt_has_guidance():
     assert "genuinely current" in system_prompt
 
 
+def test_researcher_captures_sources_from_web_search_results_without_inline_citations():
+    # Real bug found reviewing the first live Trending Now draft ("Boards of
+    # Canada Are Back..."): it saved with 0 sources despite the job
+    # presumably searching the web as instructed. Root cause: the system
+    # prompt requires the FINAL message to be ONLY a raw JSON object, so
+    # Claude's inline-citation markup (which attaches to cited spans of
+    # prose) never has anywhere to attach on a JSON-only answer -- even when
+    # real searches happened. Sources must also be pulled from the actual
+    # web_search_tool_result blocks Claude received, not just from citations
+    # on the final text block.
+    researcher = _import_researcher_script()
+
+    class FakeSearchResult:
+        url = "https://example.com/boards-of-canada-inferno"
+        title = "Boards of Canada announce Inferno"
+
+    class FakeSearchResultBlock:
+        type = "web_search_tool_result"
+        content = [FakeSearchResult()]
+
+    class FakeTextBlock:
+        type = "text"
+        text = (
+            '{"title":"t","category":"Trending Now: Style & Sound","audience":"Everyone",'
+            '"level":"Beginner","summary":"s","body":"b","house_tip":"h"}'
+        )
+        citations = None  # JSON-only final answer -- no inline citation markup possible
+
+    class FakeResponse:
+        content = [FakeSearchResultBlock(), FakeTextBlock()]
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            return FakeResponse()
+
+    class FakeClient:
+        messages = FakeMessages()
+
+    article, sources = researcher.research_article(FakeClient(), [], forced_category=None)
+    assert sources, "Expected sources to be captured from the web_search_tool_result block"
+    assert ("Boards of Canada announce Inferno", "https://example.com/boards-of-canada-inferno") in sources
+
+
 def test_researcher_free_choice_mode_still_lists_trending_category():
     # Regression guard for the change above -- on a non-forced day, the
     # model should still see Trending Now as a normal option among the

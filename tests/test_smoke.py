@@ -85,6 +85,33 @@ def test_home_hero_renders_above_breadcrumb_and_admin_banner():
     assert hero_idx < banner_idx, "Hero should render above the admin-only version banner"
 
 
+def test_home_hero_renders_above_quick_nav_bar():
+    # Founder: "I want [House Of Wax] to be the star of the show ... I want
+    # it to be the first thing they see." The hero itself was already first
+    # among home()'s own content, but the site-wide "### Go to" quick-nav bar
+    # (mobile_navigation_bar()) ran BEFORE home() was even called, from the
+    # main dispatch script -- making it the true first thing on the page.
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    assert not at.exception, at.exception
+
+    order = _element_order(at)
+    hero_idx = next(i for i, v in enumerate(order) if 'class="how-hero"' in v)
+    go_to_idx = next(i for i, v in enumerate(order) if v.strip() == "### Go to")
+    assert hero_idx < go_to_idx, "Hero should render above the quick-nav 'Go to' bar on Home"
+
+
+def test_quick_nav_bar_still_renders_on_other_marketplace_pages():
+    # Regression guard for the fix above -- only Home should have the quick
+    # nav bar moved below its own content; every other marketplace page
+    # (e.g. Search Music) should still show it exactly as before.
+    at = fresh_app()
+    goto(at, "Search Music")
+    assert any(md.value.strip() == "### Go to" for md in at.markdown), (
+        "Quick-nav bar should still render on non-Home marketplace pages"
+    )
+
+
 def test_home_page_has_no_content_count_stat_tiles():
     # Founder: the Knowledge Articles / Glossary Terms / Marketplace Items /
     # Sellers st.metric() tiles looked "tacky" -- a KPI-dashboard widget

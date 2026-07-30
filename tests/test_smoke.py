@@ -771,6 +771,37 @@ def test_listing_card_has_no_live_badge_or_reference_image_label():
     assert not any("Reference image" in t for t in detail_text), "'Reference image' label should be gone from product detail too"
 
 
+def test_listing_card_price_is_not_truncated_st_metric():
+    # Founder, live screenshot: listing cards on Search Music showed "Price
+    # $..." instead of the actual dollar amount, on every card. Root cause:
+    # price_col.metric('Price', money(...)) -- st.metric renders its value in
+    # a large fixed font with CSS text-overflow:ellipsis, and these cards are
+    # narrow (price_col is half of one column in a multi-card grid), so the
+    # price text gets visually clipped to "$..." even though the underlying
+    # money() string is always a full, valid amount. Fix: plain text, same
+    # pattern already used on the product detail page ('**Price:** $24.99'),
+    # which doesn't truncate.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Price Truncation Test Album")
+    hw_app.run("UPDATE products SET price=? WHERE id=?", (24.99, product_id))
+
+    goto(at, "Search Music", area_key="marketplace_navigation")
+    assert not at.exception, at.exception
+
+    price_metrics = [m for m in at.get("metric") if (m.label or "") == "Price"]
+    assert not price_metrics, "Listing cards should not use st.metric for price -- it truncates in narrow columns"
+
+    all_text = [m.value for m in at.markdown] + [c.value for c in at.caption]
+    assert any("$24.99" in t for t in all_text), (
+        "Expected the actual price ($24.99) to render as plain text on the listing card"
+    )
+
+
 def test_seller_profile_has_no_auto_trust_badges():
     # Founder: "profile complete, Approved Listing, Quality Listing trusted
     # seller button can all go" -- these are the buyer-facing auto-generated

@@ -33,6 +33,8 @@ import requests
 # Keep in sync with KNOWLEDGE_CATEGORIES in app.py -- duplicated here
 # because app.py runs setup() at import time (Streamlit secrets, DB
 # connections) and isn't safely importable from a bare script.
+# tests/test_smoke.py::test_knowledge_categories_stay_in_sync_with_researcher_script
+# guards against these two lists drifting apart.
 KNOWLEDGE_CATEGORIES = [
     'Record Collecting 101',
     'Vinyl Grading School',
@@ -44,7 +46,20 @@ KNOWLEDGE_CATEGORIES = [
     'Music History & Culture',
     'House Of Wax Trust Standards',
     'Marketplace Education',
+    'Trending Now: Style & Sound',
 ]
+
+# Founder: steer the audience toward trending styles, new artists, and
+# music/entertainment culture -- but a topic that's just one option among
+# 11 categories could go weeks without the model picking it on its own.
+# Force it onto a predictable cadence instead.
+TRENDING_CATEGORY = 'Trending Now: Style & Sound'
+TRENDING_DAY_INTERVAL = 3
+
+
+def is_trending_day():
+    return datetime.now(timezone.utc).timetuple().tm_yday % TRENDING_DAY_INTERVAL == 0
+
 
 MODEL = 'claude-opus-4-8'
 
@@ -76,8 +91,22 @@ def extract_json_object(text):
     return json.loads(text[start:end + 1])
 
 
-def research_article(client, existing_titles):
+def research_article(client, existing_titles, forced_category=None):
     existing_list = '\n'.join(f"- {t['title']} ({t.get('category', '')})" for t in existing_titles) or '(none yet)'
+
+    if forced_category:
+        topic_instruction = (
+            f'Your job each run: pick exactly ONE new article topic that is not a near-duplicate of an already-'
+            f'published or already-queued title (list given below). Your topic for today MUST be in this '
+            f'category: {forced_category}. Do not pick a different category today, even if another one seems '
+            f'like a better fit for what you find while researching.'
+        )
+    else:
+        topic_instruction = (
+            'Your job each run: pick exactly ONE new article topic that is not a near-duplicate of an already-'
+            'published or already-queued title (list given below), grounded in one of these categories:\n'
+            + '\n'.join(f'- {c}' for c in KNOWLEDGE_CATEGORIES)
+        )
 
     system_prompt = (
         'You are the research and editorial voice of House Of Wax, a marketplace and education platform for '
@@ -86,9 +115,13 @@ def research_article(client, existing_titles):
         'to be accurate. A wrong fact under that byline costs more than a slow week of content, so verify real '
         'claims with web search rather than relying on memory alone, and never invent a source, statistic, or '
         'quote.\n\n'
-        'Your job each run: pick exactly ONE new article topic that is not a near-duplicate of an already-'
-        'published or already-queued title (list given below), grounded in one of these categories:\n'
-        + '\n'.join(f'- {c}' for c in KNOWLEDGE_CATEGORIES) + '\n\n'
+        + topic_instruction + '\n\n'
+        f'One of the categories, "{TRENDING_CATEGORY}," is different from the rest: it must be about something '
+        'genuinely current -- a breakout artist, a genre revival, or a fashion/streetwear trend intersecting '
+        'with music culture right now (this week or month) -- not a general evergreen topic dressed up as news. '
+        'Use web search to confirm it is actually current, not something from years ago being treated as new. '
+        'Always close by connecting it back to what it means for collectors: which era, genre, artist catalog, '
+        'or pressing style is suddenly worth digging for because of this trend.\n\n'
         'Favor topics where live web search actually adds value: current reissue news, an anniversary worth '
         'marking this month, a genre or scene deep-dive, a real grading/authentication question collectors '
         'ask, pressing/matrix trivia, care and storage, or buyer/seller trust standards. Use web search to '
@@ -199,8 +232,11 @@ def main():
     existing_titles = fetch_existing_titles(supabase_url, service_key)
     print(f'[knowledge_hub_researcher] found {len(existing_titles)} existing titles')
 
+    forced_category = TRENDING_CATEGORY if is_trending_day() else None
+    if forced_category:
+        print(f'[knowledge_hub_researcher] trending day -- forcing category: {forced_category}')
     print('[knowledge_hub_researcher] researching todays article...')
-    article, sources = research_article(client, existing_titles)
+    article, sources = research_article(client, existing_titles, forced_category=forced_category)
     validate_article(article)
 
     print(f"[knowledge_hub_researcher] drafted: {article['title']!r} ({article['category']}) with {len(sources)} source(s)")

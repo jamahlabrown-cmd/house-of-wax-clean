@@ -1407,6 +1407,158 @@ def test_ai_research_queue_reject_deletes_draft():
     assert remaining.empty, "Reject should delete the draft"
 
 
+# ---------- Trending Now: Style & Sound (founder: steer the audience toward trending styles/artists) ----------
+
+def _import_researcher_script():
+    # scripts/knowledge_hub_researcher.py is a standalone script (run via
+    # GitHub Actions, not imported by app.py) -- import it directly by file
+    # path rather than needing an __init__.py under scripts/. Safe to import
+    # with no env vars/secrets set: env() is only called inside main(), never
+    # at module level.
+    import importlib.util
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    spec = importlib.util.spec_from_file_location(
+        "knowledge_hub_researcher", os.path.join(repo_root, "scripts", "knowledge_hub_researcher.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_knowledge_categories_stay_in_sync_with_researcher_script():
+    # scripts/knowledge_hub_researcher.py duplicates KNOWLEDGE_CATEGORIES
+    # (documented reason: app.py runs setup() -- Streamlit secrets, DB
+    # connections -- at import time, so it isn't safely importable from a
+    # bare script). Nothing previously enforced the two lists actually
+    # match. Guards against silent drift: if only one list gets a new
+    # category, either the daily research job can produce a category the
+    # app doesn't recognize (falls back to a wrong default), or the app
+    # offers a category the research job never knows to use.
+    import app as hw_app
+    researcher = _import_researcher_script()
+    assert researcher.KNOWLEDGE_CATEGORIES == hw_app.KNOWLEDGE_CATEGORIES, (
+        "scripts/knowledge_hub_researcher.py's KNOWLEDGE_CATEGORIES has drifted from app.py's -- keep them in sync"
+    )
+
+
+def test_trending_category_available_in_knowledge_hub_and_research_job():
+    # Founder: wants a feature steering the audience toward trending styles,
+    # new artists, and music/entertainment culture. New category, both
+    # sides: the public Knowledge Hub category filter, and the research job
+    # that can be pointed at it.
+    import app as hw_app
+    assert "Trending Now: Style & Sound" in hw_app.KNOWLEDGE_CATEGORIES
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    goto(at, "Knowledge Hub")
+    assert not at.exception, at.exception
+    cat_selects = [s for s in at.selectbox if s.label == "Category"]
+    assert cat_selects, "Expected a Category filter on the Knowledge Hub"
+    assert "Trending Now: Style & Sound" in cat_selects[0].options
+
+    researcher = _import_researcher_script()
+    assert "Trending Now: Style & Sound" in researcher.KNOWLEDGE_CATEGORIES
+
+
+def test_researcher_is_trending_day_cadence(monkeypatch):
+    # Founder: wants trending content to actually show up, not just be one
+    # option among 11 that the model might rarely pick on its own. Guarantee
+    # a predictable cadence (every 3rd day) instead of leaving it to chance.
+    researcher = _import_researcher_script()
+    import datetime as dt_module
+
+    class FrozenDay3(dt_module.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 1, 3, tzinfo=tz)  # day-of-year 3 -> 3 % 3 == 0
+
+    class FrozenDay4(dt_module.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 1, 4, tzinfo=tz)  # day-of-year 4 -> 4 % 3 != 0
+
+    monkeypatch.setattr(researcher, "datetime", FrozenDay3)
+    assert researcher.is_trending_day() is True
+
+    monkeypatch.setattr(researcher, "datetime", FrozenDay4)
+    assert researcher.is_trending_day() is False
+
+
+def test_researcher_forces_trending_category_and_prompt_has_guidance():
+    # Verifies the actual prompt sent to Claude, not just that a parameter
+    # exists -- on a forced trending day, the system prompt must lock the
+    # topic to the Trending Now category and include the "must be genuinely
+    # current" guidance so the model doesn't just write another evergreen
+    # article under a new label.
+    researcher = _import_researcher_script()
+
+    captured = {}
+
+    class FakeTextBlock:
+        type = "text"
+        text = (
+            '{"title":"t","category":"Trending Now: Style & Sound","audience":"Everyone",'
+            '"level":"Beginner","summary":"s","body":"b","house_tip":"h"}'
+        )
+        citations = None
+
+    class FakeResponse:
+        content = [FakeTextBlock()]
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return FakeResponse()
+
+    class FakeClient:
+        messages = FakeMessages()
+
+    article, sources = researcher.research_article(
+        FakeClient(), [], forced_category="Trending Now: Style & Sound"
+    )
+    assert article["category"] == "Trending Now: Style & Sound"
+    assert sources == []
+    system_prompt = captured["system"]
+    assert "MUST be in this category: Trending Now: Style & Sound" in system_prompt
+    assert "genuinely current" in system_prompt
+
+
+def test_researcher_free_choice_mode_still_lists_trending_category():
+    # Regression guard for the change above -- on a non-forced day, the
+    # model should still see Trending Now as a normal option among the
+    # others, and still get the "must be current" guidance for it.
+    researcher = _import_researcher_script()
+
+    captured = {}
+
+    class FakeTextBlock:
+        type = "text"
+        text = (
+            '{"title":"t","category":"Vinyl Grading School","audience":"Everyone",'
+            '"level":"Beginner","summary":"s","body":"b","house_tip":"h"}'
+        )
+        citations = None
+
+    class FakeResponse:
+        content = [FakeTextBlock()]
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return FakeResponse()
+
+    class FakeClient:
+        messages = FakeMessages()
+
+    researcher.research_article(FakeClient(), [], forced_category=None)
+    system_prompt = captured["system"]
+    assert "- Trending Now: Style & Sound" in system_prompt
+    assert "genuinely current" in system_prompt
+    assert "MUST be in this category" not in system_prompt
+
+
 # ---------- Shared release photo library (founder: reuse photos across future listings of the same release) ----------
 
 def test_photo_library_reuses_photo_across_listings_by_barcode():

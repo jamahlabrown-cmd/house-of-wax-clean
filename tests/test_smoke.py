@@ -85,6 +85,20 @@ def test_home_hero_renders_above_breadcrumb_and_admin_banner():
     assert hero_idx < banner_idx, "Hero should render above the admin-only version banner"
 
 
+def test_home_page_has_no_content_count_stat_tiles():
+    # Founder: the Knowledge Articles / Glossary Terms / Marketplace Items /
+    # Sellers st.metric() tiles looked "tacky" -- a KPI-dashboard widget
+    # sitting in the middle of an editorial/storefront page, before any real
+    # content has been shown. Agreed direction: cut them from Home entirely
+    # and let the actual content (featured story, listings, knowledge posts)
+    # carry that signal instead.
+    at = fresh_app()
+    metric_labels = {m.label for m in at.metric}
+    assert not metric_labels & {"Knowledge Articles", "Glossary Terms", "Marketplace Items", "Sellers"}, (
+        f"Home page should have no content-count stat tiles, found {metric_labels}"
+    )
+
+
 # ---------- Navigation smoke pass ----------
 
 @pytest.mark.parametrize("page", ["Home", "Search Music", "Knowledge Hub", "My Account", "Seller Stores"])

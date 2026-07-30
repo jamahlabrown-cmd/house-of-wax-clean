@@ -1486,6 +1486,34 @@ def test_researcher_is_trending_day_cadence(monkeypatch):
     assert researcher.is_trending_day() is False
 
 
+def test_researcher_manual_trigger_always_forces_trending_day(monkeypatch):
+    # Founder: "Trigger the job manually so I can see one now." A manual
+    # workflow_dispatch run on a non-cadence day would otherwise fall back
+    # to free category choice and might not produce a Trending Now article
+    # at all -- defeating the point of triggering it manually to see one.
+    # GITHUB_EVENT_NAME is a default GitHub Actions env var (no workflow
+    # YAML changes needed, which matters: this repo's push credential lacks
+    # the `workflow` scope needed to edit .github/workflows/*).
+    researcher = _import_researcher_script()
+    import datetime as dt_module
+
+    class FrozenDay4(dt_module.datetime):  # 4 % 3 != 0 -- not a cadence day
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 1, 4, tzinfo=tz)
+
+    monkeypatch.setattr(researcher, "datetime", FrozenDay4)
+
+    monkeypatch.delenv("GITHUB_EVENT_NAME", raising=False)
+    assert researcher.is_trending_day() is False, "Scheduled/local runs on a non-cadence day should not force trending"
+
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "workflow_dispatch")
+    assert researcher.is_trending_day() is True, "A manual trigger should always force a trending article"
+
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "schedule")
+    assert researcher.is_trending_day() is False, "The regular cron trigger should still respect the 3-day cadence"
+
+
 def test_researcher_forces_trending_category_and_prompt_has_guidance():
     # Verifies the actual prompt sent to Claude, not just that a parameter
     # exists -- on a forced trending day, the system prompt must lock the

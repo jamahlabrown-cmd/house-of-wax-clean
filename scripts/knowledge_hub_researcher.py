@@ -58,6 +58,13 @@ TRENDING_DAY_INTERVAL = 3
 
 
 def is_trending_day():
+    # GITHUB_EVENT_NAME is a default GitHub Actions env var, set on every
+    # run with no workflow YAML changes needed (this repo's push credential
+    # lacks the `workflow` scope needed to edit .github/workflows/*). A
+    # manual workflow_dispatch trigger is almost always someone wanting to
+    # see a trending article right now, not waiting on the 3-day cadence.
+    if os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch':
+        return True
     return datetime.now(timezone.utc).timetuple().tm_yday % TRENDING_DAY_INTERVAL == 0
 
 

@@ -52,6 +52,39 @@ def test_home_page_renders():
     assert any("House Of Wax" in md.value for md in at.markdown)
 
 
+def _element_order(at):
+    # Flat, render-order walk of the page, used to check relative position
+    # of elements that live in different typed collections (markdown vs
+    # caption vs info) -- at.markdown / at.caption alone can't answer
+    # "which one renders first."
+    order = []
+    for el in at.main:
+        val = getattr(el, "value", None)
+        order.append(str(val) if val is not None else "")
+    return order
+
+
+def test_home_hero_renders_above_breadcrumb_and_admin_banner():
+    # Founder: "I would like to move [the hero brand block] to the top" --
+    # so it's the literal first thing on the page, above the breadcrumb and
+    # the admin-only version banner that used to precede it.
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    assert not at.exception, at.exception
+
+    order = _element_order(at)
+    # 'class="how-hero"' (not just "how-hero") -- the CSS block earlier on
+    # the page defines a `.how-hero { ... }` rule, which also contains the
+    # substring "how-hero" and would otherwise match first by mistake.
+    hero_idx = next(i for i, v in enumerate(order) if 'class="how-hero"' in v)
+    breadcrumb_idx = next(i for i, v in enumerate(order) if "House Of Wax Marketplace" in v and "→" in v)
+    banner_idx = next(i for i, v in enumerate(order) if v.startswith("Running V25.43"))
+
+    assert hero_idx < breadcrumb_idx, "Hero should render above the breadcrumb"
+    assert hero_idx < banner_idx, "Hero should render above the admin-only version banner"
+
+
 # ---------- Navigation smoke pass ----------
 
 @pytest.mark.parametrize("page", ["Home", "Search Music", "Knowledge Hub", "My Account", "Seller Stores"])

@@ -228,6 +228,9 @@ create table if not exists knowledge_posts (
     video_url text,
     status text default 'Draft',
     featured text default 'No',
+    source_type text default 'Manual',
+    sources text,
+    fact_check_notes text,
     created_at text,
     updated_at text
 );

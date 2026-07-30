@@ -1407,6 +1407,57 @@ def test_ai_research_queue_reject_deletes_draft():
     assert remaining.empty, "Reject should delete the draft"
 
 
+def test_ai_research_queue_shows_fact_check_verdict():
+    # Founder: "Can we make sure we double check these before I see it?"
+    # The fact-check verdict must be the first thing shown on a draft --
+    # PASS shown as a clear positive signal, NEEDS REVIEW as a warning that
+    # can't be missed, and older drafts saved before this column existed
+    # (fact_check_notes NULL/empty) fall back to the old "verify before
+    # publishing" caption instead of silently looking checked.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    ts = hw_app.now()
+    hw_app.run(
+        """INSERT INTO knowledge_posts(title,category,audience,level,summary,body,house_tip,status,featured,source_type,sources,fact_check_notes,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        ("Fact Check PASS Test Article", "Genre Education", "Collectors", "Beginner",
+         "s", "b", "h", "Draft", "No", "AI Research", "", "PASS: confirmed via 3 sources.", ts, ts),
+    )
+    hw_app.run(
+        """INSERT INTO knowledge_posts(title,category,audience,level,summary,body,house_tip,status,featured,source_type,sources,fact_check_notes,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        ("Fact Check NEEDS REVIEW Test Article", "Genre Education", "Collectors", "Beginner",
+         "s", "b", "h", "Draft", "No", "AI Research", "", "NEEDS REVIEW: could not confirm the release date.", ts, ts),
+    )
+    hw_app.run(
+        """INSERT INTO knowledge_posts(title,category,audience,level,summary,body,house_tip,status,featured,source_type,sources,fact_check_notes,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        ("Fact Check Missing Test Article (older draft)", "Genre Education", "Collectors", "Beginner",
+         "s", "b", "h", "Draft", "No", "AI Research", "", None, ts, ts),
+    )
+
+    at.sidebar.radio(key="house_of_wax_area").set_value("House Of Wax Admin").run()
+    at.sidebar.radio(key="admin_navigation").set_value("Content Admin").run()
+    assert not at.exception, at.exception
+
+    success_texts = [s.value for s in at.success]
+    warning_texts = [w.value for w in at.warning]
+    caption_texts = [c.value for c in at.caption]
+
+    assert any("PASS: confirmed via 3 sources" in t for t in success_texts), (
+        "A PASS verdict should render as a success banner"
+    )
+    assert any("NEEDS REVIEW: could not confirm the release date" in t for t in warning_texts), (
+        "A NEEDS REVIEW verdict should render as a warning banner, impossible to miss"
+    )
+    assert any("No fact-check recorded" in t for t in caption_texts), (
+        "A draft with no fact_check_notes (older draft) should fall back to the old verify-before-publishing caption"
+    )
+
+
 # ---------- Trending Now: Style & Sound (founder: steer the audience toward trending styles/artists) ----------
 
 def _import_researcher_script():
@@ -1594,6 +1645,85 @@ def test_researcher_captures_sources_from_web_search_results_without_inline_cita
     article, sources = researcher.research_article(FakeClient(), [], forced_category=None)
     assert sources, "Expected sources to be captured from the web_search_tool_result block"
     assert ("Boards of Canada announce Inferno", "https://example.com/boards-of-canada-inferno") in sources
+
+
+def test_researcher_fact_check_article_passes_clean_draft():
+    # Founder: "Can we make sure we double check these before I see it?"
+    # A second Claude call, given the already-drafted article, verifies its
+    # claims with fresh web search before the draft is ever saved.
+    researcher = _import_researcher_script()
+
+    captured = {}
+
+    class FakeTextBlock:
+        type = "text"
+        text = '{"verdict":"PASS","notes":"Confirmed release date and label via 3 sources."}'
+        citations = None
+
+    class FakeResponse:
+        content = [FakeTextBlock()]
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return FakeResponse()
+
+    class FakeClient:
+        messages = FakeMessages()
+
+    article = {"title": "t", "summary": "s", "body": "b", "house_tip": "h"}
+    verdict, notes, sources = researcher.fact_check_article(FakeClient(), article)
+    assert verdict == "PASS"
+    assert "3 sources" in notes
+    assert sources == []
+    assert "fact-checker" in captured["system"].lower()
+    assert article["body"] in captured["messages"][0]["content"]
+
+
+def test_researcher_fact_check_article_flags_needs_review():
+    researcher = _import_researcher_script()
+
+    class FakeTextBlock:
+        type = "text"
+        text = '{"verdict":"NEEDS REVIEW","notes":"Could not confirm the claimed chart position."}'
+        citations = None
+
+    class FakeResponse:
+        content = [FakeTextBlock()]
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            return FakeResponse()
+
+    class FakeClient:
+        messages = FakeMessages()
+
+    article = {"title": "t", "summary": "s", "body": "b", "house_tip": "h"}
+    verdict, notes, sources = researcher.fact_check_article(FakeClient(), article)
+    assert verdict == "NEEDS REVIEW"
+    assert "chart position" in notes
+
+
+def test_researcher_save_draft_stores_fact_check_notes(monkeypatch):
+    researcher = _import_researcher_script()
+
+    captured = {}
+
+    class FakeResponse:
+        ok = True
+        def json(self):
+            return [{"id": 99}]
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        captured["json"] = json
+        return FakeResponse()
+
+    monkeypatch.setattr(researcher.requests, "post", fake_post)
+
+    article = {"title": "t", "category": "Trending Now: Style & Sound", "audience": "Everyone",
+               "level": "Beginner", "summary": "s", "body": "b", "house_tip": "h"}
+    researcher.save_draft("https://example.supabase.co", "fake-key", article, [], "PASS: confirmed via 3 sources.")
+    assert captured["json"]["fact_check_notes"] == "PASS: confirmed via 3 sources."
 
 
 def test_researcher_free_choice_mode_still_lists_trending_category():

@@ -98,6 +98,32 @@ def extract_json_object(text):
     return json.loads(text[start:end + 1])
 
 
+def extract_sources(response):
+    # Citations on a text block only exist when the model cites a span of
+    # prose -- but both research_article() and fact_check_article() require
+    # a FINAL message that is ONLY a raw JSON object, which has nowhere for
+    # inline citation markup to attach, even when real web searches
+    # happened. Also pull source URLs directly from the web_search_tool_
+    # result blocks (the actual search results Claude received) so real
+    # searches still get credited.
+    sources = []
+    seen = set()
+    for block in response.content:
+        if block.type == 'text':
+            for c in (getattr(block, 'citations', None) or []):
+                url = getattr(c, 'url', None)
+                if url and url not in seen:
+                    seen.add(url)
+                    sources.append((getattr(c, 'title', None) or url, url))
+        elif block.type == 'web_search_tool_result':
+            for r in (getattr(block, 'content', None) or []):
+                url = getattr(r, 'url', None)
+                if url and url not in seen:
+                    seen.add(url)
+                    sources.append((getattr(r, 'title', None) or url, url))
+    return sources
+
+
 def research_article(client, existing_titles, forced_category=None):
     existing_list = '\n'.join(f"- {t['title']} ({t.get('category', '')})" for t in existing_titles) or '(none yet)'
 
@@ -169,30 +195,58 @@ def research_article(client, existing_titles, forced_category=None):
 
     text = ''.join(block.text for block in response.content if block.type == 'text').strip()
     article = extract_json_object(text)
-
-    # Citations on the final text block only exist when the model cites a
-    # span of prose -- but the final message here is required to be ONLY a
-    # raw JSON object, which has nowhere for inline citation markup to
-    # attach, even when real web searches happened. Also pull source URLs
-    # directly from the web_search_tool_result blocks (the actual search
-    # results Claude received) so real searches still get credited.
-    sources = []
-    seen = set()
-    for block in response.content:
-        if block.type == 'text':
-            for c in (getattr(block, 'citations', None) or []):
-                url = getattr(c, 'url', None)
-                if url and url not in seen:
-                    seen.add(url)
-                    sources.append((getattr(c, 'title', None) or url, url))
-        elif block.type == 'web_search_tool_result':
-            for r in (getattr(block, 'content', None) or []):
-                url = getattr(r, 'url', None)
-                if url and url not in seen:
-                    seen.add(url)
-                    sources.append((getattr(r, 'title', None) or url, url))
+    sources = extract_sources(response)
 
     return article, sources
+
+
+def fact_check_article(client, article):
+    # A second, independent pass: hands the drafted article back to Claude
+    # with fresh web search and asks it to verify the claims, before a human
+    # ever sees the draft. Founder: "make sure we double check these before
+    # I see it." Deliberately a separate call rather than folding this into
+    # research_article() -- a model re-reading its own already-written
+    # answer with a skeptical, fact-checking framing catches things a single
+    # "research and write" pass does not.
+    system_prompt = (
+        "You are a rigorous, skeptical fact-checker for House Of Wax's Knowledge Hub. You are reviewing a "
+        "drafted article before any human sees it -- your job is to catch wrong or unverifiable claims now, "
+        "not to write anything new or improve the prose.\n\n"
+        "Check every concrete factual claim in the article below -- artist/band names, release titles, dates, "
+        "labels, pressing plants, chart positions, catalog numbers, quotes -- against live web search. Do not "
+        "rely on memory alone; confirm with a real source. Treat any claim you cannot confirm from a real "
+        "source as unverified, even if it sounds plausible.\n\n"
+        "When you are done, your FINAL message must be ONLY a single JSON object, no markdown code fences, no "
+        "other prose before or after it, with exactly these keys: verdict (one of: PASS, NEEDS REVIEW), notes "
+        "(a short, specific explanation -- if PASS, briefly say what you confirmed; if NEEDS REVIEW, name the "
+        "exact claim(s) in question and why)."
+    )
+    user_prompt = (
+        f"Title: {article.get('title', '')}\n\n"
+        f"Summary: {article.get('summary', '')}\n\n"
+        f"Body:\n{article.get('body', '')}\n\n"
+        f"House Of Wax tip: {article.get('house_tip', '')}\n\n"
+        "Fact-check the claims above."
+    )
+
+    response = client.messages.create(
+        model=MODEL,
+        max_tokens=4000,
+        thinking={'type': 'adaptive'},
+        system=system_prompt,
+        tools=[{'type': 'web_search_20260209', 'name': 'web_search', 'max_uses': 6}],
+        messages=[{'role': 'user', 'content': user_prompt}],
+    )
+
+    text = ''.join(block.text for block in response.content if block.type == 'text').strip()
+    result = extract_json_object(text)
+    verdict = result.get('verdict', 'NEEDS REVIEW')
+    if verdict not in ('PASS', 'NEEDS REVIEW'):
+        verdict = 'NEEDS REVIEW'
+    notes = str(result.get('notes', '')).strip()
+    sources = extract_sources(response)
+
+    return verdict, notes, sources
 
 
 def validate_article(article):
@@ -205,7 +259,7 @@ def validate_article(article):
         article['category'] = 'Music History & Culture'
 
 
-def save_draft(supabase_url, service_key, article, sources):
+def save_draft(supabase_url, service_key, article, sources, fact_check_notes=''):
     now = datetime.now(timezone.utc).isoformat()
     sources_text = '\n'.join(f'{title} — {url}' for title, url in sources)
     record = {
@@ -220,6 +274,7 @@ def save_draft(supabase_url, service_key, article, sources):
         'featured': 'No',
         'source_type': 'AI Research',
         'sources': sources_text,
+        'fact_check_notes': fact_check_notes,
         'created_at': now,
         'updated_at': now,
     }
@@ -260,7 +315,19 @@ def main():
 
     print(f"[knowledge_hub_researcher] drafted: {article['title']!r} ({article['category']}) with {len(sources)} source(s)")
 
-    saved = save_draft(supabase_url, service_key, article, sources)
+    print('[knowledge_hub_researcher] fact-checking the draft before saving...')
+    verdict, notes, fact_check_sources = fact_check_article(client, article)
+    print(f'[knowledge_hub_researcher] fact-check verdict: {verdict} -- {notes[:200]}')
+
+    seen = {url for _, url in sources}
+    for title, url in fact_check_sources:
+        if url not in seen:
+            seen.add(url)
+            sources.append((title, url))
+
+    fact_check_notes = f'{verdict}: {notes}' if notes else verdict
+
+    saved = save_draft(supabase_url, service_key, article, sources, fact_check_notes)
     saved_id = saved[0]['id'] if isinstance(saved, list) and saved else '?'
     print(f'[knowledge_hub_researcher] saved as Draft, knowledge_posts.id={saved_id}. Review it in Content Admin -> AI Research Queue.')
 

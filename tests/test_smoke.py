@@ -882,6 +882,50 @@ def test_seller_inventory_shows_view_and_watching_counts():
     )
 
 
+def test_view_button_navigates_away_from_sellers_public_inventory_page():
+    # Founder, screen recording: browsing a seller's store (Seller Stores ->
+    # a seller's public profile -> "Public inventory" section), tapping
+    # View/Ask/Offer on a listing card visibly triggers a rerun (button
+    # lights up, page dims/reloads) but lands back on the exact same seller
+    # profile page every time -- only Cart appeared to "work". Root cause:
+    # seller_stores() checks session_state['seller_id'] and dispatches to
+    # seller_profile() unconditionally, with no check for 'product_id' at
+    # all -- so product_card()'s View/Ask/Offer buttons (which only set
+    # product_id and rerun) get silently swallowed. Cart "worked" only
+    # because add_to_cart() succeeds and updates the card in place without
+    # needing navigation.
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Nav Bug Test Store")
+    product_id = _new_isolated_product(hw_app, seller_id, "Nav Bug Test Album")
+    hw_app.run("UPDATE products SET listing_status='Live' WHERE id=?", (product_id,))
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    goto(at, "Seller Stores")
+    assert not at.exception, at.exception
+
+    open_profile_buttons = [b for b in at.button if b.key == f"openseller{seller_id}"]
+    assert open_profile_buttons, "Expected an 'Open public profile' button for the seeded seller"
+    open_profile_buttons[0].click().run()
+    assert not at.exception, at.exception
+    assert any("Public inventory" in s.value for s in at.subheader), "Expected to land on the seller's public inventory"
+
+    view_buttons = [b for b in at.button if b.key == f"item_{product_id}"]
+    assert view_buttons, "Expected a View button for the seeded listing"
+    view_buttons[0].click().run()
+    assert not at.exception, at.exception
+
+    titles = [t.value for t in at.title]
+    assert any("Nav Bug Test Album" in t for t in titles), (
+        f"Expected View to navigate to the product detail page (title should mention the album), got titles: {titles}"
+    )
+    subheaders = [s.value for s in at.subheader]
+    assert not any("Public inventory" in s for s in subheaders), (
+        "Should have navigated away from the seller's public inventory grid, not stayed on it"
+    )
+
+
 def test_seller_profile_has_no_auto_trust_badges():
     # Founder: "profile complete, Approved Listing, Quality Listing trusted
     # seller button can all go" -- these are the buyer-facing auto-generated

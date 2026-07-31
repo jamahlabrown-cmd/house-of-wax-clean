@@ -926,6 +926,44 @@ def test_view_button_navigates_away_from_sellers_public_inventory_page():
     )
 
 
+def test_inquiry_and_offer_forms_clear_on_submit():
+    # Founder: "I want it to reset and be ready [to] ask another [question]
+    # or be able to get another offer" -- after a successful send, the form
+    # still held the just-sent text/amount with no visible change besides a
+    # success banner, reading as "stuck" rather than ready for another.
+    #
+    # st.form's clear_on_submit=True is the correct fix, but Streamlit's
+    # AppTest harness does not actually simulate the clearing behavior --
+    # confirmed with a minimal isolated repro app outside this codebase,
+    # where a submitted text_area's value stays populated post-submit even
+    # with clear_on_submit=True set. What AppTest *does* expose reliably is
+    # the form's own protobuf config, which is what this test checks instead
+    # of the unsimulated runtime behavior.
+    import app as hw_app
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Form Reset Test Album")
+    hw_app.run("UPDATE products SET listing_status='Live' WHERE id=?", (product_id,))
+    buyer_id = _new_isolated_buyer(hw_app, "form_reset_buyer")
+    buyer_email = hw_app.get_buyer(buyer_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    _real_buyer_session(at, hw_app, buyer_id, buyer_email)
+    goto(at, "Search Music")
+    at.session_state["product_id"] = int(product_id)
+    at.run()
+    assert not at.exception, at.exception
+
+    key_prefix = f"product_{product_id}"
+    forms = {f.proto.form.form_id: f for f in at.get("form")}
+    assert forms.get(f"inquiry_form_{key_prefix}") and forms[f"inquiry_form_{key_prefix}"].proto.form.clear_on_submit, (
+        "Inquiry form should clear on submit so the buyer can ask another question right away"
+    )
+    assert forms.get(f"offer_form_{key_prefix}") and forms[f"offer_form_{key_prefix}"].proto.form.clear_on_submit, (
+        "Offer form should clear on submit so the buyer can make another offer right away"
+    )
+
+
 def test_seller_profile_has_no_auto_trust_badges():
     # Founder: "profile complete, Approved Listing, Quality Listing trusted
     # seller button can all go" -- these are the buyer-facing auto-generated

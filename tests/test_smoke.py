@@ -1904,7 +1904,7 @@ def test_insert_only_tables_use_return_minimal_not_representation(monkeypatch):
 
     monkeypatch.setattr(hw_app.requests, "request", fake_request)
 
-    for table in ["support_requests", "release_photo_library", "tester_feedback", "listing_reports"]:
+    for table in ["support_requests", "release_photo_library", "tester_feedback", "listing_reports", "newsletter_signups"]:
         assert table in hw_app.INSERT_ONLY_NO_READBACK_TABLES, (
             f"{table} has an insert policy but no anon/authenticated SELECT policy -- "
             "it must be in INSERT_ONLY_NO_READBACK_TABLES or inserts will fail with a "

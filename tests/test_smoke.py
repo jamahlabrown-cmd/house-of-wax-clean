@@ -802,6 +802,86 @@ def test_listing_card_price_is_not_truncated_st_metric():
     )
 
 
+# ---------- Listing view analytics (founder: give sellers a feedback loop -- "is this getting looked at") ----------
+
+def test_record_listing_view_increments_dedups_and_skips_sellers_own_view(monkeypatch):
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "View Count Test Album")
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+
+    def current_views():
+        return int(hw_app.df("SELECT view_count FROM products WHERE id=?", (product_id,)).iloc[0]["view_count"] or 0)
+
+    assert current_views() == 0
+
+    # A buyer (not this listing's seller) views it -- counts.
+    at.session_state["viewed_listings_this_session"] = set()
+    hw_app.record_listing_view(product_id, seller_id)
+    assert current_views() == 1, "First view from a non-owner should increment the count"
+
+    # Same session viewing the same listing again -- deduped, no double count.
+    hw_app.record_listing_view(product_id, seller_id)
+    assert current_views() == 1, "Repeat view in the same session should not inflate the count"
+
+    # The listing's own seller viewing it -- should never count as buyer interest.
+    at.session_state["viewed_listings_this_session"] = set()
+    monkeypatch.setattr(hw_app, "linked_seller_id", lambda: seller_id)
+    monkeypatch.setattr(hw_app, "is_authenticated", lambda: True)
+    hw_app.record_listing_view(product_id, seller_id)
+    assert current_views() == 1, "The seller viewing their own listing should not count as a view"
+
+
+def test_product_detail_page_records_a_view():
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Product Detail View Test Album")
+
+    goto(at, "Search Music")
+    at.session_state["product_id"] = int(product_id)
+    at.run()
+    assert not at.exception, at.exception
+
+    views = int(hw_app.df("SELECT view_count FROM products WHERE id=?", (product_id,)).iloc[0]["view_count"] or 0)
+    assert views == 1, f"Expected visiting the product detail page to record one view, got {views}"
+
+
+def test_seller_inventory_shows_view_and_watching_counts():
+    # Founder: sellers previously had no idea whether a listing was getting
+    # looked at. Both signals -- raw views, and buyers actively watching for
+    # this exact artist/title via their Want List -- should show up together
+    # for the seller on their own inventory management screen.
+    import app as hw_app
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Views And Watching Test Album")
+    hw_app.run("UPDATE products SET view_count=? WHERE id=?", (7, product_id))
+    product = hw_app.df("SELECT artist,title FROM products WHERE id=?", (product_id,)).iloc[0]
+
+    watcher_id = hw_app.create_buyer("watcher_views_test@example.com", "Watcher Views Test")
+    hw_app.add_want(watcher_id, product["artist"], product["title"])
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.session_state["seller_tool_seller_id"] = seller_id
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section").set_value("My Inventory").run()
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(int(product_id)).run()
+    assert not at.exception, at.exception
+
+    captions = [c.value for c in at.caption]
+    assert any("7 views" in c and "1 buyer" in c and "watching" in c for c in captions), (
+        f"Expected a '7 views · 1 buyer watching' style caption, got captions: {captions}"
+    )
+
+
 def test_seller_profile_has_no_auto_trust_badges():
     # Founder: "profile complete, Approved Listing, Quality Listing trusted
     # seller button can all go" -- these are the buyer-facing auto-generated

@@ -626,6 +626,21 @@ as $$
     and (w.title is null or w.title = '' or lower(w.title) = lower(coalesce(p_title,'')));
 $$;
 
+-- Listing view counts (seller-facing analytics -- app.py's record_listing_view):
+-- anonymous visitors browsing a listing have no RLS update policy on
+-- products at all (only sellers on their own rows, and buyers on their own
+-- purchase_requests), so a plain client-side UPDATE from an anon/first-time
+-- visitor would fail RLS outright. This RPC increments just the one counter
+-- column, bypassing that -- same reasoning as find_want_list_matches above.
+create or replace function increment_listing_view(p_product_id bigint)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update products set view_count = coalesce(view_count, 0) + 1 where id = p_product_id;
+$$;
+
 -- seller_reviews are shown on public seller profile pages (seller_profile()
 -- calls seller_reviews(sid) with no auth gate), so anon needs read access.
 -- Only the reviewing buyer can create their own review; no update/delete

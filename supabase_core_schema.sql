@@ -117,6 +117,7 @@ create table if not exists products (
     listing_status text default 'Draft',
     listing_type text default 'Fixed Price',
     reviewer_notes text,
+    view_count bigint default 0,
     created_at text,
     updated_at text
 );

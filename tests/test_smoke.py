@@ -404,6 +404,71 @@ def test_report_reasons_include_non_delivery():
     )
 
 
+def test_admin_can_strike_seller_for_non_delivery_from_moderation_center():
+    # Founder direction: follow Discogs' buyer/seller dispute model. The ToS
+    # now says a non-delivery report "can affect a seller's standing" --
+    # this makes that literally true. Unlike the buyer non-payment strike
+    # (an automatic lazy sweep, since a missed payment_due_at is objectively
+    # measurable), non-delivery has no shipping/tracking data to check
+    # automatically, so this is a manual, admin-reviewed action from the
+    # Moderation Center -- mirrors Discogs' own human-reviewed dispute model.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Strike Test Seller")
+    starting_strikes = int(hw_app.get_seller(seller_id).get("strikes") or 0)
+    assert starting_strikes == 0
+
+    hw_app.run(
+        "INSERT INTO listing_reports(listing_id,seller_id,reporter_name,reporter_contact,reason,details,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (0, seller_id, "Test Buyer", "buyer@example.com", "Paid but item not received", "Paid a week ago, no item, no response.", "Open", hw_app.now(), hw_app.now()),
+    )
+    report_id = int(hw_app.df("SELECT id FROM listing_reports WHERE seller_id=? ORDER BY id DESC LIMIT 1", (seller_id,)).iloc[0]["id"])
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    at.sidebar.radio(key="house_of_wax_area").set_value("House Of Wax Admin").run()
+    at.sidebar.radio(key="admin_navigation").set_value("Moderation Center").run()
+    assert not at.exception, at.exception
+
+    pick = at.selectbox(key="moderation_report_pick")
+    match = next(o for o in pick.options if o.startswith(f"{report_id} |"))
+    pick.set_value(match).run()
+    assert not at.exception, at.exception
+
+    strike_buttons = [b for b in at.button if b.key == f"strike_seller_non_delivery_{report_id}"]
+    assert strike_buttons, "Expected a Strike Seller (Non-Delivery) button in the Moderation Center"
+    strike_buttons[0].click().run()
+    assert not at.exception, at.exception
+
+    ending_strikes = int(hw_app.get_seller(seller_id).get("strikes") or 0)
+    assert ending_strikes == starting_strikes + 1, f"Expected a seller strike added, got {starting_strikes} -> {ending_strikes}"
+    report_status = hw_app.df("SELECT status FROM listing_reports WHERE id=?", (report_id,)).iloc[0]["status"]
+    assert report_status == "Resolved", f"Expected the report to be marked Resolved, got {report_status!r}"
+
+
+def test_seller_sees_own_strike_count_in_selling_tab():
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Struck Seller Visibility Test")
+    hw_app.run("UPDATE sellers SET strikes=1 WHERE id=?", (seller_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    goto(at, "My Account")
+    assert not at.exception, at.exception
+
+    warnings = [w.value for w in at.warning]
+    assert any("strike" in w.lower() for w in warnings), (
+        f"Expected the seller to see their own strike count on the Selling tab, got warnings: {warnings}"
+    )
+
+
 def test_invalid_password_reset_link_screen_has_a_way_back():
     at = AppTest.from_file("app.py", default_timeout=30)
     at.query_params["recovery_token"] = "expired-or-bogus-token"

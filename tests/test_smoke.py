@@ -542,6 +542,48 @@ def test_testing_mode_toggle_hidden_from_regular_visitors():
     )
 
 
+def test_merch_shop_cta_hidden_until_founder_configures_it():
+    # Founder is planning a dropship t-shirt store on Shopify (via Printful/
+    # Printify) that's fully separate from the marketplace's own PayPal
+    # checkout -- House Of Wax just needs a link to it once it exists.
+    # Reuses the existing homepage_blocks system (already has button_text/
+    # button_target + an admin UI to edit it) instead of a new mechanism.
+    # Must not show a dead/broken link before the founder actually sets the
+    # block up.
+    at = fresh_app()
+    link_buttons = at.get("link_button")
+    assert not any("merch" in (lb.label or "").lower() for lb in link_buttons), (
+        "Should not show a merch shop link before the founder configures the homepage block"
+    )
+
+
+def test_merch_shop_cta_shows_once_configured():
+    import app as hw_app
+    hw_app.run(
+        "INSERT INTO homepage_blocks(block_name,title,subtitle,body,button_text,button_target,status,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+        ("merch_shop", "House Of Wax Merch", "Shirts and more", "Printed and shipped by our print partner.", "Shop Merch", "https://example-shop.myshopify.com", "Active", 0, hw_app.now(), hw_app.now()),
+    )
+    at = fresh_app()
+    link_buttons = at.get("link_button")
+    merch_links = [lb for lb in link_buttons if (lb.label or "") == "Shop Merch"]
+    assert merch_links, f"Expected a 'Shop Merch' link button once configured, got: {[lb.label for lb in link_buttons]}"
+    assert merch_links[0].proto.url == "https://example-shop.myshopify.com", merch_links[0].proto.url
+
+
+def test_homepage_editor_supports_merch_shop_block():
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    at.sidebar.radio(key="house_of_wax_area").set_value("House Of Wax Admin").run()
+    at.sidebar.radio(key="admin_navigation").set_value("Homepage Editor").run()
+    assert not at.exception, at.exception
+    block_options = [s.options for s in at.selectbox if "hero" in (s.options or [])]
+    assert block_options and "merch_shop" in block_options[0], (
+        f"Expected 'merch_shop' as a selectable homepage block, got: {block_options}"
+    )
+
+
 def test_invalid_password_reset_link_screen_has_a_way_back():
     at = AppTest.from_file("app.py", default_timeout=30)
     at.query_params["recovery_token"] = "expired-or-bogus-token"

@@ -22,6 +22,7 @@ Supabase project once one exists.
 import sys
 import os
 import pytest
+import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -582,6 +583,138 @@ def test_homepage_editor_supports_merch_shop_block():
     assert block_options and "merch_shop" in block_options[0], (
         f"Expected 'merch_shop' as a selectable homepage block, got: {block_options}"
     )
+
+
+def test_map_discogs_condition_handles_all_real_values():
+    # Every condition string actually present in the founder's real Discogs
+    # collection export -- confirmed by opening the file directly, not
+    # guessed from memory of Discogs' format.
+    import app as hw_app
+    expected = {
+        "Mint (M)": "Mint",
+        "Near Mint (NM or M-)": "Near Mint",
+        "Very Good Plus (VG+)": "VG+",
+        "Very Good (VG)": "VG",
+        "Good Plus (G+)": "Good+",
+        "Good (G)": "Good",
+        "Fair (F)": "Fair",
+        "Poor (P)": "Poor",
+    }
+    for discogs_value, how_grade in expected.items():
+        assert hw_app.map_discogs_condition(discogs_value) == how_grade, discogs_value
+    # Sleeve-only values that aren't real conditions -- never guess a grade.
+    for not_a_grade in ["Generic", "No Cover", "", None]:
+        assert hw_app.map_discogs_condition(not_a_grade) == "", not_a_grade
+
+
+def test_is_discogs_collection_export_detects_real_header():
+    import app as hw_app
+    discogs_columns = ["Catalog#", "Artist", "Title", "Label", "Format", "Rating", "Released", "release_id", "CollectionFolder", "Date Added", "Collection Media Condition", "Collection Sleeve Condition", "Collection Notes"]
+    discogs_df = pd.DataFrame([{c: "" for c in discogs_columns}])
+    assert hw_app.is_discogs_collection_export(discogs_df) is True
+
+    how_columns = ["barcode", "catalog_number", "matrix_runout", "artist", "title", "format", "label", "release_year", "genre", "price", "quantity", "image_url"]
+    how_df = pd.DataFrame([{c: "" for c in how_columns}])
+    assert hw_app.is_discogs_collection_export(how_df) is False
+
+
+def test_parse_discogs_collection_csv_maps_fields_and_forces_draft():
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Discogs Import Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    seller = hw_app.get_seller(seller_id)
+    assert hw_app.seller_can_publish_live(seller), "Test seller should be fully eligible to publish live"
+
+    row = {
+        "Catalog#": "T-587",
+        "Artist": "Sidney Joe Qualls",
+        "Title": "So Sexy",
+        "Label": "20th Century Fox Records, Chi Sound Records",
+        "Format": "LP, Album",
+        "Released": "1979",
+        "release_id": "1876018",
+        "Collection Media Condition": "Near Mint (NM or M-)",
+        "Collection Sleeve Condition": "Very Good Plus (VG+)",
+        "Collection Notes": "",
+    }
+    df_in = pd.DataFrame([row])
+    mapped = hw_app.parse_discogs_collection_csv(df_in, seller_id)
+    assert len(mapped) == 1
+    item = mapped[0]
+    assert item["listing_status"] == "Draft", "Must stay Draft even though this seller CAN publish live -- no price data exists yet"
+    assert item["price"] == 0
+    assert item["quantity"] == 1
+    assert item["artist"] == "Sidney Joe Qualls"
+    assert item["title"] == "So Sexy"
+    assert item["release_year"] == "1979"
+    assert item["catalog_number"] == "T-587"
+    assert item["media_grade"] == "Near Mint"
+    assert item["sleeve_grade"] == "VG+"
+    assert item["external_release_url"] == "https://www.discogs.com/release/1876018"
+    assert item["category"] == "Vinyl Records"
+
+    cass_row = dict(row)
+    cass_row["Format"] = "Cass, Album"
+    cass_mapped = hw_app.parse_discogs_collection_csv(pd.DataFrame([cass_row]), seller_id)[0]
+    assert cass_mapped["category"] == "Cassettes"
+
+
+def test_enrich_next_discogs_batch_updates_image_and_price_leaves_status_draft(monkeypatch):
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Discogs Enrich Test Seller")
+    hw_app.run(
+        "INSERT INTO products(seller_id,artist,title,category,format,price,quantity,image_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (seller_id, "Test Artist", "Test Album", "Vinyl Records", "Vinyl", 0, 1, "", "https://www.discogs.com/release/1876018", "Draft", "Fixed Price", hw_app.now(), hw_app.now()),
+    )
+    product_id = int(hw_app.df("SELECT id FROM products WHERE seller_id=? ORDER BY id DESC LIMIT 1", (seller_id,)).iloc[0]["id"])
+
+    monkeypatch.setattr(
+        hw_app, "fetch_discogs_release_details",
+        lambda release_id: {"image_url": "https://img.discogs.com/example.jpg", "lowest_price": 12.5},
+    )
+    monkeypatch.setattr(hw_app, "time", type("T", (), {"sleep": staticmethod(lambda s: None)}))
+
+    result = hw_app.enrich_next_discogs_batch(seller_id, batch_size=25)
+    assert result["enriched"] == 1
+    assert result["remaining"] == 0
+
+    row = hw_app.df("SELECT * FROM products WHERE id=?", (product_id,)).iloc[0]
+    assert row["image_url"] == "https://img.discogs.com/example.jpg"
+    assert float(row["price"]) == 12.5
+    assert row["listing_status"] == "Draft", "Enrichment must never flip status to Live on its own"
+
+
+def test_my_inventory_shows_fetch_batch_button_when_pending_discogs_items_exist():
+    # AppTest re-executes app.py's source fresh on every .run() (that's how
+    # Streamlit re-runs scripts), so a plain monkeypatch.setattr on a
+    # function doesn't reach the freshly-rebound version the rendered page
+    # actually calls -- setting a real st.secrets value that
+    # discogs_token_status() itself reads is the correct way to fake this.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Discogs Pending UI Test Seller")
+    hw_app.run(
+        "INSERT INTO products(seller_id,artist,title,category,format,price,quantity,image_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (seller_id, "Test Artist", "Test Album", "Vinyl Records", "Vinyl", 0, 1, "", "https://www.discogs.com/release/1876018", "Draft", "Fixed Price", hw_app.now(), hw_app.now()),
+    )
+
+    seller_email = hw_app.get_seller(seller_id)["email"]
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.secrets["DISCOGS_TOKEN"] = "fake-token-for-test"
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    assert not at.exception, at.exception
+
+    fetch_buttons = [b for b in at.button if (b.label or "") == "Fetch next batch from Discogs"]
+    assert fetch_buttons, "Expected a 'Fetch next batch from Discogs' button when pending imported items exist"
+    all_text = " ".join(m.value for m in at.markdown) + " " + " ".join(i.value for i in at.info)
+    assert "1" in all_text and "Discogs" in all_text
 
 
 def test_invalid_password_reset_link_screen_has_a_way_back():

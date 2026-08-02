@@ -266,6 +266,23 @@ def test_terms_of_service_screen_has_a_way_back():
     assert "legal" not in at.query_params
 
 
+def test_terms_of_service_discloses_buyer_non_payment_consequence():
+    # Launch-readiness audit: the ToS "Buying and selling" section said
+    # nothing about what happens if a buyer never pays after Buy Now
+    # reserves an item -- only a general "no warranty" disclaimer covered
+    # it. The real mechanism (payment_due_at + buyer strike, PAYMENT_WINDOW_
+    # DAYS=5) already exists in the app; the policy text should say so.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.query_params["legal"] = "terms"
+    at.run()
+    assert not at.exception, at.exception
+    all_text = " ".join(m.value for m in at.markdown)
+    assert f"{hw_app.PAYMENT_WINDOW_DAYS} days" in all_text and "flagged" in all_text, (
+        "Expected the Terms of Service to state what happens if a buyer doesn't pay in time"
+    )
+
+
 def test_invalid_password_reset_link_screen_has_a_way_back():
     at = AppTest.from_file("app.py", default_timeout=30)
     at.query_params["recovery_token"] = "expired-or-bogus-token"

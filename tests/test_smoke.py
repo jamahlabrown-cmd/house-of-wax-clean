@@ -469,6 +469,56 @@ def test_seller_sees_own_strike_count_in_selling_tab():
     )
 
 
+def test_legal_policies_draft_admin_page_is_removed():
+    # Fine-tooth-comb audit: this admin page was a full set of "draft,
+    # not final" placeholder policy text, superseded once the real Terms
+    # of Service / Privacy Policy went live -- the page even told the
+    # admin so itself ("edit those pages directly rather than this draft
+    # section"). A whole nav item that exists only to point at a
+    # different, real page is pure confusion, not a feature.
+    import app as hw_app
+    assert not hasattr(hw_app, "legal_policies"), "legal_policies() should be deleted, not just unreachable"
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    at.sidebar.radio(key="house_of_wax_area").set_value("House Of Wax Admin").run()
+    assert not at.exception, at.exception
+    admin_nav = at.sidebar.radio(key="admin_navigation")
+    assert "Legal / Policies" not in admin_nav.options, (
+        f"Expected 'Legal / Policies' removed from admin nav, got: {admin_nav.options}"
+    )
+
+
+def test_knowledge_hub_overview_does_not_repeat_the_vinyl_first_pitch():
+    # Fine-tooth-comb audit: the same "we started with vinyl, everything
+    # else builds outward" idea was said twice within seconds on the same
+    # page -- once in the intro st.info, once again in the Overview tab.
+    at = fresh_app()
+    goto(at, "Knowledge Hub")
+    assert not at.exception, at.exception
+    all_text = " ".join(m.value for m in at.markdown) + " " + " ".join(i.value for i in at.info)
+    assert "We started with vinyl" not in all_text, (
+        "Expected the redundant second 'started with vinyl' sentence removed from the Overview tab"
+    )
+    assert "starting with vinyl" in all_text, (
+        "Expected the intro's 'starting with vinyl' framing to still be present"
+    )
+
+
+def test_how_buying_works_does_not_duplicate_buyer_faq_checkout_explanation():
+    # Fine-tooth-comb audit: "How Buying Works" and "Buyer FAQ" (two tabs
+    # on the same Knowledge Hub page) explained the identical checkout
+    # mechanic in near-identical words -- the FAQ version is the more
+    # complete one (mentions the 5-day window and cart-combining).
+    at = fresh_app()
+    goto(at, "Knowledge Hub")
+    assert not at.exception, at.exception
+    bullets = [m.value for m in at.markdown if m.value.startswith("- ")]
+    assert not any(b == "- Checkout reserves the item and starts a payment window; you pay the seller and House Of Wax directly through PayPal." for b in bullets), (
+        "Expected the How Buying Works bullet shortened to avoid duplicating the Buyer FAQ answer"
+    )
+
+
 def test_invalid_password_reset_link_screen_has_a_way_back():
     at = AppTest.from_file("app.py", default_timeout=30)
     at.query_params["recovery_token"] = "expired-or-bogus-token"

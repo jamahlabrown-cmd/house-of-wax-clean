@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.154 ADD: SELLER NON-DELIVERY STRIKES, ADMIN-REVIEWED FROM MODERATION CENTER'
+APP_VERSION='V25.43.155 CLEANUP: FINE-TOOTH-COMB PASS -- STALE LEGAL DRAFT PAGE REMOVED, DEAD DISPATCH CODE, DUPLICATE COPY TIGHTENED'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1532,8 +1532,9 @@ def setup():
     old_v25_43_151_announcement='V25.43.151'+' Update: launch-readiness pass -- seller fee disclosure, seller directory, home CTA, dead-end error fixes active'
     old_v25_43_152_announcement='V25.43.152'+' Update: Terms of Service now explains buyer non-payment consequences active'
     old_v25_43_153_announcement='V25.43.153'+' Update: buyer-funnel audit -- stale Buy Now copy fixed, PayPal amount pre-fill, Discogs-style non-delivery policy active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement]:
-        set_setting('announcement','V25.43.154 Add: seller non-delivery strikes, admin-reviewed from Moderation Center active')
+    old_v25_43_154_announcement='V25.43.154'+' Add: seller non-delivery strikes, admin-reviewed from Moderation Center active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement]:
+        set_setting('announcement','V25.43.155 Cleanup: fine-tooth-comb pass -- stale legal draft page removed, dead dispatch code, duplicate copy tightened active')
 setup()
 recovery_token_bridge()
 
@@ -3540,7 +3541,6 @@ def knowledge_center_education_hub():
     with overview:
         st.subheader('What Is House Of Wax?')
         st.write('House Of Wax is a marketplace and culture platform for vinyl records, music collectibles, merch, memorabilia, and everything that comes with them.')
-        st.write("We started with vinyl and music collectibles because that's where buyers care the most — pressing details, condition, seller trust, and the story behind the item. Everything else builds outward from there.")
         st.write("Better listings, real buyer questions, seller profiles that actually mean something, and education that makes you a smarter collector — that's the whole platform, in one sentence.")
     with buying:
         st.subheader('How Buying Works')
@@ -3549,7 +3549,7 @@ def knowledge_center_education_hub():
             'Review photos, condition notes, seller profile, trust badges, and listing readiness information.',
             'Ask the seller a question if condition, shipping, photos, or availability are unclear.',
             'Add to Cart when you are ready to move forward, then check out -- items from the same seller combine into one payment.',
-            'Checkout reserves the item and starts a payment window; you pay the seller and House Of Wax directly through PayPal.',
+            'Checkout reserves the item and starts a payment window -- details in the Buyer FAQ tab.',
             'Pending means the item is being held or worked out. Sold means it should no longer be available.'
         ]:
             st.write(f'- {item}')
@@ -8137,64 +8137,6 @@ def admin():
 
 # ---------- V23 Launch Prep + Public Pages ----------
 
-def policy_draft_notice():
-    st.warning('Draft placeholder for prototype planning. Must be reviewed by a qualified attorney before public launch.')
-
-def legal_policies():
-    header()
-    marketplace_context('House Of Wax Marketplace → Rules & Policies')
-    st.header('Legal / Policies')
-    st.info('These draft sections help organize House Of Wax marketplace rules, privacy expectations, seller expectations, and buyer expectations before launch.')
-    st.warning('These are not final attorney-approved legal documents and should not be treated as production terms.')
-
-    st.markdown('### House Of Wax Marketplace Publishing Policy')
-    st.info('House Of Wax allows approved sellers to manage and publish listings in their own stores. Sellers are responsible for the accuracy, legality, condition, pricing, images, and descriptions of the items they post. House Of Wax does not pre-approve every listing. Listings and sellers may be reported by buyers, sellers, rights owners, or community members. House Of Wax may investigate reports and may hide, remove, or restrict listings or sellers that violate platform rules.')
-    st.write('Sellers agree not to knowingly post counterfeit, stolen, misleading, illegal, hateful, violent, or prohibited items. Sellers must describe items honestly and respond to buyer questions in good faith.')
-    st.write('Buyers should review the listing details, condition notes, seller information, and photos or cover art before requesting to buy. Buyers can report listings or sellers that appear misleading or against platform rules.')
-
-    st.info('The real Privacy Policy and Terms of Service are live at ?legal=privacy and ?legal=terms -- edit those pages directly rather than this draft section.')
-
-    st.markdown('### Seller Agreement Draft')
-    policy_draft_notice()
-    for item in ['Provide accurate item details.','Use real item photos when required or preferred.','Describe condition honestly, including damage or missing parts.','Respond to buyer inquiries professionally.','Do not list prohibited, counterfeit, stolen, unsafe, or misleading items.','Understand approved sellers can publish directly, but reported listings may be moderated by House Of Wax.','Understand fees, commissions, payment rules, and seller payouts are not finalized unless separately agreed.']:
-        st.write(f'- {item}')
-
-    st.markdown('### Buyer Guidelines Draft')
-    policy_draft_notice()
-    for item in ['Ask clear questions before adding an item to your cart.','Add items to your cart only when seriously interested -- checking out reserves them for the seller.','Communicate respectfully with sellers and House Of Wax.','Inspect item details, photos, condition notes, seller information, and status labels.','Understand shipping, pickup, returns, and dispute rules are not finalized yet.']:
-        st.write(f'- {item}')
-
-    st.markdown('### Marketplace Rules Draft')
-    policy_draft_notice()
-    for item in ['Live listings from approved sellers can appear in Marketplace.','Draft, Hidden, Under Review, Removed by House Of Wax, inactive, or non-public listings should not be treated as public listings.','Pending and sold status should be clear to buyers.','House Of Wax may use trust indicators, seller profile context, reports, and moderation tools.','Seller trust indicators are platform signals, not outside verification.','House Of Wax may remove or hide listings that are unsafe, misleading, inappropriate, prohibited, or incomplete.']:
-        st.write(f'- {item}')
-
-    st.markdown('### Prohibited Items / Unsafe Listings Draft')
-    policy_draft_notice()
-    st.write('This list is general and non-exhaustive.')
-    for item in ['Counterfeit goods','Stolen goods','Illegal items','Unsafe or hazardous items','Misleading listings','Inappropriate content','Listings that hide important condition, authenticity, ownership, or safety information']:
-        st.write(f'- {item}')
-
-    st.markdown('### Returns, Pickup, Shipping, and Disputes Draft')
-    policy_draft_notice()
-    for item in ['Return rules must be finalized before launch.','Pickup rules must clearly explain buyer/seller responsibilities and safe handoff expectations.','Shipping rules must cover cost, timing, packaging, tracking, damaged items, and lost packages.','Dispute rules must explain how buyers, sellers, and House Of Wax communicate when an item is not as described.','Payment and refund rules are not finalized in this prototype.']:
-        st.write(f'- {item}')
-
-    st.markdown('### Production Legal Checklist')
-    policy_draft_notice()
-    checklist=[
-        'Attorney-reviewed Privacy Policy',
-        'Attorney-reviewed Terms of Use',
-        'Seller agreement',
-        'Buyer dispute policy',
-        'Payment/refund rules',
-        'Shipping/pickup rules',
-        'Data retention policy',
-        'Moderation/removal policy'
-    ]
-    for item in checklist:
-        st.write(f'- {item}')
-
 
 def app_mode():
     role=current_account_role()
@@ -8255,7 +8197,7 @@ else:
     pending_seller_apps=pending_seller_application_count()
     st.sidebar.markdown('### House Of Wax Admin'+(f' ⚠️ {pending_seller_apps} pending' if pending_seller_apps else ''))
     st.sidebar.caption('Platform management: seller approval, moderation, reports, tester feedback, database status, Supabase diagnostics, and testing.')
-    admin_menu=['Admin Dashboard','User Directory','Buyer Lookup','Seller Applications','Moderation Center','Content Admin','Homepage Editor','Legal / Policies','Support Requests','Tester Feedback','Database Status / Diagnostics','Test Setup']
+    admin_menu=['Admin Dashboard','User Directory','Buyer Lookup','Seller Applications','Moderation Center','Content Admin','Homepage Editor','Support Requests','Tester Feedback','Database Status / Diagnostics','Test Setup']
     pending_admin_nav=st.session_state.pop('pending_admin_navigation',None)
     if pending_admin_nav in admin_menu:
         st.session_state['admin_navigation']=pending_admin_nav
@@ -8284,8 +8226,6 @@ try:
             account_page()
         elif menu=='Seller Dashboard': seller_dashboard()
         elif menu=='Knowledge Hub': knowledge_hub()
-        elif menu=='Account': account_page()
-        elif menu=='Seller Onboarding': seller_onboarding()
     else:
         if menu=='Admin Dashboard':
             admin()
@@ -8302,12 +8242,6 @@ try:
             if is_admin_unlocked():
                 buyer_dashboard_admin_lookup()
             else:
-                st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
-        elif menu=='Legal / Policies':
-            if is_admin_unlocked():
-                legal_policies()
-            else:
-                header()
                 st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
         elif menu=='Seller Applications':
             header()

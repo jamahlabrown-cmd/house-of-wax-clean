@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.150 UPDATE: ASK/OFFER FORMS NOW CLEAR AFTER SENDING, READY FOR ANOTHER'
+APP_VERSION='V25.43.151 UPDATE: LAUNCH-READINESS PASS -- SELLER FEE DISCLOSURE, SELLER DIRECTORY, HOME CTA, DEAD-END ERROR FIXES'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -656,6 +656,15 @@ def auth_sign_out():
         pass
 def is_valid_email(value):
     return bool(re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', safe(value).strip()))
+def auth_trouble_hint():
+    # Auth Diagnostics (auth_diagnostics_section()) only renders behind
+    # is_admin_unlocked() -- pointing a real, non-admin visitor at it left
+    # them at a dead end with no way to see it or act on it. Admins/testers
+    # still get the useful pointer; everyone else gets a path that actually
+    # goes somewhere (Support, reachable from every page's sidebar).
+    if is_admin_unlocked():
+        return 'Check Auth Diagnostics for the masked error.'
+    return 'Contact House Of Wax Support (link at the bottom of the sidebar) and we will help you get set up.'
 def auth_create_account(name,email,password,confirm,account_type='Buyer'):
     if not safe(name) or not safe(email):
         return False,'Name and email are required.'
@@ -679,12 +688,12 @@ def auth_create_account(name,email,password,confirm,account_type='Buyer'):
             # tester, so the specific case has to be caught here or they have no
             # way to know what to do next.
             if 'rate limit' in msg_lower or 'too many' in msg_lower or '429' in msg_lower:
-                return False,'Too many sign-up attempts too quickly. Wait a few minutes and try again.'
+                return False,'Too many sign-up attempts right now. Wait a few minutes and try again, or contact Support if it keeps happening.'
             if 'password' in msg_lower and any(w in msg_lower for w in ['weak','leaked','breach','pwned','strength']):
                 return False,'That password was rejected as too weak or previously exposed in a data breach. Try a longer, more unique password.'
             if 'signups not allowed' in msg_lower or 'signup is disabled' in msg_lower or 'signups are disabled' in msg_lower:
                 return False,'New account creation is temporarily disabled. Contact House Of Wax for help.'
-            return False,'Supabase sign-up failed. Check Auth Diagnostics for the masked error.'
+            return False,f'Account creation failed. {auth_trouble_hint()}'
         user=(payload or {}).get('user') or {}
         auth_uid=safe(user.get('id'))
         if not auth_uid:
@@ -721,7 +730,7 @@ def auth_sign_in(email,password):
             AUTH_STATUS['last_error']=detail.get('message')
             if 'email not confirmed' in safe(detail.get('message')).lower():
                 return False,'This account exists but the email has not been confirmed yet. Check the inbox for a confirmation link, or ask an admin to confirm it in Supabase.'
-            return False,'Sign-in failed. Check your email/password or Auth Diagnostics.'
+            return False,f'Sign-in failed. Check your email/password. {auth_trouble_hint()}'
         user=(payload or {}).get('user') or {}
         sign_in_session(safe(user.get('id')),clean,safe((payload or {}).get('access_token')),safe((payload or {}).get('refresh_token')))
         reconcile_authenticated_profile()
@@ -742,7 +751,7 @@ def request_password_reset_email(email):
     payload,detail=supabase_auth_request('recover',{'email':clean})
     if not detail.get('ok'):
         AUTH_STATUS['last_error']=detail.get('message')
-        return False,'Could not send the reset email right now. Check Auth Diagnostics or try again shortly.'
+        return False,f'Could not send the reset email right now. Try again shortly. {auth_trouble_hint()}'
     # Supabase returns success here regardless of whether the email has an
     # account, by design, to avoid letting this form be used to check which
     # emails are registered. Keep the message generic to match that.
@@ -869,7 +878,7 @@ def public_terms_of_service():
     st.markdown('### Accounts')
     st.write('You agree to provide accurate account information and are responsible for activity under your account. Sellers are responsible for the accuracy, legality, condition, pricing, images, and descriptions of the items they list.')
     st.markdown('### Buying and selling')
-    st.write('Buy and Make an Offer send a request to the seller, not a completed payment -- House Of Wax does not process payments directly. Sellers and buyers are expected to communicate honestly and follow through on agreed transactions.')
+    st.write(f'Buy Now reserves an item and starts a payment window; Add to Cart and Make an Offer do not commit you to anything until checkout. House Of Wax connects buyers and sellers but never holds funds -- buyers pay sellers directly, and separately pay House Of Wax a {commission_percent():g}% platform fee, both through PayPal. Sellers and buyers are expected to communicate honestly and follow through on agreed transactions.')
     st.markdown('### Prohibited listings')
     st.write('Counterfeit, stolen, unsafe, illegal, misleading, or hateful items are not allowed. This list is general and non-exhaustive. House Of Wax may investigate reports and may hide, restrict, or remove listings or accounts that violate these terms.')
     st.markdown('### Content you post')
@@ -1517,8 +1526,9 @@ def setup():
     old_v25_43_147_announcement='V25.43.147'+' Fix: newsletter signup was failing with an RLS error for every real visitor active'
     old_v25_43_148_announcement='V25.43.148'+' Add: sellers now see listing view counts and how many buyers are watching active'
     old_v25_43_149_announcement='V25.43.149'+' Fix: View/Ask/Offer did nothing when browsing from a seller store page active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement]:
-        set_setting('announcement','V25.43.150 Update: Ask/Offer forms now clear after sending, ready for another active')
+    old_v25_43_150_announcement='V25.43.150'+' Update: Ask/Offer forms now clear after sending, ready for another active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement]:
+        set_setting('announcement','V25.43.151 Update: launch-readiness pass -- seller fee disclosure, seller directory, home CTA, dead-end error fixes active')
 setup()
 recovery_token_bridge()
 
@@ -2459,11 +2469,12 @@ def account_page():
                         st.success('Buyer profile linked.')
                         st.rerun()
                     else:
-                        st.error('Buyer profile could not be linked. Check Auth Diagnostics.')
+                        st.error(f'Buyer profile could not be linked. {auth_trouble_hint()}')
         with tabs[2]:
             st.subheader('Selling')
             st.info('Apply once from this same account. Do not create a second account to sell.')
             if not seller_id:
+                st.caption(f"How you get paid: buyers pay you directly through PayPal -- House Of Wax never holds your money. Buyers separately pay a {commission_percent():g}% platform fee to House Of Wax on top of your price, so you keep what you list it for.")
                 with st.form('apply_to_become_seller_form'):
                     store_name=st.text_input('Store/display name',value=safe(user.get('display_name')) or auth_user_email().split('@')[0],key='apply_seller_store_name')
                     owner_name=st.text_input('Your name',value=safe(user.get('display_name')),key='apply_seller_owner_name')
@@ -2541,7 +2552,6 @@ def account_page():
                 st.rerun()
             else:
                 st.error(msg)
-        st.caption('Public sign-up cannot create Admin accounts. Admin access must be granted by secure configuration or database field.')
     with tabs[2]:
         st.info('Not signed in.')
         st.write('Supabase Auth configured: '+('Yes' if hosted_enabled() else 'No'))
@@ -2731,7 +2741,7 @@ def render_buyer_inquiry_form(p, seller, key_prefix):
                 st.success('Buyer profile saved. You can ask the seller now.')
                 st.rerun()
             else:
-                st.error('Buyer profile could not be saved. Check Auth Diagnostics for the exact error.')
+                st.error(f'Buyer profile could not be saved. {auth_trouble_hint()}')
         return
     elif is_admin_unlocked() and not known_buyers.empty:
         use_buyer=st.checkbox('Use an existing buyer profile',value=False,key=f'inquiry_existing_buyer_{key_prefix}')
@@ -2794,7 +2804,7 @@ def render_offer_form(p, key_prefix):
                 st.success('Buyer profile saved. You can make an offer now.')
                 st.rerun()
             else:
-                st.error('Buyer profile could not be saved. Check Auth Diagnostics for the exact error.')
+                st.error(f'Buyer profile could not be saved. {auth_trouble_hint()}')
         return
     with st.form(f'offer_form_{key_prefix}',clear_on_submit=True):
         st.caption(f"Listed at {money(p['price'])}. The seller can accept, counter, or decline.")
@@ -3582,8 +3592,8 @@ def knowledge_center_education_hub():
     with buyer_faq:
         st.subheader('Buyer FAQ')
         faq=[
-            ('What does Buy mean?','It means you want to move forward. In the prototype it creates a purchase request so the seller can confirm availability, pickup/shipping, and next steps.'),
-            ('Is payment live?','Not yet. The current prototype does not process checkout or payment.'),
+            ('What does Buy Now mean?','It reserves the item immediately and starts a 5-day window to pay. Add to Cart holds nothing by itself -- check out when you\'re ready, and items from the same seller combine into one payment.'),
+            ('Is payment live?','Yes. You pay the seller and House Of Wax\'s platform fee directly through PayPal -- House Of Wax never holds your payment.'),
             ('How do I contact a seller?','Use Contact Seller / Ask About This Item on live/public listings.'),
             ('How do I know if an item is available?','Live listings can show buyer action buttons. Pending and Sold items show unavailable status.'),
             ('What does Pending mean?','The item may be held, in discussion, or waiting on next steps.'),
@@ -3596,6 +3606,7 @@ def knowledge_center_education_hub():
     with seller_faq:
         st.subheader('Seller FAQ')
         faq=[
+            ('How do I get paid, and what does House Of Wax take?',f"You get paid directly by the buyer through PayPal -- House Of Wax never holds your money. Buyers separately pay a {commission_percent():g}% platform fee to House Of Wax on top of your price, so you keep what you list it for."),
             ('Do I need exact item photos?','Yes when possible. Exact photos are especially important for condition-sensitive and non-music items.'),
             ('Why does my seller account need approval?','House Of Wax approves who can sell. Approved sellers can publish directly, and House Of Wax can moderate reports afterward.'),
             ('What makes a strong listing?','Clear title, category, price, condition, seller notes, real photos, item identifiers, and honest flaws.'),
@@ -4181,6 +4192,11 @@ def home():
         with st.expander('Tester Start Here',expanded=False):
             tester_start_here('home')
     st.info("Looking for something specific? Open Search Music and type an artist or album — we'll do the digging.")
+    with st.container(border=True):
+        st.subheader('Selling? House Of Wax wants your crates.')
+        st.write(f"List records, merch, and music collectibles, and get paid directly by the buyer through PayPal — House Of Wax never holds your money. We take a {commission_percent():g}% platform fee on top of your price, nothing more.")
+        if st.button('Become a Seller',key='home_become_seller_cta',width='stretch'):
+            request_marketplace_navigation('My Account'); st.rerun()
     groove_divider()
     x=home_block('featured_story'); mini_card(x.get('title','What Does VG+ Really Mean?'),x.get('subtitle','This Week at House Of Wax'),x.get('body','Learn grading before you buy.'),x.get('video_url',''))
     x=home_block('weekly_focus'); mini_card(x.get('title','The Secret Code Etched Into Every Record'),x.get('subtitle','This Week: Matrix & Runout'),x.get('body','Learn to read the dead wax near the label.'),x.get('video_url',''))
@@ -4437,6 +4453,12 @@ def seller_stores():
     if 'product_id' in st.session_state: product_detail(int(st.session_state['product_id'])); return
     if 'seller_id' in st.session_state: seller_profile(int(st.session_state['seller_id'])); return
     sellers=table('sellers')
+    # Only Approved sellers belong in the public directory -- a Pending or
+    # Suspended seller showing up here undercuts the exact impression a
+    # prospective seller is here to evaluate ("is this a real, live
+    # marketplace worth joining").
+    if not sellers.empty and 'status' in sellers.columns:
+        sellers=sellers[sellers['status']=='Approved Seller']
     if sellers.empty: st.info("No stores open yet — check back soon."); return
     for _,s in sellers.iterrows():
         with st.container(border=True):

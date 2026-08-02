@@ -52,6 +52,26 @@ def test_home_page_renders():
     assert any("House Of Wax" in md.value for md in at.markdown)
 
 
+def test_home_page_has_seller_recruitment_cta():
+    # Launch-readiness audit: Home had no seller-facing pitch or CTA at all
+    # -- the sidebar copy literally called this "Simple buyer path," and a
+    # prospective seller had to already know to dig into My Account to find
+    # out selling exists. The founder's stated goal is going public
+    # specifically to attract sellers, so this needs to be visible without
+    # hunting, and needs to say what selling costs before they commit.
+    at = fresh_app()
+    subheaders = [s.value for s in at.subheader]
+    assert any("crates" in s.lower() or "sell" in s.lower() for s in subheaders), (
+        f"Expected a seller-facing CTA subheader on Home, got: {subheaders}"
+    )
+    all_text = " ".join(m.value for m in at.markdown)
+    assert "%" in all_text and "PayPal" in all_text, (
+        "Expected the Home page seller pitch to mention the platform fee and PayPal payout"
+    )
+    become_seller_buttons = [b for b in at.button if b.key == "home_become_seller_cta"]
+    assert become_seller_buttons, "Expected a 'Become a Seller' button on Home"
+
+
 def _element_order(at):
     # Flat, render-order walk of the page, used to check relative position
     # of elements that live in different typed collections (markdown vs
@@ -923,6 +943,36 @@ def test_view_button_navigates_away_from_sellers_public_inventory_page():
     subheaders = [s.value for s in at.subheader]
     assert not any("Public inventory" in s for s in subheaders), (
         "Should have navigated away from the seller's public inventory grid, not stayed on it"
+    )
+
+
+def test_seller_stores_directory_hides_non_approved_sellers():
+    # Launch-readiness audit: the public "Seller Stores" directory had no
+    # status filter at all -- Pending and Suspended sellers (and a leftover
+    # "Demo Wax Seller" test row from ensure_seller(), found live in
+    # production) all showed up next to real Approved sellers. A skeptical
+    # prospective seller checking whether House Of Wax is a real, active
+    # marketplace before joining is exactly the audience this undercuts.
+    import app as hw_app
+    approved_id = _new_isolated_seller(hw_app, "Approved Directory Test Store")
+    pending_id = _new_isolated_seller(hw_app, "Pending Directory Test Store")
+    hw_app.run("UPDATE sellers SET status='Pending Seller Approval' WHERE id=?", (pending_id,))
+    suspended_id = _new_isolated_seller(hw_app, "Suspended Directory Test Store")
+    hw_app.run("UPDATE sellers SET status='Suspended Seller' WHERE id=?", (suspended_id,))
+
+    at = fresh_app()
+    goto(at, "Seller Stores")
+    assert not at.exception, at.exception
+
+    subheaders = [s.value for s in at.subheader]
+    assert any("Approved Directory Test Store" in s for s in subheaders), (
+        "Approved seller should appear in the public directory"
+    )
+    assert not any("Pending Directory Test Store" in s for s in subheaders), (
+        "Pending seller should not appear in the public directory"
+    )
+    assert not any("Suspended Directory Test Store" in s for s in subheaders), (
+        "Suspended seller should not appear in the public directory"
     )
 
 

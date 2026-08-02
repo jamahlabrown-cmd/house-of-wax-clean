@@ -519,6 +519,29 @@ def test_how_buying_works_does_not_duplicate_buyer_faq_checkout_explanation():
     )
 
 
+def test_testing_mode_toggle_hidden_from_regular_visitors():
+    # Founder, live: surprised that any random visitor could see and flip a
+    # "Testing mode" sidebar toggle -- not actually a data-safety hole (RLS
+    # blocks anon reads of anything private regardless of this toggle), but
+    # it reads as "unfinished prototype" to someone being pitched as a
+    # seller. Founder chose: keep it working for testers, stop showing it
+    # to everyone else -- gate it behind a ?tester=1 link instead.
+    at = fresh_app()
+    toggles = at.get("toggle")
+    assert not any("Testing mode" in (t.label or "") for t in toggles), (
+        "A regular visitor with no ?tester=1 param should not see the Testing mode toggle"
+    )
+
+    at2 = AppTest.from_file("app.py", default_timeout=30)
+    at2.query_params["tester"] = "1"
+    at2.run()
+    assert not at2.exception, at2.exception
+    toggles2 = at2.get("toggle")
+    assert any("Testing mode" in (t.label or "") for t in toggles2), (
+        "A visitor with ?tester=1 should still see the Testing mode toggle"
+    )
+
+
 def test_invalid_password_reset_link_screen_has_a_way_back():
     at = AppTest.from_file("app.py", default_timeout=30)
     at.query_params["recovery_token"] = "expired-or-bogus-token"

@@ -17,7 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.152 UPDATE: TERMS OF SERVICE NOW EXPLAINS BUYER NON-PAYMENT CONSEQUENCES'
+APP_VERSION='V25.43.153 UPDATE: BUYER-FUNNEL AUDIT -- STALE BUY NOW COPY FIXED, PAYPAL AMOUNT PRE-FILL, DISCOGS-STYLE NON-DELIVERY POLICY'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -878,7 +878,9 @@ def public_terms_of_service():
     st.markdown('### Accounts')
     st.write('You agree to provide accurate account information and are responsible for activity under your account. Sellers are responsible for the accuracy, legality, condition, pricing, images, and descriptions of the items they list.')
     st.markdown('### Buying and selling')
-    st.write(f'Buy Now reserves an item and starts a payment window; Add to Cart and Make an Offer do not commit you to anything until checkout. House Of Wax connects buyers and sellers but never holds funds -- buyers pay sellers directly, and separately pay House Of Wax a {commission_percent():g}% platform fee, both through PayPal. Sellers and buyers are expected to communicate honestly and follow through on agreed transactions. If a buyer does not pay within {PAYMENT_WINDOW_DAYS} days of reserving an item with Buy Now, the reservation is released back to the seller and the buyer\'s account is flagged; repeated non-payment may result in account restrictions.')
+    st.write(f'Checking out reserves an item and starts a payment window; Add to Cart and Make an Offer do not commit you to anything until checkout. House Of Wax connects buyers and sellers but never holds funds -- buyers pay sellers directly, and separately pay House Of Wax a {commission_percent():g}% platform fee, both through PayPal. Sellers and buyers are expected to communicate honestly and follow through on agreed transactions. If a buyer does not pay within {PAYMENT_WINDOW_DAYS} days of reserving an item at checkout, the reservation is released back to the seller and the buyer\'s account is flagged; repeated non-payment may result in account restrictions.')
+    st.markdown('### If something goes wrong')
+    st.write(f"House Of Wax follows the same model most marketplaces that don't hold funds use (Discogs included): if an item you paid for doesn't arrive, contact the seller first through the site to work it out. Because you pay through PayPal directly, PayPal's own dispute process is how you recover your money if the seller doesn't resolve it. Separately, report it to House Of Wax using Report Listing / Report Seller within {NON_DELIVERY_REPORT_WINDOW_DAYS} days of paying -- House Of Wax reviews these reports and they can affect a seller's standing on the platform, the same way buyer non-payment affects a buyer's standing.")
     st.markdown('### Prohibited listings')
     st.write('Counterfeit, stolen, unsafe, illegal, misleading, or hateful items are not allowed. This list is general and non-exhaustive. House Of Wax may investigate reports and may hide, restrict, or remove listings or accounts that violate these terms.')
     st.markdown('### Content you post')
@@ -1528,8 +1530,9 @@ def setup():
     old_v25_43_149_announcement='V25.43.149'+' Fix: View/Ask/Offer did nothing when browsing from a seller store page active'
     old_v25_43_150_announcement='V25.43.150'+' Update: Ask/Offer forms now clear after sending, ready for another active'
     old_v25_43_151_announcement='V25.43.151'+' Update: launch-readiness pass -- seller fee disclosure, seller directory, home CTA, dead-end error fixes active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement]:
-        set_setting('announcement','V25.43.152 Update: Terms of Service now explains buyer non-payment consequences active')
+    old_v25_43_152_announcement='V25.43.152'+' Update: Terms of Service now explains buyer non-payment consequences active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement]:
+        set_setting('announcement','V25.43.153 Update: buyer-funnel audit -- stale Buy Now copy fixed, PayPal amount pre-fill, Discogs-style non-delivery policy active')
 setup()
 recovery_token_bridge()
 
@@ -2244,6 +2247,14 @@ def render_split_payment_line(heading, paypal_value, amount, note, key):
         return
     if paypal.lower().startswith(('http://','https://')) or 'paypal.me' in paypal.lower():
         link=paypal if paypal.lower().startswith(('http://','https://')) else f'https://{paypal}'
+        # paypal.me supports an amount path suffix (paypal.me/name/22.74) --
+        # pre-fill it for plain username links so the buyer can't click
+        # through and accidentally pay the wrong amount. Only for links
+        # whose path is just the username (no amount/query already set by
+        # the seller) -- other http(s) links' path format isn't ours to guess.
+        path=re.split('paypal\\.me/',link,maxsplit=1,flags=re.IGNORECASE)[-1].split('?',1)[0] if 'paypal.me/' in link.lower() else None
+        if path and '/' not in path.strip('/') and path.strip('/'):
+            link=link.split('?',1)[0].rstrip('/')+f'/{amount:.2f}'
         st.link_button('Pay with PayPal',link,key=key)
     else:
         st.info(f'Pay via PayPal: {paypal}')
@@ -2829,7 +2840,7 @@ def render_offer_form(p, key_prefix):
             else:
                 st.error('Offer could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
 
-REPORT_REASONS=['Misleading description','Wrong condition','Counterfeit / bootleg concern','Stolen item concern','Offensive or prohibited content','Seller behavior issue','Other']
+REPORT_REASONS=['Misleading description','Wrong condition','Counterfeit / bootleg concern','Stolen item concern','Paid but item not received','Offensive or prohibited content','Seller behavior issue','Other']
 
 def report_listing_form(listing=None, seller=None, key_prefix='report'):
     listing_id=int(listing.get('id') or 0) if listing is not None else 0
@@ -3533,8 +3544,8 @@ def knowledge_center_education_hub():
             'Browse Marketplace for live listings from approved sellers.',
             'Review photos, condition notes, seller profile, trust badges, and listing readiness information.',
             'Ask the seller a question if condition, shipping, photos, or availability are unclear.',
-            'Use Buy when you are ready to move forward.',
-            'In the prototype, checkout/payment may not be live yet. Buy sends purchase intent, not payment.',
+            'Add to Cart when you are ready to move forward, then check out -- items from the same seller combine into one payment.',
+            'Checkout reserves the item and starts a payment window; you pay the seller and House Of Wax directly through PayPal.',
             'Pending means the item is being held or worked out. Sold means it should no longer be available.'
         ]:
             st.write(f'- {item}')
@@ -3583,7 +3594,7 @@ def knowledge_center_education_hub():
         st.subheader('Trust and Safety Guide')
         for item in [
             'Seller profiles help buyers understand the seller, location, specialties, and marketplace history.',
-            'Trust badges are House Of Wax platform indicators based on profile completeness, live listings, and marketplace history.',
+            'Trust tiers (New, Bronze, Silver, Gold) are based on completed transaction count and real buyer/seller review averages -- volume alone can only reach Bronze.',
             'Listing readiness helps sellers include clear details, photos, condition notes, price, and complete item information.',
             'The Moderation Center lets House Of Wax review reports, hide/remove problem listings, and manage seller approval.',
             'House Of Wax may investigate reports when photos, condition, item identity, safety, or seller behavior appears unclear or unsafe.',
@@ -3593,7 +3604,7 @@ def knowledge_center_education_hub():
     with buyer_faq:
         st.subheader('Buyer FAQ')
         faq=[
-            ('What does Buy Now mean?','It reserves the item immediately and starts a 5-day window to pay. Add to Cart holds nothing by itself -- check out when you\'re ready, and items from the same seller combine into one payment.'),
+            ('What happens when I check out?','Checkout reserves the item immediately and starts a 5-day window to pay. Add to Cart holds nothing by itself -- items from the same seller combine into one payment at checkout.'),
             ('Is payment live?','Yes. You pay the seller and House Of Wax\'s platform fee directly through PayPal -- House Of Wax never holds your payment.'),
             ('How do I contact a seller?','Use Contact Seller / Ask About This Item on live/public listings.'),
             ('How do I know if an item is available?','Live listings can show buyer action buttons. Pending and Sold items show unavailable status.'),
@@ -4490,7 +4501,7 @@ def buyer_workspace_tabs(bid):
         render_trust_tier(buyer_completed_purchases_count(bid),buyer_review_summary(bid),'buyer')
         buyer_strikes=int(b.get('strikes') or 0)
         if buyer_strikes:
-            st.warning(f"{buyer_strikes} strike{'s' if buyer_strikes!=1 else ''} on your account for not paying within the {PAYMENT_WINDOW_DAYS}-day window after Buy Now. Sellers can see this.")
+            st.warning(f"{buyer_strikes} strike{'s' if buyer_strikes!=1 else ''} on your account for not paying within the {PAYMENT_WINDOW_DAYS}-day window after checkout. Sellers can see this.")
         with st.form('bp_auth'):
             photo=st.file_uploader('Profile photo - optional',type=['png','jpg','jpeg','webp'])
             name=st.text_input('Name',value=safe(b['name']))
@@ -6883,6 +6894,7 @@ def admin_inquiry_view():
         core_update('listing_inquiries',{'status':'Closed','updated_at':now()},{'id':iid},"UPDATE listing_inquiries SET status='Closed',updated_at=? WHERE id=?",(now(),iid)); st.success('Inquiry closed.')
 
 PAYMENT_WINDOW_DAYS=5
+NON_DELIVERY_REPORT_WINDOW_DAYS=21
 
 def payment_due_at_string():
     return (datetime.now()+timedelta(days=PAYMENT_WINDOW_DAYS)).isoformat(timespec='seconds')

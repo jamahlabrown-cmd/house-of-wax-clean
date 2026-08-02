@@ -283,6 +283,127 @@ def test_terms_of_service_discloses_buyer_non_payment_consequence():
     )
 
 
+def test_buyer_facing_copy_does_not_reference_removed_buy_now_button():
+    # Buyer-funnel audit (2026-08-02): Buy Now was removed months ago
+    # (V25.43.123) -- Add to Cart -> Checkout is the only purchase path
+    # now. But four buyer-facing spots still describe "Buy Now" as if it
+    # exists, and the Knowledge Hub even claimed payment "may not be live
+    # yet" -- actively wrong, since payment has been live since V25.43.108.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    goto(at, "Knowledge Hub")
+    assert not at.exception, at.exception
+    all_text = " ".join(m.value for m in at.markdown)
+    assert "may not be live yet" not in all_text, (
+        "Knowledge Hub should not claim payment might not be live -- it has been since V25.43.108"
+    )
+    assert "Buy Now" not in all_text, (
+        f"Knowledge Hub still references the removed Buy Now button: {all_text[:2000]}"
+    )
+    assert "Add to Cart" in all_text and "checkout" in all_text.lower(), (
+        "Expected Knowledge Hub buying copy to describe the real Add to Cart -> Checkout path"
+    )
+
+    at2 = AppTest.from_file("app.py", default_timeout=30)
+    at2.query_params["legal"] = "terms"
+    at2.run()
+    assert not at2.exception, at2.exception
+    tos_text = " ".join(m.value for m in at2.markdown)
+    assert "Buy Now" not in tos_text, (
+        f"Terms of Service still references the removed Buy Now button: {tos_text[:2000]}"
+    )
+
+    buyer_id = _new_isolated_buyer(hw_app, "strike_copy_buyer")
+    hw_app.run("UPDATE buyers SET strikes=1 WHERE id=?", (buyer_id,))
+    buyer_email = hw_app.get_buyer(buyer_id)["email"]
+    at3 = AppTest.from_file("app.py", default_timeout=30)
+    at3.run()
+    _real_buyer_session(at3, hw_app, buyer_id, buyer_email)
+    goto(at3, "My Account")
+    at3.run()
+    assert not at3.exception, at3.exception
+    warnings = [w.value for w in at3.warning]
+    assert not any("Buy Now" in w for w in warnings), (
+        f"My Account strike warning still references the removed Buy Now button: {warnings}"
+    )
+
+
+def test_trust_and_safety_copy_matches_real_tier_system():
+    # Buyer-funnel audit: this copy described the OLD "Verified Seller"
+    # badge (removed V25.43.123) instead of the real New/Bronze/Silver/Gold
+    # tier system (compute_trust_tier), which requires a genuine review
+    # average for Silver/Gold, not just profile completeness/listing count.
+    at = fresh_app()
+    goto(at, "Knowledge Hub")
+    assert not at.exception, at.exception
+    all_text = " ".join(m.value for m in at.markdown)
+    assert "profile completeness" not in all_text, (
+        "Trust + Safety copy still describes the removed badge system"
+    )
+    assert "Bronze" in all_text and "Silver" in all_text and "Gold" in all_text, (
+        "Expected Trust + Safety copy to describe the real tier system"
+    )
+
+
+def test_paypal_me_links_are_pre_filled_with_the_exact_split_amount():
+    # Buyer-funnel audit: the split amount ($X to seller, $Y platform fee)
+    # is shown as text above the "Pay with PayPal" button, but the button
+    # itself never carried it -- nothing stopped a buyer from paying the
+    # wrong amount after clicking through. paypal.me supports an amount
+    # path suffix (paypal.me/name/22.74); use it for plain paypal.me
+    # username links (not other http(s) links, whose path format we don't
+    # control and could break by appending to).
+    def _render():
+        import app as hw_app
+        hw_app.render_split_payment_line("Pay the seller", "paypal.me/somesellername", 22.74, "note", key="t1")
+        hw_app.render_split_payment_line("Pay House Of Wax", "https://paypal.me/houseofwax", 2.25, "note", key="t2")
+        hw_app.render_split_payment_line("Pay via email", "seller@example.com", 10.00, "note", key="t3")
+
+    at = AppTest.from_function(_render, default_timeout=30)
+    at.run()
+    assert not at.exception, at.exception
+    links = {lb.proto.id: lb.proto.url for lb in at.get("link_button")}
+    t1 = next(url for lbid, url in links.items() if lbid.endswith("-t1"))
+    t2 = next(url for lbid, url in links.items() if lbid.endswith("-t2"))
+    assert t1 == "https://paypal.me/somesellername/22.74", links
+    assert t2 == "https://paypal.me/houseofwax/2.25", links
+    infos = [i.value for i in at.info]
+    assert any("seller@example.com" in i for i in infos), (
+        "Bare email PayPal info should still render as plain text, unchanged"
+    )
+
+
+def test_terms_of_service_covers_non_delivery_disputes_discogs_style():
+    # Buyer-funnel audit flagged that nothing buyer-facing explains what
+    # happens if a paid seller never delivers -- House Of Wax never holds
+    # funds, so (per founder direction) this follows Discogs' actual model:
+    # contact the seller first, PayPal handles the payment dispute (buyer
+    # paid through PayPal directly), and reporting to House Of Wax within a
+    # filing window affects the seller's standing on the platform -- mirrors
+    # the buyer non-payment strike system that already exists.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.query_params["legal"] = "terms"
+    at.run()
+    assert not at.exception, at.exception
+    all_text = " ".join(m.value for m in at.markdown)
+    assert "PayPal" in all_text and "seller" in all_text.lower(), all_text
+    assert f"{hw_app.NON_DELIVERY_REPORT_WINDOW_DAYS} days" in all_text, (
+        "Expected the Terms of Service to state a filing window for non-delivery reports"
+    )
+    assert "Report Listing" in all_text or "Report Seller" in all_text, (
+        "Expected the Terms of Service to point buyers at the existing Report Listing/Seller flow"
+    )
+
+
+def test_report_reasons_include_non_delivery():
+    import app as hw_app
+    assert any("not received" in r.lower() or "not shipped" in r.lower() for r in hw_app.REPORT_REASONS), (
+        f"Expected a non-delivery reason in REPORT_REASONS, got: {hw_app.REPORT_REASONS}"
+    )
+
+
 def test_invalid_password_reset_link_screen_has_a_way_back():
     at = AppTest.from_file("app.py", default_timeout=30)
     at.query_params["recovery_token"] = "expired-or-bogus-token"

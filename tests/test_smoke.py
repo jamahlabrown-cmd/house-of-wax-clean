@@ -803,6 +803,47 @@ def test_my_inventory_shows_fetch_batch_button_when_pending_discogs_items_exist(
     assert "1" in all_text and "Discogs" in all_text
 
 
+def test_real_admin_does_not_see_testing_mode_language():
+    # Founder, live, signed in as a real admin (not via the Testing mode
+    # toggle): "I'm still seeing testing language on here... that looks
+    # tacky and unprofessional." The sidebar warning mentioned "Testing
+    # mode" unconditionally to every admin regardless of how they actually
+    # got in -- confusing/unprofessional-reading noise for someone who is
+    # genuinely, deliberately signed in as themselves.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+        ("real-admin-uuid-1", "real-admin-test@example.com", "Real Admin", "Admin", "Yes", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": "real-admin-uuid-1", "email": "real-admin-test@example.com", "access_token": "fake"}
+    at.run()
+    at.sidebar.radio(key="house_of_wax_area").set_value("House Of Wax Admin").run()
+    assert not at.exception, at.exception
+
+    sidebar_text = " ".join(w.value for w in at.sidebar.warning) + " ".join(i.value for i in at.sidebar.info)
+    assert "Testing mode" not in sidebar_text, (
+        f"A real, signed-in admin should not see 'Testing mode' language, got: {sidebar_text}"
+    )
+
+
+def test_testing_mode_only_access_still_explains_itself():
+    # The flip side: someone who got into the admin area via the Testing
+    # mode toggle (not real credentials) genuinely should be told that's
+    # why -- this case still needs the explanation.
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    at.sidebar.radio(key="house_of_wax_area").set_value("House Of Wax Admin").run()
+    assert not at.exception, at.exception
+
+    sidebar_text = " ".join(w.value for w in at.sidebar.warning) + " ".join(i.value for i in at.sidebar.info)
+    assert "Testing mode" in sidebar_text, (
+        f"Testing-mode-only access should still explain why Admin is visible, got: {sidebar_text}"
+    )
+
+
 def test_invalid_password_reset_link_screen_has_a_way_back():
     at = AppTest.from_file("app.py", default_timeout=30)
     at.query_params["recovery_token"] = "expired-or-bogus-token"

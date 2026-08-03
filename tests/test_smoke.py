@@ -907,6 +907,48 @@ def test_real_admin_does_not_see_testing_build_password_language():
     assert "testing build" not in all_text.lower(), f"A real admin should not see 'Testing build' language, got: {all_text}"
 
 
+def test_seller_action_dropdown_reflects_newly_selected_listings_real_status():
+    # Founder, live: "I just tried to load a record into my store and it
+    # didn't work... it did all the work but it didn't move it to my
+    # store." Root cause: the "Seller action" status dropdown shares one
+    # key across every listing, so switching which item is selected didn't
+    # reset it to that item's real current status -- it silently kept
+    # whatever was left over from browsing a previous item, making
+    # "Update listing status" a no-op that still claimed success.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Seller Action Dropdown Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    live_product_id = _new_isolated_product(hw_app, seller_id, "Already Live Item")
+    draft_product_id = _new_isolated_product(hw_app, seller_id, "Still Draft Item")
+    hw_app.run("UPDATE products SET listing_status='Draft' WHERE id=?", (draft_product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    assert not at.exception, at.exception
+
+    listing_select = at.selectbox(key="primary_my_inventory_listing_id")
+    listing_select.set_value(live_product_id).run()
+    assert at.selectbox(key=f"primary_my_inventory_seller_action_{live_product_id}").value == "Live", (
+        "Dropdown should default to the selected listing's real current status (Live)"
+    )
+
+    listing_select.set_value(draft_product_id).run()
+    assert not at.exception, at.exception
+    assert at.selectbox(key=f"primary_my_inventory_seller_action_{draft_product_id}").value == "Draft", (
+        "Switching to a different listing should show a dropdown defaulted to THAT listing's real status"
+    )
+
+
 def test_real_admin_does_not_see_testing_mode_language():
     # Founder, live, signed in as a real admin (not via the Testing mode
     # toggle): "I'm still seeing testing language on here... that looks

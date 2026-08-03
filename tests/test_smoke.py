@@ -803,6 +803,110 @@ def test_my_inventory_shows_fetch_batch_button_when_pending_discogs_items_exist(
     assert "1" in all_text and "Discogs" in all_text
 
 
+def test_hosted_database_prep_section_drops_obsolete_migration_checklist():
+    # This admin diagnostics section still described a Supabase migration
+    # as a future to-do ("move to hosted database before launch", a
+    # "Supabase migration checklist" referencing version V25.28) -- the
+    # migration to hosted Supabase happened long ago and has been the live
+    # production database all session. A founder checking Diagnostics
+    # shouldn't see a stale pre-launch checklist reading like nothing's
+    # been done yet.
+    def _render():
+        import app as hw_app
+        hw_app.hosted_database_prep_section()
+
+    at = AppTest.from_function(_render, default_timeout=30)
+    at.run()
+    assert not at.exception, at.exception
+    all_text = " ".join(m.value for m in at.markdown) + " ".join(c.value for c in at.caption)
+    assert "migration checklist" not in all_text.lower(), f"Expected the obsolete migration checklist removed, got: {all_text}"
+    assert "V25.28" not in all_text, f"Expected the stale version reference removed, got: {all_text}"
+    assert "before launch" not in all_text.lower(), f"Expected pre-launch framing removed, got: {all_text}"
+
+
+def test_claim_existing_profile_section_drops_prototype_wording():
+    # Founder: "I'm still seeing testing language on here." This screen is
+    # real-user-facing (a signed-in seller/buyer with no linked store sees
+    # it, not just admins), so "prototype" language here reaches real
+    # customers, not just internal testers.
+    def _render():
+        import app as hw_app
+        hw_app.claim_existing_profile_section()
+
+    at = AppTest.from_function(_render, default_timeout=30)
+    at.run()
+    assert not at.exception, at.exception
+    all_text = " ".join(m.value for m in at.markdown) + " ".join(i.value for i in at.info)
+    assert "prototype" not in all_text.lower(), f"Expected no 'prototype' wording, got: {all_text}"
+
+
+def test_image_unavailable_fallback_has_no_internal_deployment_language():
+    # Same class of issue -- a broken image (local dev leftover, migration
+    # artifact, whatever) could show this caption to any real buyer or
+    # seller. It should just say the image isn't available, not talk about
+    # "production launch" or "prototype image storage" -- both wrong now
+    # that Supabase storage is actually connected, and neither is
+    # something a customer should ever see regardless.
+    import tempfile, os
+
+    def _render():
+        import app as hw_app
+        # A path that doesn't exist on disk triggers the fallback branch.
+        hw_app.safe_image("/tmp/does-not-exist-house-of-wax-test.jpg", width=100)
+
+    at = AppTest.from_function(_render, default_timeout=30)
+    at.run()
+    assert not at.exception, at.exception
+    all_text = " ".join(c.value for c in at.caption)
+    assert "prototype" not in all_text.lower(), f"Expected no 'prototype' wording, got: {all_text}"
+    assert "production launch" not in all_text.lower(), f"Expected no internal deployment language, got: {all_text}"
+
+
+def test_header_prototype_demo_banner_hidden_from_real_admins():
+    # Same pattern as the Testing mode sidebar fix (V25.43.161) -- this
+    # "Working prototype demo... available for walkthroughs" banner showed
+    # to every admin session on every page load, real admin or not. A real,
+    # signed-in admin doesn't need to be told the site is a demo for
+    # walkthroughs.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+        ("real-admin-uuid-2", "real-admin-test2@example.com", "Real Admin", "Admin", "Yes", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": "real-admin-uuid-2", "email": "real-admin-test2@example.com", "access_token": "fake"}
+    at.run()
+    at.sidebar.radio(key="house_of_wax_area").set_value("House Of Wax Admin").run()
+    assert not at.exception, at.exception
+
+    all_text = " ".join(i.value for i in at.info)
+    assert "prototype demo" not in all_text.lower(), f"A real admin should not see the prototype-demo banner, got: {all_text}"
+
+
+def test_real_admin_does_not_see_testing_build_password_language():
+    # Same class of issue found while cleaning up the ones above: this
+    # message conflates "no separate ADMIN_PASSWORD secret configured"
+    # with "Testing build" -- misleading for a real admin who authenticated
+    # via real sign-in, not a testing shortcut.
+    import app as hw_app
+    assert not hw_app.ADMIN_PASSWORD, "This test assumes no ADMIN_PASSWORD secret is configured locally"
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+        ("real-admin-uuid-3", "real-admin-test3@example.com", "Real Admin", "Admin", "Yes", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": "real-admin-uuid-3", "email": "real-admin-test3@example.com", "access_token": "fake"}
+    at.run()
+    at.sidebar.radio(key="house_of_wax_area").set_value("House Of Wax Admin").run()
+    at.sidebar.radio(key="admin_navigation").set_value("Admin Dashboard").run()
+    assert not at.exception, at.exception
+
+    all_text = " ".join(i.value for i in at.info)
+    assert "testing build" not in all_text.lower(), f"A real admin should not see 'Testing build' language, got: {all_text}"
+
+
 def test_real_admin_does_not_see_testing_mode_language():
     # Founder, live, signed in as a real admin (not via the Testing mode
     # toggle): "I'm still seeing testing language on here... that looks

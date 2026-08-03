@@ -18,7 +18,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.161 FIX: REAL ADMINS NO LONGER SEE TESTING MODE LANGUAGE IN THE ADMIN SIDEBAR'
+APP_VERSION='V25.43.162 CLEANUP: FULL SWEEP -- STALE PROTOTYPE/TESTING LANGUAGE REMOVED FROM ADMIN AND USER-FACING SCREENS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -998,17 +998,17 @@ def safe_image(image_value, caption=None, width='stretch', fallback_text=None):
             try:
                 local_path=Path(raw).expanduser()
                 if not local_path.exists() or not local_path.is_file():
-                    st.caption(fallback_text or 'Image unavailable. Prototype image storage may not persist after redeploy. Production launch needs cloud image storage.')
+                    st.caption(fallback_text or 'Image unavailable.')
                     return False
                 image_to_render=str(local_path)
             except Exception:
-                st.caption(fallback_text or 'Image unavailable. Prototype image storage may not persist after redeploy. Production launch needs cloud image storage.')
+                st.caption(fallback_text or 'Image unavailable.')
                 return False
     try:
         st.image(image_to_render,caption=caption,width=width)
         return True
     except Exception:
-        st.caption(fallback_text or 'Image unavailable. Prototype image storage may not persist after redeploy. Production launch needs cloud image storage.')
+        st.caption(fallback_text or 'Image unavailable.')
         return False
 def setting(k,d=''):
     try:
@@ -1546,8 +1546,9 @@ def setup():
     old_v25_43_158_announcement='V25.43.158'+' Add: Discogs collection import -- bulk import + batched photo/price enrichment active'
     old_v25_43_159_announcement='V25.43.159'+' Fix: Discogs enrichment no longer retries items forever, Fetch button actually clears active'
     old_v25_43_160_announcement='V25.43.160'+' Fix: Discogs enrichment no longer crashes on the live site (missing select=*) active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement]:
-        set_setting('announcement','V25.43.161 Fix: real admins no longer see Testing mode language in the admin sidebar active')
+    old_v25_43_161_announcement='V25.43.161'+' Fix: real admins no longer see Testing mode language in the admin sidebar active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement]:
+        set_setting('announcement','V25.43.162 Cleanup: full sweep -- stale prototype/testing language removed from admin and user-facing screens active')
 setup()
 recovery_token_bridge()
 
@@ -2365,12 +2366,16 @@ def header(show_badges=True):
         # on their own content. Callers for those pages pass show_badges=False.
         brand_badges(['Marketplace', 'Knowledge Hub', 'Culture Education', 'Collect Smarter'])
     if show_badges and is_admin_unlocked():
-        # Same reasoning as the badges above: this version/demo-description/
-        # announcement banner is site-wide meta info for whoever is testing
-        # the platform, not seller or buyer content -- keep it off account
-        # pages too, even when Testing Mode is on.
+        # Same reasoning as the badges above: this version/announcement
+        # banner is site-wide meta info for whoever is testing the
+        # platform, not seller or buyer content -- keep it off account
+        # pages too, even when Testing Mode is on. The walkthrough-pitch
+        # line is for volunteer testers specifically (real admins already
+        # know the site) -- same real-admin-vs-testing-mode split as the
+        # sidebar warning above.
         st.caption(f'Running {APP_VERSION}')
-        st.info('Working prototype demo: marketplace, seller tools, moderation center, inquiries, purchase requests, profiles, badges, and database status are available for walkthroughs.')
+        if not is_admin_user():
+            st.info('Working prototype demo: marketplace, seller tools, moderation center, inquiries, purchase requests, profiles, badges, and database status are available for walkthroughs.')
         st.info(setting('announcement'))
 def marketplace_context(label='House Of Wax Marketplace'):
     st.caption(label)
@@ -2622,9 +2627,9 @@ def auth_diagnostics_section():
     st.caption('No password, access token, refresh token, anon key, or service key is displayed.')
 
 def claim_existing_profile_section():
-    st.markdown('### Claim existing prototype profile')
+    st.markdown('### Claim existing profile')
     if not is_authenticated():
-        st.info('Sign in first, then use this controlled claim helper if you have an existing prototype buyer or seller profile.')
+        st.info('Sign in first, then use this to claim an existing buyer or seller profile that matches your email.')
         return
     user=current_app_user()
     email=auth_user_email()
@@ -7771,41 +7776,11 @@ def hosted_database_prep_section():
     config=mode['hosted_config']
     if config['hosted_config_detected']:
         st.success('Hosted database settings detected.')
-        st.caption('Do not attempt risky migration unless the app has safe migration code and backups are ready. SQLite remains the active fallback in this prototype.')
     else:
-        st.info('Hosted database not connected yet. Local prototype database is being used.')
+        st.info('Hosted database not connected. Local SQLite is being used as a fallback.')
     st.caption('Configuration checked: SUPABASE_URL, SUPABASE_ANON_KEY, DATABASE_URL.')
     st.dataframe(pd.DataFrame(config['rows']),width='stretch')
     st.caption('Secret values are masked. This app checks for configuration safely and does not require hosted database credentials to run.')
-
-    st.markdown('### Current data model summary')
-    data_groups=[
-        ('Listings','products','Move to hosted database before launch. Protect status, price, quantity, review notes, and seller ownership.'),
-        ('Seller profiles','sellers','Move to hosted database. Protect seller email, phone, access code, and private profile controls.'),
-        ('Inquiries','listing_inquiries','Move to hosted database. Protect buyer contact info and message history.'),
-        ('Purchase requests','purchase_requests','Move to hosted database. Protect buyer contact info, offer details, fulfillment preference, and status.'),
-        ('Photos/photo references','product_gallery plus product image fields','Move references to hosted database and files to cloud storage.'),
-        ('Review notes/statuses','products reviewer_notes and listing_status','Move to hosted database. Protect admin notes and moderation history.'),
-        ('Roles/prototype user state','Streamlit session role selector','Replace with real auth roles and permission checks before public launch.')
-    ]
-    st.dataframe(pd.DataFrame(data_groups,columns=['Data group','Current area','Hosted database note']),width='stretch')
-    st.warning('Privacy protection needed: buyer contact info, seller contact info, purchase requests, and admin notes should never be exposed publicly.')
-
-    st.markdown('### Supabase migration checklist')
-    checklist=[
-        'Create Supabase project',
-        'Create tables',
-        'Add environment variables to Streamlit secrets',
-        'Test read/write',
-        'Migrate sample listings',
-        'Test buyer inquiry',
-        'Test purchase request',
-        'Test seller/admin access',
-        'Back up local data before migration'
-    ]
-    for item in checklist:
-        st.write(f'- {item}')
-    st.caption('This is a prep/checklist step, not a full migration. No Supabase package, Postgres driver, secret, or new dependency is required for V25.28.')
 
 def supabase_diag_payload(table_name, marker):
     base_time=now()
@@ -8209,7 +8184,8 @@ def admin():
         pwd=st.text_input('Admin password',type='password')
         if not st.button('Enter admin'): return
         if pwd!=ADMIN_PASSWORD: st.error('Wrong password.'); return
-    else: st.info('No admin password set. Testing build allows admin access.')
+    elif not is_admin_user():
+        st.info('No extra admin password is set -- Testing mode alone is granting this access.')
     pending_seller_apps=pending_seller_application_count()
     if pending_seller_apps:
         st.error(f"{pending_seller_apps} seller application{'s' if pending_seller_apps!=1 else ''} waiting for review.")

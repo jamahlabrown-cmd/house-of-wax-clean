@@ -684,6 +684,64 @@ def test_enrich_next_discogs_batch_updates_image_and_price_leaves_status_draft(m
     assert row["listing_status"] == "Draft", "Enrichment must never flip status to Live on its own"
 
 
+def test_enrich_next_discogs_batch_stops_retrying_items_discogs_has_nothing_for(monkeypatch):
+    # Founder, live: after clicking through many batches, the count got
+    # stuck at a small number ("7 remain") and the button never went away.
+    # Root cause: an item where Discogs has neither a real image nor a
+    # price never got any DB write at all, so it matched the same "pending"
+    # query forever -- this asserts the fix, that such an item drops out of
+    # the pending set permanently after being tried once, with a note
+    # explaining why to the seller instead of a silent dead end.
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Discogs Stuck Item Test Seller")
+    hw_app.run(
+        "INSERT INTO products(seller_id,artist,title,category,format,price,quantity,image_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (seller_id, "Test Artist", "Dead Release", "Vinyl Records", "Vinyl", 0, 1, "", "https://www.discogs.com/release/999999", "Draft", "Fixed Price", hw_app.now(), hw_app.now()),
+    )
+    product_id = int(hw_app.df("SELECT id FROM products WHERE seller_id=? ORDER BY id DESC LIMIT 1", (seller_id,)).iloc[0]["id"])
+
+    monkeypatch.setattr(hw_app, "fetch_discogs_release_details", lambda release_id: None)
+    monkeypatch.setattr(hw_app, "time", type("T", (), {"sleep": staticmethod(lambda s: None)}))
+
+    first = hw_app.enrich_next_discogs_batch(seller_id, batch_size=25)
+    assert first["remaining"] == 0, "Item Discogs has nothing for should not still count as pending after being tried"
+
+    row = hw_app.df("SELECT * FROM products WHERE id=?", (product_id,)).iloc[0]
+    assert row["listing_status"] == "Draft"
+    assert row["reviewer_notes"], "Expected a note explaining why this item couldn't be auto-enriched"
+
+    # A second batch call must not re-select this item at all -- proves it's
+    # actually excluded going forward, not just undercounted once.
+    calls = []
+    monkeypatch.setattr(hw_app, "fetch_discogs_release_details", lambda release_id: calls.append(release_id) or None)
+    second = hw_app.enrich_next_discogs_batch(seller_id, batch_size=25)
+    assert second["remaining"] == 0
+    assert calls == [], "The permanently-unfetchable item should not be retried on later batches"
+
+
+def test_enrich_next_discogs_batch_marks_price_only_items_as_resolved(monkeypatch):
+    # Same class of bug for the partial case: Discogs has a price but no
+    # cover art for a release. That item should still leave the pending
+    # queue once tried, with a note that only the photo is missing.
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Discogs Price Only Test Seller")
+    hw_app.run(
+        "INSERT INTO products(seller_id,artist,title,category,format,price,quantity,image_url,external_release_url,listing_status,listing_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (seller_id, "Test Artist", "No Cover Release", "Vinyl Records", "Vinyl", 0, 1, "", "https://www.discogs.com/release/555555", "Draft", "Fixed Price", hw_app.now(), hw_app.now()),
+    )
+    product_id = int(hw_app.df("SELECT id FROM products WHERE seller_id=? ORDER BY id DESC LIMIT 1", (seller_id,)).iloc[0]["id"])
+
+    monkeypatch.setattr(hw_app, "fetch_discogs_release_details", lambda release_id: {"image_url": "", "lowest_price": 9.99})
+    monkeypatch.setattr(hw_app, "time", type("T", (), {"sleep": staticmethod(lambda s: None)}))
+
+    result = hw_app.enrich_next_discogs_batch(seller_id, batch_size=25)
+    assert result["remaining"] == 0
+
+    row = hw_app.df("SELECT * FROM products WHERE id=?", (product_id,)).iloc[0]
+    assert float(row["price"]) == 9.99
+    assert row["reviewer_notes"], "Expected a note that cover art specifically wasn't found"
+
+
 def test_my_inventory_shows_fetch_batch_button_when_pending_discogs_items_exist():
     # AppTest re-executes app.py's source fresh on every .run() (that's how
     # Streamlit re-runs scripts), so a plain monkeypatch.setattr on a

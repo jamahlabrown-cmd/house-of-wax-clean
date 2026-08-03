@@ -742,6 +742,34 @@ def test_enrich_next_discogs_batch_marks_price_only_items_as_resolved(monkeypatc
     assert row["reviewer_notes"], "Expected a note that cover art specifically wasn't found"
 
 
+def test_enrich_next_discogs_batch_requests_full_columns_from_supabase(monkeypatch):
+    # Founder, live: clicking "Fetch next batch from Discogs" crashed with
+    # "Something went wrong loading this page." Root cause: hosted_select()
+    # defaults products queries to PRODUCTS_ANON_SAFE_SELECT, which
+    # deliberately excludes reviewer_notes (internal moderation notes) --
+    # callers that need it must pass select='*' explicitly (see the comment
+    # at PRODUCTS_ANON_SAFE_SELECT's definition). enrich_next_discogs_batch
+    # reads row['reviewer_notes'] but never asked for it, so on the real
+    # hosted database (not local SQLite, which always returns every column
+    # regardless and is why this passed locally the first time) that's a
+    # KeyError. This calls hosted_select directly to check what it was
+    # actually asked for, independent of local-vs-hosted DB behavior.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    calls = []
+
+    def fake_hosted_select(table_name, filters=None, order=None, limit=None, in_filters=None, select=None):
+        calls.append(select)
+        return pd.DataFrame()
+
+    monkeypatch.setattr(hw_app, "hosted_select", fake_hosted_select)
+    hw_app.enrich_next_discogs_batch(1)
+    assert calls, "Expected enrich_next_discogs_batch to call hosted_select"
+    assert calls[0] == "*", (
+        f"enrich_next_discogs_batch must request select='*' to read reviewer_notes -- got select={calls[0]!r}"
+    )
+
+
 def test_my_inventory_shows_fetch_batch_button_when_pending_discogs_items_exist():
     # AppTest re-executes app.py's source fresh on every .run() (that's how
     # Streamlit re-runs scripts), so a plain monkeypatch.setattr on a

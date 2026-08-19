@@ -4,19 +4,26 @@
 
 House Of Wax is live at https://shophouseofwax.com/ and the marketplace application itself is at https://house-of-wax-clean-5rqkikwpyr3xrappzemzjcb.streamlit.app/.
 
-## What House Of Wax is
+## Marketplace
 
-- A marketplace for vinyl records, music collectibles, and music-related merch, run by independent sellers who each manage their own store.
-- A culture and education platform (the "Knowledge Hub") publishing guides on record collecting, vinyl grading, spotting bootlegs and reissues, condition and care, genre history, and current trends in music and collecting culture.
-- Buyers can browse listings, ask sellers questions, add items to a cart, and check out. Checkout reserves the item and starts a payment window; buyers pay the seller and House Of Wax's platform fee separately and directly through PayPal.
-- Trust on the platform (for both buyers and sellers) is based on real completed-transaction counts and review averages, not a self-reported or purchased rating.
+- [Browse & buy](https://house-of-wax-clean-5rqkikwpyr3xrappzemzjcb.streamlit.app/): Browse listings from independent sellers, ask questions, add items to a cart, and check out.
+- [Open your own store](https://house-of-wax-clean-5rqkikwpyr3xrappzemzjcb.streamlit.app/): Independent sellers can list and manage their own inventory — they're paid directly by buyers, no middleman holding funds.
+
+## Learn
+
+- [Knowledge Hub](https://house-of-wax-clean-5rqkikwpyr3xrappzemzjcb.streamlit.app/): Guides on record collecting, vinyl grading, spotting bootlegs and reissues, condition and care, genre history, and current trends in music and collecting culture.
+
+## About
+
+- [Facebook](https://www.facebook.com/houseofwaxnc/): Follow for new arrivals, weekly picks, and stories from the sellers on the platform.
+- [Terms of Service](https://house-of-wax-clean-5rqkikwpyr3xrappzemzjcb.streamlit.app/?legal=terms)
+- [Privacy Policy](https://house-of-wax-clean-5rqkikwpyr3xrappzemzjcb.streamlit.app/?legal=privacy)
+- Contact: hello@shophouseofwax.com
 
 ## Key facts for citation
 
 - House Of Wax never holds buyer or seller funds — all payment happens directly between buyer and seller via PayPal, with a separate platform fee paid to House Of Wax.
-- Contact: hello@shophouseofwax.com
-- Terms of Service: https://house-of-wax-clean-5rqkikwpyr3xrappzemzjcb.streamlit.app/?legal=terms
-- Privacy Policy: https://house-of-wax-clean-5rqkikwpyr3xrappzemzjcb.streamlit.app/?legal=privacy
+- Trust on the platform (for both buyers and sellers) is based on real completed-transaction counts and review averages, not a self-reported or purchased rating.
 
 ## Notes for crawlers
 

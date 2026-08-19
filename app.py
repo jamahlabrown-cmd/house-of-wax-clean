@@ -218,9 +218,16 @@ PRODUCTS_ANON_SAFE_SELECT=('id,seller_id,sku,barcode,catalog_number,matrix_runou
 # sellers.paypal_link is how a buyer actually pays -- a real spam/phishing
 # target if exposed to anyone via the public REST API, not just genuine
 # buyers mid-transaction. Same anon-safe-select pattern as products above.
+# disputes/strikes/access_code are deliberately excluded too (moderation-only
+# and a never-populated planned-but-unfinished feature, respectively) -- this
+# constant used to include them by mistake, contradicting this exact comment,
+# until a real security audit (2026-08-19) confirmed the mismatch by directly
+# querying the anon-key REST API and found all three genuinely readable. Fixed
+# at the database grant level (REVOKE SELECT ... GRANT SELECT (safe columns)
+# in Supabase) and here, so app code and the actual DB permissions agree.
 SELLERS_ANON_SAFE_SELECT=('id,store_name,owner_name,email,phone,city,state,website,instagram,store_bio,'
-    'seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,disputes,'
-    'strikes,auction_override,access_code,rules_accepted,rules_accepted_at,created_at')
+    'seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,'
+    'auction_override,rules_accepted,rules_accepted_at,created_at')
 def hosted_select(table_name, filters=None, order=None, limit=None, in_filters=None, select=None):
     if not hosted_enabled():
         return pd.DataFrame()

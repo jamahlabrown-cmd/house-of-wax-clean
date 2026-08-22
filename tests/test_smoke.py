@@ -21,6 +21,7 @@ Supabase project once one exists.
 """
 import sys
 import os
+import uuid
 import pytest
 import pandas as pd
 
@@ -1308,7 +1309,19 @@ def _new_isolated_seller(hw_app, store_name):
     # ensure_seller() reuses whatever seller row already exists in the
     # shared SQLite file (same reasoning as _new_isolated_product below).
     # Give each test needing its own seller/inventory a dedicated row.
-    email = store_name.lower().replace(" ", "-") + "@example.com"
+    #
+    # The email used to be generated deterministically from store_name alone
+    # (e.g. "seller-action-dropdown-test-seller@example.com") -- fine within
+    # a single suite run since test names differ, but sellers.email has a
+    # real UNIQUE constraint, and the local house_of_wax.db file persists
+    # across separate pytest invocations rather than resetting each time.
+    # Re-running the suite (or even just this one test) against that same
+    # file a second time collided with its own leftover row from the first
+    # run, throwing "UNIQUE constraint failed: sellers.email" -- not a real
+    # app bug, just this helper not being safe to call more than once ever
+    # against a given database. A uuid suffix makes every call unique
+    # regardless of how many times it's been run before.
+    email = store_name.lower().replace(" ", "-") + f"-{uuid.uuid4().hex[:8]}@example.com"
     data = {'store_name': store_name, 'owner_name': 'Test Owner', 'email': email, 'phone': '', 'city': '', 'state': '', 'website': '', 'instagram': '', 'store_bio': '', 'seller_story': '', 'specialties': '', 'logo_url': '', 'banner_url': '', 'status': 'Approved Seller', 'seller_level': 'Verified Seller', 'rating': 100, 'completed_sales': 0, 'disputes': 0, 'strikes': 0, 'auction_override': 'Yes', 'access_code': '', 'created_at': hw_app.now()}
     keys = list(data.keys())
     placeholders = ",".join("?" for _ in keys)
@@ -1334,7 +1347,9 @@ def _new_isolated_buyer(hw_app, email_prefix):
     # _real_buyer_session's app_users row is keyed on a unique auth_user_id
     # AND a unique email, so any two tests sharing a buyer would collide on
     # both. Give each test needing a real signed-in session its own buyer.
-    email = f"{email_prefix}@example.com"
+    # uuid suffix for the same reason as _new_isolated_seller above -- safe
+    # to call more than once against a database that persists across runs.
+    email = f"{email_prefix}-{uuid.uuid4().hex[:8]}@example.com"
     return hw_app.create_buyer(email, email_prefix.replace("_", " ").title())
 
 

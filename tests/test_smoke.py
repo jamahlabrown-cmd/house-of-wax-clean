@@ -949,6 +949,76 @@ def test_seller_action_dropdown_reflects_newly_selected_listings_real_status():
     )
 
 
+def test_publish_via_status_dropdown_blocked_without_a_photo():
+    # Founder: "we should have it where all submissions for sale have
+    # photos of lp and record" -- every live listing needs at least one
+    # photo (the auto-filled reference image, or the seller's own), and
+    # nothing previously enforced that on the My Inventory status-dropdown
+    # path (as opposed to the listing-creation form, which is a separate
+    # code path). A draft with no image_url should not be publishable.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "No Photo Publish Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    draft_product_id = _new_isolated_product(hw_app, seller_id, "No Photo Draft Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', image_url='' WHERE id=?", (draft_product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(draft_product_id).run()
+    at.selectbox(key=f"primary_my_inventory_seller_action_{draft_product_id}").set_value("Live").run()
+    at.button(key=f"primary_my_inventory_update_{draft_product_id}").click().run()
+    assert not at.exception, at.exception
+
+    assert hw_app.df("SELECT listing_status FROM products WHERE id=?", (draft_product_id,)).iloc[0]["listing_status"] == "Draft", (
+        "Listing should still be Draft -- publish must be blocked with no photo"
+    )
+    error_text = " ".join(e.value for e in at.error)
+    assert "photo" in error_text.lower(), f"Expected a photo-required error, got: {error_text}"
+
+
+def test_publish_via_status_dropdown_allowed_with_a_photo():
+    # Positive control for the guard above -- a listing that DOES have a
+    # photo should publish normally, same as before this fix.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Has Photo Publish Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    draft_product_id = _new_isolated_product(hw_app, seller_id, "Has Photo Draft Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', image_url='https://example.com/real-photo.jpg' WHERE id=?", (draft_product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(draft_product_id).run()
+    at.selectbox(key=f"primary_my_inventory_seller_action_{draft_product_id}").set_value("Live").run()
+    at.button(key=f"primary_my_inventory_update_{draft_product_id}").click().run()
+    assert not at.exception, at.exception
+
+    assert hw_app.df("SELECT listing_status FROM products WHERE id=?", (draft_product_id,)).iloc[0]["listing_status"] == "Live", (
+        "Listing with a real photo should publish normally"
+    )
+
+
 def test_real_admin_does_not_see_testing_mode_language():
     # Founder, live, signed in as a real admin (not via the Testing mode
     # toggle): "I'm still seeing testing language on here... that looks

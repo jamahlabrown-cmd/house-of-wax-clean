@@ -4253,8 +4253,8 @@ def home():
     groove_divider()
 
     with st.container(border=True):
-        st.subheader('Selling? House Of Wax wants your crates.')
-        st.write(f"List records, merch, and music collectibles, and get paid directly by the buyer through PayPal — House Of Wax never holds your money. We take a {commission_percent():g}% platform fee on top of your price, nothing more.")
+        st.subheader('Have records to sell?')
+        st.write(f"List records, merch, and music collectibles, and get paid directly by the buyer through PayPal — House Of Wax never holds your money. We take a {commission_percent():g}% platform fee on top of your price.")
         if st.button('Become a Seller',key='home_become_seller_cta',width='stretch'):
             request_marketplace_navigation('My Account'); st.rerun()
     merch=home_block('merch_shop')

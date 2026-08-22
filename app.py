@@ -4234,6 +4234,23 @@ def home():
         with st.expander('Tester Start Here',expanded=False):
             tester_start_here('home')
     st.info("Looking for something specific? Open Search Music and type an artist or album — we'll do the digging.")
+
+    section_header("New here? Here's how it works","No account gymnastics, no app to download first. Three steps, whether you're grabbing one record or building a want-list.")
+    how1,how2,how3=st.columns(3)
+    with how1:
+        with st.container(border=True):
+            st.markdown('**01 · Dig around**')
+            st.write("Search by artist or genre, or just wander what's new. Every listing is a real photo of the actual record — not a stock image.")
+    with how2:
+        with st.container(border=True):
+            st.markdown('**02 · Talk to the seller**')
+            st.write("Ask about the pressing, the wear, whatever you need to know. There's a real person on the other end who actually owns the crate.")
+    with how3:
+        with st.container(border=True):
+            st.markdown('**03 · Pay safely, get your wax**')
+            st.write("Pay the seller directly through PayPal — House Of Wax never touches your money. It ships straight from their shelf to your door.")
+    groove_divider()
+
     with st.container(border=True):
         st.subheader('Selling? House Of Wax wants your crates.')
         st.write(f"List records, merch, and music collectibles, and get paid directly by the buyer through PayPal — House Of Wax never holds your money. We take a {commission_percent():g}% platform fee on top of your price, nothing more.")

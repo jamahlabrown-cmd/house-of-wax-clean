@@ -4236,20 +4236,20 @@ def home():
             tester_start_here('home')
     st.info("Looking for something specific? Open Search Music and type an artist or album — we'll do the digging.")
 
-    section_header("New here? Here's how it works","No account gymnastics, no app to download first. Three steps, whether you're grabbing one record or building a want-list.")
+    section_header("How it works","Getting started takes a few minutes, whether you're buying one record or working through a longer list.")
     how1,how2,how3=st.columns(3)
     with how1:
         with st.container(border=True):
-            st.markdown('**01 · Dig around**')
-            st.write("Search by artist or genre, or just wander what's new. Every listing is a real photo of the actual record — not a stock image.")
+            st.markdown('**01 · Browse listings**')
+            st.write("Search by artist or genre, or look through what's new. Listings include real photos and condition notes, not stock images.")
     with how2:
         with st.container(border=True):
-            st.markdown('**02 · Talk to the seller**')
-            st.write("Ask about the pressing, the wear, whatever you need to know. There's a real person on the other end who actually owns the crate.")
+            st.markdown('**02 · Message the seller**')
+            st.write("Ask about condition, pressing details, or anything else you'd like to know before you buy. You're talking to the person who owns it.")
     with how3:
         with st.container(border=True):
-            st.markdown('**03 · Pay safely, get your wax**')
-            st.write("Pay the seller directly through PayPal — House Of Wax never touches your money. It ships straight from their shelf to your door.")
+            st.markdown('**03 · Pay securely, get your order**')
+            st.write("Payment goes directly to the seller through PayPal — House Of Wax doesn't hold or process funds. Your order ships from there.")
     groove_divider()
 
     with st.container(border=True):

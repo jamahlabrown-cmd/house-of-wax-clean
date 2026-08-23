@@ -1057,6 +1057,57 @@ def test_my_inventory_dataframe_shows_cover_photo_column():
     )
 
 
+def test_has_listing_photos_bulk_matches_per_item_lookup():
+    # Correctness check for the batched version against the same fixtures
+    # the single-item has_listing_photos() would be asked about: a real
+    # seller-uploaded photo counts, a reference/auto image URL and no
+    # gallery rows at all both don't.
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Bulk Photo Lookup Seller")
+    with_real_photo = _new_isolated_product(hw_app, seller_id, "Has A Real Photo")
+    with_reference_only = _new_isolated_product(hw_app, seller_id, "Reference Photo Only")
+    with_no_gallery_rows = _new_isolated_product(hw_app, seller_id, "No Gallery Rows At All")
+
+    hw_app.run(
+        "INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)",
+        (with_real_photo, "house_of_wax_uploads/real-photo.jpg", "Main listing photo", hw_app.now()),
+    )
+    hw_app.run(
+        "INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)",
+        (with_reference_only, "https://img.discogs.com/reference.jpg", "Reference art", hw_app.now()),
+    )
+
+    result = hw_app.has_listing_photos_bulk([with_real_photo, with_reference_only, with_no_gallery_rows])
+    assert result == {with_real_photo}, f"Expected only the real-photo item to match, got: {result}"
+
+    # Must agree with the original per-item function on the same fixtures.
+    assert hw_app.has_listing_photos(with_real_photo) == True
+    assert hw_app.has_listing_photos(with_reference_only) == False
+    assert hw_app.has_listing_photos(with_no_gallery_rows) == False
+
+    assert hw_app.has_listing_photos_bulk([]) == set()
+
+
+def test_has_listing_photos_bulk_uses_one_query_per_chunk_not_per_item(monkeypatch):
+    # Founder felt this live: My Inventory took 30-45+ seconds to load for
+    # a large store because has_listing_photos() ran once per row (one
+    # product_gallery network round-trip per listing). This proves the fix
+    # actually batches -- a few hosted_select calls total, not one per id.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    calls = []
+
+    def fake_hosted_select(table_name, filters=None, order=None, limit=None, in_filters=None, select=None):
+        calls.append(in_filters)
+        return pd.DataFrame(columns=["product_id", "image_url"])
+
+    monkeypatch.setattr(hw_app, "hosted_select", fake_hosted_select)
+    ids = list(range(1, 451))  # spans more than one 200-id chunk
+    hw_app.has_listing_photos_bulk(ids)
+    assert len(calls) == 3, f"Expected 3 chunked calls for 450 ids (200/200/50), got {len(calls)}: {calls}"
+    assert sum(len(c["product_id"]) for c in calls) == 450
+
+
 def test_round_price_range_up_rounds_to_whole_dollars_never_down():
     # Founder: "The price is not in whole numbers. I want to make sure we
     # are maximizing this part." Raw quantile/API prices come back in odd

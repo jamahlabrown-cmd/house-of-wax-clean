@@ -1213,6 +1213,106 @@ def test_seller_cannot_delete_sold_listing_with_real_completed_sale():
     assert not remaining.empty, "Listing with real sale history must not be deletable"
 
 
+# ---------- Bulk publish (founder: "why are my listings not live?" -> reviewing ~800 imported drafts one at a time is too slow) ----------
+
+def _setup_approved_seller_for_bulk_publish(hw_app, store_name):
+    seller_id = _new_isolated_seller(hw_app, store_name)
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+    return seller_id, seller_email
+
+
+def _load_my_inventory(hw_app, seller_id, seller_email):
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    assert not at.exception, at.exception
+    return at
+
+
+def test_bulk_publish_only_offers_drafts_with_both_a_photo_and_a_price():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id, seller_email = _setup_approved_seller_for_bulk_publish(hw_app, "Bulk Publish Eligibility Seller")
+
+    ready_id = _new_isolated_product(hw_app, seller_id, "Ready To Publish")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='https://img.discogs.com/ready.jpg' WHERE id=?", (ready_id,))
+
+    no_price_id = _new_isolated_product(hw_app, seller_id, "Has Photo No Price")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=0, image_url='https://img.discogs.com/no-price.jpg' WHERE id=?", (no_price_id,))
+
+    no_photo_id = _new_isolated_product(hw_app, seller_id, "Has Price No Photo")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='' WHERE id=?", (no_photo_id,))
+
+    at = _load_my_inventory(hw_app, seller_id, seller_email)
+    multiselects = [m for m in at.multiselect if m.key == "primary_my_inventory_bulk_publish_select"]
+    assert multiselects, "Expected the bulk publish multiselect to render when at least one listing is ready"
+    ms = multiselects[0]
+    assert ms.value == [ready_id], f"Expected only the ready listing as default selection, got: {ms.value}"
+
+
+def test_bulk_publish_hidden_when_no_listings_are_ready():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id, seller_email = _setup_approved_seller_for_bulk_publish(hw_app, "Bulk Publish None Ready Seller")
+    no_price_id = _new_isolated_product(hw_app, seller_id, "Still Needs A Price")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=0, image_url='https://img.discogs.com/pending.jpg' WHERE id=?", (no_price_id,))
+
+    at = _load_my_inventory(hw_app, seller_id, seller_email)
+    multiselects = [m for m in at.multiselect if m.key == "primary_my_inventory_bulk_publish_select"]
+    assert not multiselects, "Bulk publish section should not render when nothing is ready"
+
+
+def test_bulk_publish_hidden_when_seller_rules_not_accepted():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Bulk Publish Rules Not Accepted Seller")
+    # Deliberately skip accepting rules, unlike _setup_approved_seller_for_bulk_publish.
+    seller_email = hw_app.get_seller(seller_id)["email"]
+    ready_id = _new_isolated_product(hw_app, seller_id, "Ready But Rules Not Accepted")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='https://img.discogs.com/ready.jpg' WHERE id=?", (ready_id,))
+
+    at = _load_my_inventory(hw_app, seller_id, seller_email)
+    multiselects = [m for m in at.multiselect if m.key == "primary_my_inventory_bulk_publish_select"]
+    assert not multiselects, "Bulk publish must not be offered before seller rules are accepted"
+
+
+def test_bulk_publish_publishes_only_selected_listings_and_leaves_others_alone():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id, seller_email = _setup_approved_seller_for_bulk_publish(hw_app, "Bulk Publish Action Seller")
+
+    ready_a = _new_isolated_product(hw_app, seller_id, "Ready Item A")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=5, image_url='https://img.discogs.com/a.jpg' WHERE id=?", (ready_a,))
+    ready_b = _new_isolated_product(hw_app, seller_id, "Ready Item B")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=8, image_url='https://img.discogs.com/b.jpg' WHERE id=?", (ready_b,))
+    not_ready = _new_isolated_product(hw_app, seller_id, "Not Ready Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=0, image_url='https://img.discogs.com/c.jpg' WHERE id=?", (not_ready,))
+
+    at = _load_my_inventory(hw_app, seller_id, seller_email)
+    ms = next(m for m in at.multiselect if m.key == "primary_my_inventory_bulk_publish_select")
+    # Deselect item B, keep only A -- proves the selection actually controls
+    # what gets published, not just "publish everything ready."
+    ms.set_value([ready_a]).run()
+    publish_buttons = [b for b in at.button if b.key == "primary_my_inventory_bulk_publish_button"]
+    assert publish_buttons, "Expected the bulk publish button"
+    publish_buttons[0].click().run()
+    assert not at.exception, at.exception
+
+    statuses = hw_app.df("SELECT id,listing_status FROM products WHERE id IN (?,?,?)", (ready_a, ready_b, not_ready))
+    by_id = dict(zip(statuses["id"], statuses["listing_status"]))
+    assert by_id[ready_a] == "Live", "Selected ready item should be published"
+    assert by_id[ready_b] == "Draft", "Deselected ready item should stay Draft"
+    assert by_id[not_ready] == "Draft", "Item missing a price must never be published, selected or not"
+
+
 def test_round_price_range_up_rounds_to_whole_dollars_never_down():
     # Founder: "The price is not in whole numbers. I want to make sure we
     # are maximizing this part." Raw quantile/API prices come back in odd

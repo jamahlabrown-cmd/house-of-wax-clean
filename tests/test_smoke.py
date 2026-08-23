@@ -1922,7 +1922,7 @@ def test_buy_button_is_gone_from_search_music_and_product_detail():
     assert not at.exception
 
     button_keys = [b.key for b in at.button if b.key]
-    assert any(k.startswith("item_") for k in button_keys), "Expected the seeded listing card to actually render"
+    assert any(k.startswith("ask_item_") for k in button_keys), "Expected the seeded listing card to actually render"
     assert not any(k.startswith("buy_request_item_") for k in button_keys), "Buy button should be gone from listing cards"
     button_labels = [b.proto.label for b in at.button]
     assert "Buy" not in button_labels, f"Unexpected 'Buy' button still present: {button_labels}"
@@ -2097,18 +2097,19 @@ def test_seller_inventory_shows_view_and_watching_counts():
     )
 
 
-def test_view_button_navigates_away_from_sellers_public_inventory_page():
-    # Founder, screen recording: browsing a seller's store (Seller Stores ->
-    # a seller's public profile -> "Public inventory" section), tapping
-    # View/Ask/Offer on a listing card visibly triggers a rerun (button
-    # lights up, page dims/reloads) but lands back on the exact same seller
-    # profile page every time -- only Cart appeared to "work". Root cause:
-    # seller_stores() checks session_state['seller_id'] and dispatches to
-    # seller_profile() unconditionally, with no check for 'product_id' at
-    # all -- so product_card()'s View/Ask/Offer buttons (which only set
-    # product_id and rerun) get silently swallowed. Cart "worked" only
-    # because add_to_cart() succeeds and updates the card in place without
-    # needing navigation.
+def test_clicking_listing_photo_navigates_away_from_sellers_public_inventory_page():
+    # Founder, screen recording (original bug, back when this was a "View"
+    # button): browsing a seller's store (Seller Stores -> a seller's
+    # public profile -> "Public inventory" section), tapping View/Ask/Offer
+    # on a listing card visibly triggers a rerun but lands back on the
+    # exact same seller profile page every time. Root cause: seller_stores()
+    # checks session_state['seller_id'] and dispatches to seller_profile()
+    # unconditionally, with no check for 'product_id' at all. The View
+    # button itself is gone now (founder: "the view button can go away
+    # because it's not needed" -- the thumbnail is clickable instead), but
+    # the same underlying navigation guarantee still has to hold for the
+    # photo-click mechanism that replaced it (?open_product= query param,
+    # consumed by apply_image_click_navigation()).
     import app as hw_app
     seller_id = _new_isolated_seller(hw_app, "Nav Bug Test Store")
     product_id = _new_isolated_product(hw_app, seller_id, "Nav Bug Test Album")
@@ -2126,19 +2127,27 @@ def test_view_button_navigates_away_from_sellers_public_inventory_page():
     assert not at.exception, at.exception
     assert any("Public inventory" in s.value for s in at.subheader), "Expected to land on the seller's public inventory"
 
-    view_buttons = [b for b in at.button if b.key == f"item_{product_id}"]
-    assert view_buttons, "Expected a View button for the seeded listing"
-    view_buttons[0].click().run()
+    assert not [b for b in at.button if b.key == f"item_{product_id}"], (
+        "The View button should be gone -- the listing photo is the click-through now"
+    )
+
+    # Simulates clicking the listing photo: a real <a href="?open_product=...">
+    # (from st.image's link=), not a Streamlit rerun trigger, so exercise it
+    # the same way a real browser navigation would -- set the query param
+    # and load the page fresh.
+    at.query_params["open_product"] = str(product_id)
+    at.run()
     assert not at.exception, at.exception
 
     titles = [t.value for t in at.title]
     assert any("Nav Bug Test Album" in t for t in titles), (
-        f"Expected View to navigate to the product detail page (title should mention the album), got titles: {titles}"
+        f"Expected the photo click to navigate to the product detail page (title should mention the album), got titles: {titles}"
     )
     subheaders = [s.value for s in at.subheader]
     assert not any("Public inventory" in s for s in subheaders), (
         "Should have navigated away from the seller's public inventory grid, not stayed on it"
     )
+    assert "open_product" not in at.query_params, "The query param should be consumed, not left dangling"
 
 
 def test_seller_stores_directory_hides_non_approved_sellers():
@@ -2417,6 +2426,43 @@ def test_add_to_cart_is_idempotent_and_shows_in_cart_badge():
 
     cart_rows_after = hw_app.df("SELECT * FROM cart_items WHERE buyer_id=? AND product_id=?", (buyer_id, product_id))
     assert len(cart_rows_after) == 1, f"Expected still exactly one cart_items row after re-render, got {len(cart_rows_after)}"
+
+
+def test_product_detail_has_no_duplicate_ask_offer_buttons():
+    # Founder: "there are some redundancies. The buy button is very low on
+    # the screen and is hard to find." The old page had Ask/Offer as quick
+    # buttons right under the price that only pre-expanded the SAME two
+    # forms rendered again, full-width, under a separate "Buyer actions"
+    # header after Description/Video -- Add to Cart lived only down there.
+    # Buyer actions now render exactly once, right under the price.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "No Duplicate Buttons Test Album")
+
+    goto(at, "Search Music", area_key="marketplace_navigation")
+    at.session_state["product_id"] = int(product_id)
+    at.run()
+    assert not at.exception, at.exception
+
+    button_keys = [b.key for b in at.button if b.key]
+    assert not any(k.startswith("detail_ask_top_") for k in button_keys), (
+        f"The old duplicate top Ask button should be gone, got: {button_keys}"
+    )
+    assert not any(k.startswith("detail_offer_top_") for k in button_keys), (
+        f"The old duplicate top Offer button should be gone, got: {button_keys}"
+    )
+    subheaders = [s.value for s in at.subheader]
+    assert "Buyer actions" not in subheaders, (
+        f"The separate 'Buyer actions' section should be gone -- merged into one place near the price, got: {subheaders}"
+    )
+    # The real, single Ask/Offer/Cart entry points must still all be present.
+    assert any(k == f"cart_add_detail_{product_id}" for k in button_keys), "Expected the Add to Cart button"
+    expander_labels = [e.label for e in at.get("expander")]
+    assert "Ask About This Item / Contact Seller" in expander_labels
+    assert "Make an Offer" in expander_labels
 
 
 def test_anonymous_add_to_cart_resumes_after_sign_in():
@@ -3227,6 +3273,45 @@ def test_upload_product_prefills_reference_image_from_photo_library():
 
 # ---------- Support / Contact page (founder: replace/supplement the per-listing Report button with a general support path) ----------
 
+def test_report_listing_button_is_gone_from_buyer_facing_pages():
+    # Founder: "Please remove the report listing button. That can be done
+    # in customer support." Report Seller (on a seller's public profile)
+    # is a separate, intentionally-kept flow -- only the per-listing Report
+    # Listing button/form goes away, replaced by the general Support page.
+    import app as hw_app
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Report Button Removal Test Album")
+    hw_app.run("UPDATE products SET listing_status='Live' WHERE id=?", (product_id,))
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    # Card view (Search Music grid).
+    goto(at, "Search Music", area_key="marketplace_navigation")
+    assert not at.exception, at.exception
+    expander_labels = [e.label for e in at.get("expander")]
+    assert "Report Listing" not in expander_labels, f"Report Listing should be gone from listing cards, got: {expander_labels}"
+
+    # Full listing detail page.
+    at.session_state["product_id"] = int(product_id)
+    at.run()
+    assert not at.exception, at.exception
+    expander_labels = [e.label for e in at.get("expander")]
+    assert "Report Listing" not in expander_labels, f"Report Listing should be gone from the listing detail page, got: {expander_labels}"
+    all_text = " ".join(m.value for m in at.markdown) + " ".join(i.value for i in at.info)
+    assert "Support" in all_text, "Expected the listing detail page to point buyers at Support instead"
+
+    # Report Seller must still be intact -- this removal is listing-specific.
+    if "product_id" in at.session_state:
+        del at.session_state["product_id"]
+    at.session_state["seller_id"] = int(seller_id)
+    at.run()
+    assert not at.exception, at.exception
+    expander_labels = [e.label for e in at.get("expander")]
+    assert "Report Seller" in expander_labels, f"Report Seller should still be available on the seller profile, got: {expander_labels}"
+
+
 def test_support_page_reachable_via_query_param_and_has_a_way_back():
     at = AppTest.from_file("app.py", default_timeout=30)
     at.query_params["support"] = "1"
@@ -3619,3 +3704,4 @@ def test_barcode_flow_is_a_single_unified_search_no_duplicate_ui():
     assert "Source URL" not in combined
     # A match was found, so backup links still should not render.
     assert "Backup source links" not in markdown_text
+

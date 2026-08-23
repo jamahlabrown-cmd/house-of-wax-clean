@@ -19,7 +19,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.170 ADD: BULK PUBLISH LETS SELLERS PUBLISH MANY READY DRAFTS LIVE AT ONCE'
+APP_VERSION='V25.43.171 UPDATE: REPORT LISTING REMOVED (USE SUPPORT), EVEN BUTTON WIDTHS, CLICKABLE PHOTO + SIMPLER LISTING PAGE'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -469,6 +469,22 @@ def apply_share_deep_link():
     elif shared_article.isdigit():
         st.session_state['selected_knowledge_id']=int(shared_article)
         request_marketplace_navigation('Knowledge Hub')
+def apply_image_click_navigation():
+    # Founder: "I would like for the pic on the file to be clickable...
+    # The view button can go away because it's not needed." Listing
+    # thumbnails (product_card, in both the main Search Music grid and a
+    # seller's own Public inventory grid) render as a real <a
+    # href="?open_product={id}"> via st.image's link= param. Deliberately
+    # NOT reusing apply_share_deep_link()/view_product's "apply once ever"
+    # pattern or its forced jump to Search Music -- that's meant for a
+    # one-time incoming share link from outside the app. This has to fire
+    # on every click (browsing many listings in one session, possibly from
+    # inside a seller's own store) and must leave whatever tab/context the
+    # visitor is already in alone, the same as the old View button did.
+    target=safe(st.query_params.get('open_product')).strip()
+    if target.isdigit():
+        st.session_state['product_id']=int(target)
+        del st.query_params['open_product']
 def set_pending_action(action_type, product=None):
     product_id=int(product.get('id') or 0) if product is not None else int(st.session_state.get('product_id') or 0)
     seller_id=int(product.get('seller_id') or 0) if product is not None else 0
@@ -894,7 +910,7 @@ def public_terms_of_service():
     st.markdown('### Buying and selling')
     st.write(f'Checking out reserves an item and starts a payment window; Add to Cart and Make an Offer do not commit you to anything until checkout. House Of Wax connects buyers and sellers but never holds funds -- buyers pay sellers directly, and separately pay House Of Wax a {commission_percent():g}% platform fee, both through PayPal. Sellers and buyers are expected to communicate honestly and follow through on agreed transactions. If a buyer does not pay within {PAYMENT_WINDOW_DAYS} days of reserving an item at checkout, the reservation is released back to the seller and the buyer\'s account is flagged; repeated non-payment may result in account restrictions.')
     st.markdown('### If something goes wrong')
-    st.write(f"House Of Wax follows the same model most marketplaces that don't hold funds use (Discogs included): if an item you paid for doesn't arrive, contact the seller first through the site to work it out. Because you pay through PayPal directly, PayPal's own dispute process is how you recover your money if the seller doesn't resolve it. Separately, report it to House Of Wax using Report Listing / Report Seller within {NON_DELIVERY_REPORT_WINDOW_DAYS} days of paying -- House Of Wax reviews these reports and they can affect a seller's standing on the platform, the same way buyer non-payment affects a buyer's standing.")
+    st.write(f"House Of Wax follows the same model most marketplaces that don't hold funds use (Discogs included): if an item you paid for doesn't arrive, contact the seller first through the site to work it out. Because you pay through PayPal directly, PayPal's own dispute process is how you recover your money if the seller doesn't resolve it. Separately, report it to House Of Wax Support (or use Report Seller on that seller's profile) within {NON_DELIVERY_REPORT_WINDOW_DAYS} days of paying -- House Of Wax reviews these reports and they can affect a seller's standing on the platform, the same way buyer non-payment affects a buyer's standing.")
     st.markdown('### Prohibited listings')
     st.write('Counterfeit, stolen, unsafe, illegal, misleading, or hateful items are not allowed. This list is general and non-exhaustive. House Of Wax may investigate reports and may hide, restrict, or remove listings or accounts that violate these terms.')
     st.markdown('### Content you post')
@@ -913,7 +929,7 @@ def public_support_page():
     dead_end_screen_recovery_link('support_back')
     st.header('Contact House Of Wax Support')
     st.write("Have a question, ran into a problem, or something's not working right? Tell us what's going on and we'll get back to you.")
-    st.caption('Reporting a specific listing or seller for a rules violation instead? Use the Report Listing / Report Seller link on that item -- it goes straight to moderation and gets reviewed faster than a general message.')
+    st.caption("Reporting a specific listing? Use this form and mention the listing (title, artist, or a link). Reporting a seller for a rules violation instead? Use the Report Seller link on that seller's profile -- it goes straight to moderation.")
     with st.form('support_request_form'):
         name=st.text_input('Your name - optional')
         email=st.text_input('Your email - required so House Of Wax can reply')
@@ -992,7 +1008,7 @@ def save_files(uploads,folder):
     if not uploads: return []
     if not isinstance(uploads,list): uploads=[uploads]
     return [p for p in [save_file(up,folder) for up in uploads] if p]
-def safe_image(image_value, caption=None, width='stretch', fallback_text=None):
+def safe_image(image_value, caption=None, width='stretch', fallback_text=None, link=None):
     value=safe(image_value)
     if image_value is None or (isinstance(image_value,str) and not value):
         if fallback_text:
@@ -1014,7 +1030,7 @@ def safe_image(image_value, caption=None, width='stretch', fallback_text=None):
                 st.caption(fallback_text or 'Image unavailable.')
                 return False
     try:
-        st.image(image_to_render,caption=caption,width=width)
+        st.image(image_to_render,caption=caption,width=width,link=link)
         return True
     except Exception:
         st.caption(fallback_text or 'Image unavailable.')
@@ -1564,8 +1580,9 @@ def setup():
     old_v25_43_167_announcement='V25.43.167'+' Fix: My Inventory loads fast for large stores (batched photo lookup instead of one query per listing) active'
     old_v25_43_168_announcement='V25.43.168'+' Add: support requests email every admin instead of sitting unseen until someone checks active'
     old_v25_43_169_announcement='V25.43.169'+' Add: sellers can delete Sold listings too (unless a real platform sale is on record) active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement]:
-        set_setting('announcement','V25.43.170 Add: bulk publish lets sellers publish many ready drafts Live at once active')
+    old_v25_43_170_announcement='V25.43.170'+' Add: bulk publish lets sellers publish many ready drafts Live at once active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement,old_v25_43_170_announcement]:
+        set_setting('announcement','V25.43.171 Update: Report Listing removed (use Support), even button widths, clickable photo + simpler listing page active')
 setup()
 recovery_token_bridge()
 
@@ -3096,7 +3113,14 @@ def product_card(p, buyer_id=None):
         image=listing_primary_image(p)
         img_col,info_col=st.columns([1,2])
         with img_col:
-            if image: safe_image(image,width=90,fallback_text='No image')
+            # Founder: "I would like for the pic on the file to be
+            # clickable. When you click on the pic then I would like to
+            # see the buy buttons and everything else. The view but[ton]
+            # can go away because it's not needed." st.image's link=
+            # renders the thumbnail as a real <a href>, reusing the same
+            # ?open_product= deep-link handler the old View button's
+            # session_state-set-and-rerun did.
+            if image: safe_image(image,width=90,fallback_text='No image',link=f"?open_product={int(p['id'])}")
             else: st.caption('No image yet')
         with info_col:
             st.write(f"**{safe(p.get('title'),'Untitled listing')}**")
@@ -3123,25 +3147,28 @@ def product_card(p, buyer_id=None):
         if has_listing_photos(int(p['id'])):
             st.caption('📷 Seller photos included')
         if is_available_listing(p):
+            # Founder: "The view button can go away because it's not
+            # needed" -- the thumbnail above is now the click-through to
+            # the full listing page (product_detail, with buy buttons and
+            # everything else), so this row only needs the actions that
+            # don't already exist elsewhere on the card.
             with st.container(key=f"card_actions_{int(p['id'])}"):
-                b1,b2,b3,b4=st.columns(4)
-                if b1.button('View',key=f"item_{int(p['id'])}",width='stretch'):
-                    st.session_state['product_id']=int(p['id']); st.rerun()
-                if b2.button('Ask',key=f"ask_item_{int(p['id'])}",width='stretch'):
+                b1,b2,b3=st.columns(3)
+                if b1.button('Ask',key=f"ask_item_{int(p['id'])}",width='stretch'):
                     set_pending_action('Ask Seller',p)
                     st.session_state['product_id']=int(p['id'])
                     st.session_state[f'open_inquiry_{int(p["id"])}']=True
                     if not is_authenticated():
                         request_marketplace_navigation('My Account')
                     st.rerun()
-                if b3.button('Offer',key=f"offer_item_{int(p['id'])}",width='stretch'):
+                if b2.button('Offer',key=f"offer_item_{int(p['id'])}",width='stretch'):
                     set_pending_action('Make Offer',p)
                     st.session_state['product_id']=int(p['id'])
                     st.session_state[f'open_offer_{int(p["id"])}']=True
                     if not is_authenticated():
                         request_marketplace_navigation('My Account')
                     st.rerun()
-                with b4:
+                with b3:
                     if buyer_id and is_in_cart(buyer_id,int(p['id'])):
                         status_badge('In Cart','success')
                     elif st.button('Cart',key=f"cart_add_item_{int(p['id'])}",width='stretch'):
@@ -3155,11 +3182,7 @@ def product_card(p, buyer_id=None):
                         else:
                             st.warning('Complete your buyer profile in My Account to use your cart.')
         else:
-            if st.button('View',key=f"item_{int(p['id'])}",width='stretch'):
-                st.session_state['product_id']=int(p['id']); st.rerun()
-            st.caption('Buyer actions are hidden unless the listing is live/public and available.')
-        with st.expander('Report Listing',expanded=False):
-            report_listing_form(p,seller,f'card_listing_{int(p["id"])}')
+            st.caption('Buyer actions are hidden unless the listing is live/public and available. Click the photo to see full details.')
 def seller_profile(sid):
     s=get_seller(sid)
     if s is None: st.error('Seller not found.'); return
@@ -3284,10 +3307,19 @@ def product_detail(pid):
     is_public=is_public_listing(p)
     is_available=is_available_listing(p)
     if st.button('← Back to marketplace'): st.session_state.pop('product_id',None); st.rerun()
+    # Founder: "there are some redundancies. The buy button is very low on
+    # the screen and is hard to find. and the pic could be about half the
+    # size of what it is now." The old layout had Ask/Offer as quick
+    # buttons up top that only pre-expanded the SAME forms rendered again,
+    # full-width, after Description/Video/a "Buyer actions" header further
+    # down -- Add to Cart lived only down there, so buying meant scrolling
+    # past two duplicate Ask/Offer entry points to find it. Buyer actions
+    # (Cart first, then Ask/Offer) now live once, right under the price --
+    # no duplicate buttons, no separate section to scroll to.
     l,rcol=st.columns([1.2,1])
     with l:
         primary_image=listing_primary_image(p)
-        if primary_image: safe_image(primary_image,width='stretch',fallback_text='Listing image unavailable.')
+        if primary_image: safe_image(primary_image,width=260,fallback_text='Listing image unavailable.')
         else: st.markdown('## 🎵')
         if has_listing_photos(int(pid)):
             status_badge('📷 Seller photos included','success')
@@ -3295,6 +3327,36 @@ def product_detail(pid):
         render_listing_photo_gallery(pid,primary_image,'public')
     with rcol:
         st.title(f"{safe(p['artist'])} — {safe(p['title'])}"); st.write('**Price:** '+money(p['price'])); st.write('**Shipping:** '+money(p['shipping_price']))
+        status_label=listing_availability_label(p)
+        if status_label!='Available':
+            st.warning(status_label)
+        if not is_public:
+            st.info('Buyer actions appear only for public marketplace listings.')
+        elif is_available:
+            cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
+            if cart_bid and is_in_cart(cart_bid,pid):
+                status_badge('In Cart','success')
+                st.caption('Already in your cart. Go to Cart to check out.')
+            else:
+                if st.button('Add to Cart',key=f'cart_add_detail_{pid}',width='stretch',type='primary'):
+                    if not is_authenticated():
+                        set_pending_action('Add to Cart',p)
+                        request_marketplace_navigation('My Account')
+                        st.rerun()
+                    elif cart_bid:
+                        add_to_cart(cart_bid,p)
+                        st.rerun()
+                    else:
+                        st.warning('Complete your buyer profile in My Account to use your cart.')
+                st.caption('Check out from your cart any time -- one combined payment per seller.')
+            inquiry_expanded=bool(st.session_state.pop(f'open_inquiry_{pid}',False))
+            with st.expander('Ask About This Item / Contact Seller',expanded=inquiry_expanded):
+                render_buyer_inquiry_form(p,s,f'product_{pid}')
+            offer_expanded=bool(st.session_state.pop(f'open_offer_{pid}',False))
+            with st.expander('Make an Offer',expanded=offer_expanded):
+                render_offer_form(p,f'product_{pid}')
+        else:
+            st.info(f"This listing is {listing_availability_label(p).lower()}, so public buyer actions are turned off.")
         sold_comps=sold_price_history(p['artist'],exclude_product_id=int(pid))
         if not sold_comps.empty:
             comp_prices=sold_comps['price'].dropna().astype(float)
@@ -3310,27 +3372,9 @@ def product_detail(pid):
                         st.write(f"**{safe(comp.get('title'))}** • {safe(comp.get('media_grade'),'Condition not listed')} • {money(comp.get('price'))} • {safe(comp.get('updated_at'))[:10]}")
         if is_public:
             share_block('product',int(pid),f"{safe(p['artist'])} — {safe(p['title'])}")
-        status_label=listing_availability_label(p)
-        if status_label!='Available':
-            st.warning(status_label)
         for label,col in [('Category','category'),('Format','format'),('Label','label'),('Release year','release_year'),('Barcode / UPC / EAN','barcode'),('Catalog #','catalog_number'),('Matrix / runout','matrix_runout'),('Condition','media_grade')]: st.write(f"**{label}:** {safe(p[col],'Not listed')}")
         if s is not None:
             st.write('**Seller:** '+safe(s.get('store_name')))
-            if is_available:
-                st.caption('Questions before buying? Contact the seller through House Of Wax.')
-                if st.button('Contact Seller / Ask About This Item',key=f'detail_ask_top_{pid}',width='stretch'):
-                    set_pending_action('Ask Seller',p)
-                    st.session_state[f'open_inquiry_{pid}']=True
-                    if not is_authenticated():
-                        request_marketplace_navigation('My Account')
-                    st.rerun()
-                if st.button('Make an Offer',key=f'detail_offer_top_{pid}',width='stretch'):
-                    set_pending_action('Make Offer',p)
-                    st.session_state[f'open_offer_{pid}']=True
-                    if not is_authenticated():
-                        request_marketplace_navigation('My Account')
-                    st.rerun()
-                st.caption('Add to Cart below reserves nothing on its own -- check out when you\'re ready for one combined payment per seller.')
             if st.button('View seller public profile'): st.session_state['seller_id']=int(s['id']); st.session_state.pop('product_id',None); st.rerun()
     st.subheader('Description'); st.write(safe(p['description'],'No description.'))
     if safe(p.get('video_url')):
@@ -3339,38 +3383,7 @@ def product_detail(pid):
             st.video(safe(p.get('video_url')))
         except Exception:
             st.caption('Video could not be loaded from the link the seller provided.')
-    st.info('This listing was published by the seller. Report concerns to House Of Wax.')
-    with st.expander('Report Listing',expanded=False):
-        report_listing_form(p,s,f'listing_{pid}')
-    st.divider(); st.subheader('Buyer actions')
-    if not is_public:
-        st.info('Buyer actions appear only for public marketplace listings.')
-        return
-    if is_available:
-        inquiry_expanded=bool(st.session_state.pop(f'open_inquiry_{pid}',False))
-        with st.expander('Ask About This Item / Contact Seller',expanded=inquiry_expanded):
-            render_buyer_inquiry_form(p,s,f'product_{pid}')
-        offer_expanded=bool(st.session_state.pop(f'open_offer_{pid}',False))
-        with st.expander('Make an Offer',expanded=offer_expanded):
-            render_offer_form(p,f'product_{pid}')
-        cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
-        if cart_bid and is_in_cart(cart_bid,pid):
-            status_badge('In Cart','success')
-            st.caption('Already in your cart. Go to Cart to check out.')
-        else:
-            if st.button('Add to Cart',key=f'cart_add_detail_{pid}',width='stretch',type='primary'):
-                if not is_authenticated():
-                    set_pending_action('Add to Cart',p)
-                    request_marketplace_navigation('My Account')
-                    st.rerun()
-                elif cart_bid:
-                    add_to_cart(cart_bid,p)
-                    st.rerun()
-                else:
-                    st.warning('Complete your buyer profile in My Account to use your cart.')
-            st.caption('Check out from your cart any time -- one combined payment per seller.')
-    else:
-        st.info(f"This listing is {listing_availability_label(p).lower()}, so public buyer actions are turned off.")
+    st.info('This listing was published by the seller. Report concerns to House Of Wax Support.')
 
 # ---------- Pages ----------
 
@@ -7132,7 +7145,7 @@ def reserve_listing_for_payment(request_id, product_id):
     product_ok=core_update('products',{'listing_status':'Pending Pickup/Payment','updated_at':now()},{'id':int(product_id)},"UPDATE products SET listing_status='Pending Pickup/Payment',updated_at=? WHERE id=?",(now(),int(product_id)))
     core_update('purchase_requests',{'payment_due_at':due},{'id':int(request_id)},'UPDATE purchase_requests SET payment_due_at=? WHERE id=?',(due,int(request_id)))
     if not product_ok and hosted_enabled():
-        st.error("This order was recorded, but House Of Wax could not reserve the listing itself -- it may still show as available to others. This is a platform error, not something you did wrong. Message House Of Wax through Report Seller / Report Listing so it can be fixed by hand.")
+        st.error("This order was recorded, but House Of Wax could not reserve the listing itself -- it may still show as available to others. This is a platform error, not something you did wrong. Contact House Of Wax Support so it can be fixed by hand.")
     return due
 
 def checkout_seller_cart_group(buyer_id, seller_id, cart_rows):
@@ -7501,7 +7514,7 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
         pending_count=int(pending_mask.sum())
         if pending_count:
             st.info(f"{pending_count} imported item{'s' if pending_count!=1 else ''} still need a cover photo from Discogs.")
-            if st.button('Fetch next batch from Discogs',key=f'{key_prefix}_discogs_enrich'):
+            if st.button('Fetch next batch from Discogs',key=f'{key_prefix}_discogs_enrich',width='stretch'):
                 result=enrich_next_discogs_batch(int(sid))
                 st.success(f"Fetched {result['enriched']}. {result['remaining']} item(s) still pending -- click again to continue.")
                 st.rerun()
@@ -7520,7 +7533,7 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
                 ready_prods=prods[ready_mask]
                 option_labels={int(r['id']):f"#{int(r['id'])} — {safe(r.get('title'),'Untitled')} — {safe(r.get('artist'),'No artist')} — {money(r.get('price'))}" for _,r in ready_prods.iterrows()}
                 selected_ids=st.multiselect('Listings to publish',options=ready_ids,default=ready_ids,format_func=lambda i:option_labels.get(i,f'#{i}'),key=f'{key_prefix}_bulk_publish_select')
-                if st.button(f'Publish {len(selected_ids)} selected listing{"s" if len(selected_ids)!=1 else ""} Live',key=f'{key_prefix}_bulk_publish_button',disabled=not selected_ids):
+                if st.button(f'Publish {len(selected_ids)} selected listing{"s" if len(selected_ids)!=1 else ""} Live',key=f'{key_prefix}_bulk_publish_button',disabled=not selected_ids,width='stretch'):
                     for publish_id in selected_ids:
                         core_update('products',{'listing_status':'Live','updated_at':now()},{'id':int(publish_id),'seller_id':int(sid)},'UPDATE products SET listing_status=?,updated_at=? WHERE id=? AND seller_id=?',('Live',now(),int(publish_id),sid))
                     st.success(f'{len(selected_ids)} listing(s) published Live.')
@@ -7585,7 +7598,7 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
             grade_note=f" for {price_suggestion['grade_used']} condition" if price_suggestion.get('grade_used') else ''
             st.caption(f"Suggested price range{grade_note}: {money(price_suggestion['low'])}–{money(price_suggestion['high'])}, based on {price_suggestion['source']}. Set your price below -- this is a starting point, not the final price.")
     new_price=st.number_input('Price ($)',min_value=0.0,step=1.0,value=float(row.get('price') or 0),key=f'{key_prefix}_price_{int(pid)}')
-    if st.button('Update price',key=f'{key_prefix}_price_update_{int(pid)}'):
+    if st.button('Update price',key=f'{key_prefix}_price_update_{int(pid)}',width='stretch'):
         core_update('products',{'price':float(new_price),'updated_at':now()},{'id':int(pid),'seller_id':int(sid)},'UPDATE products SET price=?,updated_at=? WHERE id=? AND seller_id=?',(float(new_price),now(),int(pid),sid))
         st.success(f'Price updated to {money(new_price)}.')
         st.rerun()
@@ -7606,7 +7619,7 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
     # move it to my store").
     default_index=actions.index(current_status) if current_status in actions else 0
     status=st.selectbox('Seller action',actions,index=default_index,key=f'{key_prefix}_seller_action_{int(pid)}',help='Draft stays private. Live publishes to your store. Hidden removes it from public view. Sold marks it no longer available.')
-    if st.button('Update listing status',key=f'{key_prefix}_update_{int(pid)}'):
+    if st.button('Update listing status',key=f'{key_prefix}_update_{int(pid)}',width='stretch'):
         if status=='Live' and not is_approved:
             st.error('Your seller account must be approved before you can publish listings.')
             return
@@ -7625,7 +7638,7 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
         img=st.file_uploader('Photo',type=['png','jpg','jpeg','webp'],key=f'{key_prefix}_gallery_img_{int(pid)}')
         url=st.text_input('Or image URL',key=f'{key_prefix}_gallery_url_{int(pid)}')
         cap=st.text_input('Caption',key=f'{key_prefix}_gallery_cap_{int(pid)}')
-        if st.button('Add photo',key=f'{key_prefix}_gallery_add_{int(pid)}'):
+        if st.button('Add photo',key=f'{key_prefix}_gallery_add_{int(pid)}',width='stretch'):
             image=save_file(img,'product_gallery') or url
             if image:
                 gdata={'product_id':int(pid),'image_url':image,'caption':cap,'created_at':now()}
@@ -7657,7 +7670,7 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
             else:
                 st.warning('This permanently removes the listing. It cannot be undone. Only Draft, Hidden, and Sold listings can be deleted -- mark a listing Hidden or Sold first if it is currently Live.')
                 confirm=st.checkbox('I understand this cannot be undone',key=f'{key_prefix}_delete_confirm_{int(pid)}')
-                if st.button('Delete listing permanently',key=f'{key_prefix}_delete_{int(pid)}') and confirm:
+                if st.button('Delete listing permanently',key=f'{key_prefix}_delete_{int(pid)}',width='stretch') and confirm:
                     ok=hosted_delete('products',{'id':int(pid),'seller_id':int(sid)}) if hosted_enabled() else (run('DELETE FROM products WHERE id=? AND seller_id=?',(int(pid),int(sid))) or True)
                     if ok:
                         st.success('Listing deleted.'); st.rerun()
@@ -8545,6 +8558,7 @@ if safe(st.query_params.get('support')):
     st.stop()
 testing_mode=app_mode()
 apply_share_deep_link()
+apply_image_click_navigation()
 area_options=['House Of Wax Marketplace']
 if is_admin_unlocked():
     area_options.append('House Of Wax Admin')

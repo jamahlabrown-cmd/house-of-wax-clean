@@ -3071,6 +3071,81 @@ def test_support_request_submission_saves_and_shows_in_admin_queue():
     )
 
 
+def test_notify_admins_new_support_request_emails_every_admin(monkeypatch):
+    # Founder: a new support request only ever showed up if someone
+    # remembered to open the admin panel and check -- no alert otherwise.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "admin_email_allowlist", lambda: ["admin1@example.com", "admin2@example.com"])
+    sent = []
+    monkeypatch.setattr(
+        hw_app, "send_email",
+        lambda to_email, subject, html_body: sent.append((to_email, subject, html_body)) or True,
+    )
+
+    hw_app.notify_admins_new_support_request("Jamie", "buyer@example.com", "Payment issue", "My order never showed up.")
+
+    assert len(sent) == 2, f"Expected one email per configured admin, got: {sent}"
+    assert [s[0] for s in sent] == ["admin1@example.com", "admin2@example.com"]
+    for to_email, subject, body in sent:
+        assert "Payment issue" in subject
+        assert "buyer@example.com" in body
+        assert "My order never showed up." in body
+
+
+def test_notify_admins_new_support_request_noop_when_no_admins_configured(monkeypatch):
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "admin_email_allowlist", lambda: [])
+    calls = []
+    monkeypatch.setattr(hw_app, "send_email", lambda *a, **k: calls.append(a) or True)
+    hw_app.notify_admins_new_support_request("Jamie", "buyer@example.com", "General", "Hello")
+    assert calls == [], "Should not attempt to send any email when no admins are configured"
+
+
+def test_support_form_submission_actually_emails_the_admin(monkeypatch):
+    # Integration-level proof of the fix, not just the helper function in
+    # isolation: submitting the real support form must trigger a real
+    # outbound email call to the configured admin address.
+    import app as hw_app
+    monkeypatch.setenv("ADMIN_EMAILS", "founder@example.com")
+    # send_email() reads RESEND_API_KEY via st.secrets.get(), not
+    # config_value() -- so unlike ADMIN_EMAILS above, an env var alone
+    # doesn't reach it. st.secrets blocks plain attribute assignment
+    # entirely (raises TypeError), so use its own public API for injecting
+    # a secret programmatically; it persists across AppTest's reruns since
+    # it's the same secrets singleton each time (only the script's own
+    # top-level `def`s get rebound on rerun, not imported module state).
+    hw_app.st.secrets.merge_programmatic_secrets({"RESEND_API_KEY": "fake-resend-key-for-tests"})
+    calls = []
+
+    class FakeResponse:
+        status_code = 200
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        calls.append((url, json))
+        return FakeResponse()
+
+    monkeypatch.setattr(hw_app.requests, "post", fake_post)
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.query_params["support"] = "1"
+    at.run()
+    assert not at.exception, at.exception
+
+    email_input = next(t for t in at.text_input if (t.label or "").startswith("Your email"))
+    email_input.set_value("worried-buyer@example.com").run()
+    message_input = next(t for t in at.text_area if (t.label or "").startswith("Tell us what is going on"))
+    message_input.set_value("My package never arrived.").run()
+    submit_buttons = [b for b in at.button if (b.label or "") == "Send to House Of Wax"]
+    submit_buttons[0].click().run()
+    assert not at.exception, at.exception
+
+    assert calls, "Expected the support form submission to trigger a real send_email -> requests.post call"
+    _, payload = calls[0]
+    assert payload["to"] == ["founder@example.com"], f"Expected the admin address as recipient, got: {payload['to']}"
+    assert "worried-buyer@example.com" in payload["html"]
+    assert "My package never arrived." in payload["html"]
+
+
 def test_insert_only_tables_use_return_minimal_not_representation(monkeypatch):
     # Regression guard: support_requests and release_photo_library both have
     # an anon/authenticated INSERT policy but deliberately no matching SELECT

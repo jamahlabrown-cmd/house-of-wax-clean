@@ -1108,6 +1108,111 @@ def test_has_listing_photos_bulk_uses_one_query_per_chunk_not_per_item(monkeypat
     assert sum(len(c["product_id"]) for c in calls) == 450
 
 
+# ---------- Deleting inventory (founder: sellers need a way to delete listings that sold, including sold off-platform) ----------
+
+def test_product_has_completed_platform_sale_true_when_real_sold_purchase_request_exists():
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Real Sale Test Seller")
+    product_id = _new_isolated_product(hw_app, seller_id, "Item Sold Through House Of Wax")
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_name,buyer_contact,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+        (product_id, seller_id, "Real Buyer", "buyer@example.com", "Sold", hw_app.now(), hw_app.now()),
+    )
+    assert hw_app.product_has_completed_platform_sale(product_id) is True
+
+
+def test_product_has_completed_platform_sale_false_with_no_purchase_request():
+    # The common case for "sold another way" -- seller marks it Sold
+    # themselves, no real purchase_requests row was ever created for it.
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Off Platform Sale Test Seller")
+    product_id = _new_isolated_product(hw_app, seller_id, "Item Sold Somewhere Else")
+    assert hw_app.product_has_completed_platform_sale(product_id) is False
+
+
+def test_product_has_completed_platform_sale_false_when_only_an_unfulfilled_offer_exists():
+    # A purchase_requests row that never actually completed (still New,
+    # never reached status=Sold) must not count as real sale history.
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Pending Offer Test Seller")
+    product_id = _new_isolated_product(hw_app, seller_id, "Item With Only An Open Offer")
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_name,buyer_contact,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+        (product_id, seller_id, "Interested Buyer", "buyer2@example.com", "New", hw_app.now(), hw_app.now()),
+    )
+    assert hw_app.product_has_completed_platform_sale(product_id) is False
+
+
+def test_seller_can_delete_sold_listing_with_no_real_purchase_history():
+    # Founder: "Some people may sell other ways and some items will sell
+    # and they can't delete it from their inventory." Sold listings used
+    # to never be deletable at all, no matter what.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Delete Sold No History Seller")
+    product_id = _new_isolated_product(hw_app, seller_id, "Sold Elsewhere Item")
+    hw_app.run("UPDATE products SET listing_status='Sold' WHERE id=?", (product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    at.checkbox(key="primary_my_inventory_show_sold").set_value(True).run()
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(product_id).run()
+    assert not at.exception, at.exception
+
+    confirm = next(c for c in at.checkbox if c.key == f"primary_my_inventory_delete_confirm_{product_id}")
+    confirm.set_value(True).run()
+    delete_button = next(b for b in at.button if b.key == f"primary_my_inventory_delete_{product_id}")
+    delete_button.click().run()
+    assert not at.exception, at.exception
+
+    remaining = hw_app.df("SELECT * FROM products WHERE id=?", (product_id,))
+    assert remaining.empty, "Sold listing with no real purchase history should be deletable"
+
+
+def test_seller_cannot_delete_sold_listing_with_real_completed_sale():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Delete Sold Real History Seller")
+    product_id = _new_isolated_product(hw_app, seller_id, "Genuinely Sold On House Of Wax")
+    hw_app.run("UPDATE products SET listing_status='Sold' WHERE id=?", (product_id,))
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_name,buyer_contact,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+        (product_id, seller_id, "Real Buyer", "buyer3@example.com", "Sold", hw_app.now(), hw_app.now()),
+    )
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    at.checkbox(key="primary_my_inventory_show_sold").set_value(True).run()
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(product_id).run()
+    assert not at.exception, at.exception
+
+    delete_buttons = [b for b in at.button if b.key == f"primary_my_inventory_delete_{product_id}"]
+    assert not delete_buttons, "A listing with a real completed sale must not offer a delete button"
+    all_text = " ".join(w.value for w in at.warning)
+    assert "completed House Of Wax sale" in all_text
+
+    remaining = hw_app.df("SELECT * FROM products WHERE id=?", (product_id,))
+    assert not remaining.empty, "Listing with real sale history must not be deletable"
+
+
 def test_round_price_range_up_rounds_to_whole_dollars_never_down():
     # Founder: "The price is not in whole numbers. I want to make sure we
     # are maximizing this part." Raw quantile/API prices come back in odd

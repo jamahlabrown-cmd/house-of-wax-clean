@@ -660,7 +660,13 @@ def test_parse_discogs_collection_csv_maps_fields_and_forces_draft():
     assert cass_mapped["category"] == "Cassettes"
 
 
-def test_enrich_next_discogs_batch_updates_image_and_price_leaves_status_draft(monkeypatch):
+def test_enrich_next_discogs_batch_updates_image_only_leaves_price_and_status_alone(monkeypatch):
+    # Founder: "I only want price suggestion to show when the item is being
+    # inputted into the system. At that point the seller chooses how much
+    # they want to list the item for." Enrichment must fetch cover art
+    # only -- price stays exactly as it was (0 for a fresh import) even
+    # when Discogs returns a real lowest_price, so the seller is the one
+    # who actually sets it, guided by the (now-rounded) suggested range.
     import app as hw_app
     seller_id = _new_isolated_seller(hw_app, "Discogs Enrich Test Seller")
     hw_app.run(
@@ -681,7 +687,7 @@ def test_enrich_next_discogs_batch_updates_image_and_price_leaves_status_draft(m
 
     row = hw_app.df("SELECT * FROM products WHERE id=?", (product_id,)).iloc[0]
     assert row["image_url"] == "https://img.discogs.com/example.jpg"
-    assert float(row["price"]) == 12.5
+    assert float(row["price"]) == 0, "Price must stay unset -- the seller chooses it, enrichment never auto-fills it"
     assert row["listing_status"] == "Draft", "Enrichment must never flip status to Live on its own"
 
 
@@ -720,10 +726,12 @@ def test_enrich_next_discogs_batch_stops_retrying_items_discogs_has_nothing_for(
     assert calls == [], "The permanently-unfetchable item should not be retried on later batches"
 
 
-def test_enrich_next_discogs_batch_marks_price_only_items_as_resolved(monkeypatch):
-    # Same class of bug for the partial case: Discogs has a price but no
-    # cover art for a release. That item should still leave the pending
-    # queue once tried, with a note that only the photo is missing.
+def test_enrich_next_discogs_batch_marks_no_image_items_as_resolved_without_writing_price(monkeypatch):
+    # Partial case: Discogs returns a price but no cover art for a release.
+    # That item should still leave the pending queue once tried, with a
+    # note that a photo is missing -- and price must stay untouched, since
+    # enrichment no longer auto-fills it (the seller sets it, guided by the
+    # suggested range).
     import app as hw_app
     seller_id = _new_isolated_seller(hw_app, "Discogs Price Only Test Seller")
     hw_app.run(
@@ -739,7 +747,7 @@ def test_enrich_next_discogs_batch_marks_price_only_items_as_resolved(monkeypatc
     assert result["remaining"] == 0
 
     row = hw_app.df("SELECT * FROM products WHERE id=?", (product_id,)).iloc[0]
-    assert float(row["price"]) == 9.99
+    assert float(row["price"]) == 0, "Price must stay unset even when Discogs returns a lowest_price"
     assert row["reviewer_notes"], "Expected a note that cover art specifically wasn't found"
 
 
@@ -990,8 +998,15 @@ def test_my_inventory_shows_price_range_and_lets_seller_update_price():
 
     caption_text = " ".join(c.value for c in at.caption)
     assert "Suggested price range" in caption_text, f"Expected a price-range caption, got: {caption_text}"
-    assert "$20" in caption_text or "$25" in caption_text or "$30" in caption_text, (
-        f"Expected the range to reflect the two comparable items' prices ($20-$30), got: {caption_text}"
+    # Compute the expected range the same way the app does (quantiles of
+    # [20, 30], adjusted for the target listing's own grade), rather than
+    # hardcoding the grade-multiplier math here. round_price_range_up()
+    # rounds both ends up to the nearest whole dollar (founder: "make sure
+    # we are maximizing this part" -- clean numbers, never rounded down).
+    expected = hw_app.suggest_seller_price_range("Range Test Artist", None, "VG+", "VG", "Item Needing A Price")
+    assert expected["low"] % 1 == 0 and expected["high"] % 1 == 0, "Suggested range must be whole dollars"
+    assert hw_app.money(expected["low"]) in caption_text and hw_app.money(expected["high"]) in caption_text, (
+        f"Expected {hw_app.money(expected['low'])}-{hw_app.money(expected['high'])} in caption, got: {caption_text}"
     )
 
     at.number_input(key=f"primary_my_inventory_price_{target_id}").set_value(27.5).run()
@@ -1000,6 +1015,69 @@ def test_my_inventory_shows_price_range_and_lets_seller_update_price():
     assert hw_app.df("SELECT price FROM products WHERE id=?", (target_id,)).iloc[0]["price"] == 27.5, (
         "Price should actually persist after clicking Update price"
     )
+
+    # Founder: "I only want price suggestion to show when the item is being
+    # inputted into the system. At that point the seller chooses how much
+    # they want to list the item for." Now that a real price has been set,
+    # the suggestion must not keep reappearing on every future visit.
+    caption_text_after = " ".join(c.value for c in at.caption)
+    assert "Suggested price range" not in caption_text_after, (
+        f"Suggestion should disappear once a real price is set, got: {caption_text_after}"
+    )
+
+
+def test_my_inventory_dataframe_shows_cover_photo_column():
+    # Founder: "I don't see photo of the album covers or any other pics."
+    # The inventory table had a text Yes/No indicator but never rendered
+    # the actual image, which made reviewing a large imported batch a wall
+    # of text with no visual to recognize items by.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Cover Photo Test Seller")
+    product_id = _new_isolated_product(hw_app, seller_id, "Item With A Cover")
+    hw_app.run("UPDATE products SET image_url='https://img.discogs.com/cover-test.jpg' WHERE id=?", (product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    assert not at.exception, at.exception
+
+    table = at.dataframe[0].value
+    assert "Cover" in table.columns, f"Expected a Cover column in My Inventory, got: {list(table.columns)}"
+    assert "https://img.discogs.com/cover-test.jpg" in table["Cover"].values, (
+        "Expected the item's real image_url to appear in the Cover column"
+    )
+
+
+def test_round_price_range_up_rounds_to_whole_dollars_never_down():
+    # Founder: "The price is not in whole numbers. I want to make sure we
+    # are maximizing this part." Raw quantile/API prices come back in odd
+    # cents -- round both ends up (never down) to a clean whole dollar.
+    import app as hw_app
+    result = hw_app.round_price_range_up({"low": 7.94, "high": 11.47, "source": "test"})
+    assert result["low"] == 8.0
+    assert result["high"] == 12.0
+
+    # Already-whole values should stay put, not get bumped up an extra dollar.
+    exact = hw_app.round_price_range_up({"low": 10.0, "high": 20.0, "source": "test"})
+    assert exact["low"] == 10.0
+    assert exact["high"] == 20.0
+
+    # A tight range still rounds each end up independently -- $9.99-$10.01
+    # becomes $10-$11, not squashed into a single number.
+    tight = hw_app.round_price_range_up({"low": 9.99, "high": 10.01, "source": "test"})
+    assert tight["low"] == 10.0
+    assert tight["high"] == 11.0
+
+    assert hw_app.round_price_range_up(None) is None
 
 
 def test_publish_via_status_dropdown_blocked_without_a_photo():

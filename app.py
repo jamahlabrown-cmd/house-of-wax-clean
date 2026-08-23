@@ -5,6 +5,7 @@ import re
 import os
 import html
 import hashlib
+import math
 import secrets
 import time
 from uuid import uuid4
@@ -18,7 +19,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.165 ADD: MY INVENTORY SHOWS A PRICE RANGE AND LETS SELLERS UPDATE PRICE DIRECTLY'
+APP_VERSION='V25.43.166 FIX: PRICE SUGGESTIONS ARE WHOLE DOLLARS, ONLY SHOW BEFORE A PRICE IS SET, AND MY INVENTORY SHOWS COVER PHOTOS'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1557,8 +1558,9 @@ def setup():
     old_v25_43_162_announcement='V25.43.162'+' Cleanup: full sweep -- stale prototype/testing language removed from admin and user-facing screens active'
     old_v25_43_163_announcement='V25.43.163'+' Fix: publishing a listing now uses that listing\'s own status, not a leftover selection active'
     old_v25_43_164_announcement='V25.43.164'+' Fix: listings cannot publish Live without at least one photo active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement]:
-        set_setting('announcement','V25.43.165 Add: My Inventory shows a price range and lets sellers update price directly active')
+    old_v25_43_165_announcement='V25.43.165'+' Add: My Inventory shows a price range and lets sellers update price directly active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement]:
+        set_setting('announcement','V25.43.166 Fix: price suggestions are whole dollars, only show before a price is set, and My Inventory shows cover photos active')
 setup()
 recovery_token_bridge()
 
@@ -5502,21 +5504,25 @@ def enrich_next_discogs_batch(sid, batch_size=25):
         details=fetch_discogs_release_details(release_id)
         update={'updated_at':now()}
         image_found=details and safe(details.get('image_url'))
-        price_found=details and details.get('lowest_price') is not None
         if image_found:
             update['image_url']=details['image_url']
-        if price_found:
-            update['price']=float(details['lowest_price'])
-        if not details:
-            update['reviewer_notes']='Discogs: no cover art or price found automatically -- add your own photo and set a price manually.'
-        elif not image_found:
-            update['reviewer_notes']='Discogs: no cover art found automatically (a price suggestion was applied) -- add your own photo.'
+        # Deliberately does NOT auto-fill price from Discogs' lowest_price
+        # anymore, even though fetch_discogs_release_details still returns
+        # it. Founder: "I only want price suggestion to show when the item
+        # is being inputted into the system. At that point the seller
+        # chooses how much they want to list the item for." Auto-writing a
+        # real dollar figure here meant a seller could publish a price they
+        # never actually chose. The same lowest_price signal still reaches
+        # the seller -- as the rounded "Suggested price range" caption in
+        # My Inventory, shown only while price is still unset (0).
+        if not image_found:
+            update['reviewer_notes']='Discogs: no cover art found automatically -- add your own photo and set a price using the suggested range.'
         # Every row in the batch gets marked as attempted (reviewer_notes or
         # a found field), even when Discogs has nothing -- that's what makes
         # this batch shrink the pending count for good, not just this run.
         set_clause=','.join(f'{k}=?' for k in update)
         core_update('products',update,{'id':int(row['id'])},f"UPDATE products SET {set_clause} WHERE id=?",tuple(update.values())+(int(row['id']),))
-        if image_found or price_found:
+        if image_found:
             enriched+=1
         time.sleep(1.1)
     remaining=int(len(pending))-len(batch)
@@ -5567,6 +5573,23 @@ def suggest_price_range_from_how_history(artist, media_grade=None, sleeve_grade=
     except Exception:
         return None
 
+def round_price_range_up(result):
+    # Founder: "make sure we are maximizing this part" -- raw prices from
+    # Discogs/sales history come back in odd cents (e.g. $7.94-$11.47),
+    # which reads as fussy rather than intentional. Round both ends up to
+    # the nearest whole dollar (never down) so the suggestion is a clean
+    # number and never nudges a seller toward less than the real estimate.
+    if not result:
+        return result
+    result=dict(result)
+    if result.get('low') is not None:
+        result['low']=float(math.ceil(float(result['low'])))
+    if result.get('high') is not None:
+        result['high']=float(math.ceil(float(result['high'])))
+        if result.get('low') is not None and result['high']<result['low']:
+            result['high']=result['low']
+    return result
+
 def suggest_seller_price_range(artist, discogs_release_id=None, media_grade=None, sleeve_grade=None, title=None):
     if not discogs_release_id and discogs_token_status() and (safe(artist) or safe(title)):
         # The match that filled in this listing draft may have come from
@@ -5585,8 +5608,8 @@ def suggest_seller_price_range(artist, discogs_release_id=None, media_grade=None
     if discogs_release_id:
         result=suggest_price_range_from_discogs(discogs_release_id,media_grade,sleeve_grade)
         if result:
-            return result
-    return suggest_price_range_from_how_history(artist,media_grade,sleeve_grade)
+            return round_price_range_up(result)
+    return round_price_range_up(suggest_price_range_from_how_history(artist,media_grade,sleeve_grade))
 
 def barcode_length_status(barcode):
     code=normalize_barcode(barcode)
@@ -7413,12 +7436,18 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
         pending_mask=(prods['listing_status'].fillna('')=='Draft') & prods['external_release_url'].fillna('').str.startswith(discogs_prefix) & (prods['image_url'].fillna('')=='') & (prods['reviewer_notes'].fillna('')=='')
         pending_count=int(pending_mask.sum())
         if pending_count:
-            st.info(f"{pending_count} imported item{'s' if pending_count!=1 else ''} still need a cover photo/price suggestion from Discogs.")
+            st.info(f"{pending_count} imported item{'s' if pending_count!=1 else ''} still need a cover photo from Discogs.")
             if st.button('Fetch next batch from Discogs',key=f'{key_prefix}_discogs_enrich'):
                 result=enrich_next_discogs_batch(int(sid))
                 st.success(f"Fetched {result['enriched']}. {result['remaining']} item(s) still pending -- click again to continue.")
                 st.rerun()
     prods['Photos']=prods['id'].apply(lambda i: 'Yes' if has_listing_photos(int(i)) else 'No (auto image)')
+    # Founder: "I don't see photo of the album covers or any other pics."
+    # The table had a text Yes/No "Photos" indicator but never actually
+    # rendered the image -- reviewing hundreds of imported drafts with no
+    # visual meant scrolling a wall of artist/title text. image_url covers
+    # both a seller's own upload and the Discogs-fetched cover art.
+    prods['Cover']=prods['image_url'].fillna('')
     prods['Views']=prods['view_count'].fillna(0).astype(int) if 'view_count' in prods.columns else 0
     active_mask=~prods['listing_status'].fillna('').isin(['Sold','Removed by House Of Wax'])
     clean_barcodes=prods['barcode'].fillna('').apply(normalize_barcode)
@@ -7432,13 +7461,15 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
     if visible_prods.empty:
         st.info('All of your listings are sold or removed. Check "Show sold/removed listings" above to see them.')
         return
-    cols=[c for c in ['id','title','artist','price','quantity','listing_status','Views','Photos','Possible duplicate','created_at','reviewer_notes'] if c in visible_prods.columns]
-    st.dataframe(visible_prods[cols],width='stretch')
+    cols=[c for c in ['Cover','id','title','artist','price','quantity','listing_status','Views','Photos','Possible duplicate','created_at','reviewer_notes'] if c in visible_prods.columns]
+    st.dataframe(visible_prods[cols],width='stretch',column_config={'Cover':st.column_config.ImageColumn('Cover')})
     if (visible_prods['Possible duplicate']=='Yes').any():
         st.caption('Rows marked "Possible duplicate" share a barcode with another active listing in your inventory.')
     pid=st.selectbox('Listing ID',visible_prods['id'].tolist(),key=f'{key_prefix}_listing_id')
     row=visible_prods[visible_prods['id']==pid].iloc[0]
     st.write(f"**Selected item:** {safe(row.get('title'),'Untitled')} • {safe(row.get('artist'),'No artist/brand')} • {money(row.get('price'))}")
+    if safe(row.get('image_url')):
+        st.image(safe(row.get('image_url')),width=180)
     view_count=int(row.get('view_count') or 0)
     watchers=find_want_list_matches_for_notify(row.get('artist'),row.get('title'))
     st.caption(f"👀 {view_count} view{'s' if view_count!=1 else ''} · {len(watchers)} buyer{'s' if len(watchers)!=1 else ''} watching for this")
@@ -7451,7 +7482,15 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
     # listing-creation form already uses, so it's the same real range (not
     # a single number) whether you're creating a new listing or reviewing
     # an imported one.
-    if safe(row.get('artist')):
+    #
+    # Only shown while price is still 0 (never set) -- founder: "I only
+    # want price suggestion to show when the item is being inputted into
+    # the system. At that point the seller chooses how much they want to
+    # list the item for." Once a real price exists, the item has already
+    # been "input" and the suggestion would just be repeated noise on every
+    # future visit.
+    current_price=float(row.get('price') or 0)
+    if current_price<=0 and safe(row.get('artist')):
         discogs_release_id=None
         ext_url=safe(row.get('external_release_url'))
         if ext_url.startswith('https://www.discogs.com/release/'):
@@ -7459,7 +7498,7 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
         price_suggestion=suggest_seller_price_range(safe(row.get('artist')),discogs_release_id,safe(row.get('media_grade')),safe(row.get('sleeve_grade')),safe(row.get('title')))
         if price_suggestion:
             grade_note=f" for {price_suggestion['grade_used']} condition" if price_suggestion.get('grade_used') else ''
-            st.caption(f"Suggested price range{grade_note}: {money(price_suggestion['low'])}–{money(price_suggestion['high'])}, based on {price_suggestion['source']}.")
+            st.caption(f"Suggested price range{grade_note}: {money(price_suggestion['low'])}–{money(price_suggestion['high'])}, based on {price_suggestion['source']}. Set your price below -- this is a starting point, not the final price.")
     new_price=st.number_input('Price ($)',min_value=0.0,step=1.0,value=float(row.get('price') or 0),key=f'{key_prefix}_price_{int(pid)}')
     if st.button('Update price',key=f'{key_prefix}_price_update_{int(pid)}'):
         core_update('products',{'price':float(new_price),'updated_at':now()},{'id':int(pid),'seller_id':int(sid)},'UPDATE products SET price=?,updated_at=? WHERE id=? AND seller_id=?',(float(new_price),now(),int(pid),sid))

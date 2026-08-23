@@ -2150,6 +2150,35 @@ def test_clicking_listing_photo_navigates_away_from_sellers_public_inventory_pag
     assert "open_product" not in at.query_params, "The query param should be consumed, not left dangling"
 
 
+def test_open_product_link_works_from_a_completely_fresh_session():
+    # Regression guard for a real bug caught live (not by the test above):
+    # st.image's link= renders a real <a href>, which is a full browser
+    # navigation -- it drops the WebSocket and starts a BRAND NEW Streamlit
+    # session, unlike st.button (an in-app rerun on the SAME session). A
+    # fresh session's own default nav logic lands on Home, which never
+    # checks product_id at all, so the very first click from any fresh
+    # page load did nothing until apply_image_click_navigation() also
+    # forced marketplace_navigation to Search Music (same fix
+    # apply_share_deep_link() already needed for the same reason). This
+    # test deliberately does NOT reuse an existing `at` session/goto() the
+    # way the test above does, specifically because that reuse is what let
+    # the bug slip past that test in the first place.
+    import app as hw_app
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Fresh Session Photo Click Test Album")
+    hw_app.run("UPDATE products SET listing_status='Live' WHERE id=?", (product_id,))
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.query_params["open_product"] = str(product_id)
+    at.run()
+    assert not at.exception, at.exception
+
+    titles = [t.value for t in at.title]
+    assert any("Fresh Session Photo Click Test Album" in t for t in titles), (
+        f"A fresh session landing on ?open_product= should go straight to that listing's detail page, got titles: {titles}"
+    )
+
+
 def test_seller_stores_directory_hides_non_approved_sellers():
     # Launch-readiness audit: the public "Seller Stores" directory had no
     # status filter at all -- Pending and Suspended sellers (and a leftover

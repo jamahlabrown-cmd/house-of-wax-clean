@@ -474,16 +474,23 @@ def apply_image_click_navigation():
     # The view button can go away because it's not needed." Listing
     # thumbnails (product_card, in both the main Search Music grid and a
     # seller's own Public inventory grid) render as a real <a
-    # href="?open_product={id}"> via st.image's link= param. Deliberately
-    # NOT reusing apply_share_deep_link()/view_product's "apply once ever"
-    # pattern or its forced jump to Search Music -- that's meant for a
-    # one-time incoming share link from outside the app. This has to fire
-    # on every click (browsing many listings in one session, possibly from
-    # inside a seller's own store) and must leave whatever tab/context the
-    # visitor is already in alone, the same as the old View button did.
+    # href="?open_product={id}"> via st.image's link= param.
+    #
+    # An <a href> is a REAL browser navigation, not a Streamlit rerun --
+    # unlike the old st.button-based View (an in-app state change on the
+    # SAME session), clicking this drops the WebSocket connection and
+    # starts a brand new Streamlit session. session_state (including
+    # marketplace_navigation) doesn't carry over, so without forcing a
+    # nav target here, the fresh session's own default logic sends a
+    # visitor to Home -- which never checks product_id at all -- and the
+    # click silently does nothing. Same reasoning as
+    # apply_share_deep_link()'s forced jump to Search Music for an
+    # incoming ?view_product= share link; this needs the same fix for the
+    # exact same underlying reason (a fresh page load, not a rerun).
     target=safe(st.query_params.get('open_product')).strip()
     if target.isdigit():
         st.session_state['product_id']=int(target)
+        request_marketplace_navigation('Search Music')
         del st.query_params['open_product']
 def set_pending_action(action_type, product=None):
     product_id=int(product.get('id') or 0) if product is not None else int(st.session_state.get('product_id') or 0)

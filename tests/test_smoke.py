@@ -950,6 +950,58 @@ def test_seller_action_dropdown_reflects_newly_selected_listings_real_status():
     )
 
 
+def test_my_inventory_shows_price_range_and_lets_seller_update_price():
+    # Founder: "make sure it is giving range of price suggestions for the
+    # music items" -- reviewing an already-imported listing in My Inventory
+    # previously had no price guidance and no way to change the price at
+    # all without leaving the page (upload_product() only supports creating
+    # a NEW listing, not editing an existing one). This adds both: a real
+    # low-high range (not a single number) using the same
+    # suggest_seller_price_range() the listing-creation form already uses,
+    # plus an editable price field that actually saves.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Price Range Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    # Two comparable priced items (same artist, real prices) so
+    # suggest_price_range_from_how_history has something to compute a
+    # range from -- it needs at least 2 matching-artist items with a
+    # positive price.
+    comp1 = _new_isolated_product(hw_app, seller_id, "Comparable Item One")
+    comp2 = _new_isolated_product(hw_app, seller_id, "Comparable Item Two")
+    hw_app.run("UPDATE products SET artist='Range Test Artist', price=20.00 WHERE id=?", (comp1,))
+    hw_app.run("UPDATE products SET artist='Range Test Artist', price=30.00 WHERE id=?", (comp2,))
+    target_id = _new_isolated_product(hw_app, seller_id, "Item Needing A Price")
+    hw_app.run("UPDATE products SET artist='Range Test Artist', listing_status='Draft', price=0 WHERE id=?", (target_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(target_id).run()
+    assert not at.exception, at.exception
+
+    caption_text = " ".join(c.value for c in at.caption)
+    assert "Suggested price range" in caption_text, f"Expected a price-range caption, got: {caption_text}"
+    assert "$20" in caption_text or "$25" in caption_text or "$30" in caption_text, (
+        f"Expected the range to reflect the two comparable items' prices ($20-$30), got: {caption_text}"
+    )
+
+    at.number_input(key=f"primary_my_inventory_price_{target_id}").set_value(27.5).run()
+    at.button(key=f"primary_my_inventory_price_update_{target_id}").click().run()
+    assert not at.exception, at.exception
+    assert hw_app.df("SELECT price FROM products WHERE id=?", (target_id,)).iloc[0]["price"] == 27.5, (
+        "Price should actually persist after clicking Update price"
+    )
+
+
 def test_publish_via_status_dropdown_blocked_without_a_photo():
     # Founder: "we should have it where all submissions for sale have
     # photos of lp and record" -- every live listing needs at least one

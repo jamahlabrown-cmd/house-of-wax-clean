@@ -19,7 +19,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.171 UPDATE: REPORT LISTING REMOVED (USE SUPPORT), EVEN BUTTON WIDTHS, CLICKABLE PHOTO + SIMPLER LISTING PAGE'
+APP_VERSION='V25.43.172 ADD: VINYL AND COVER CONDITION GRADING REQUIRED BEFORE A LISTING CAN GO LIVE'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1588,8 +1588,9 @@ def setup():
     old_v25_43_168_announcement='V25.43.168'+' Add: support requests email every admin instead of sitting unseen until someone checks active'
     old_v25_43_169_announcement='V25.43.169'+' Add: sellers can delete Sold listings too (unless a real platform sale is on record) active'
     old_v25_43_170_announcement='V25.43.170'+' Add: bulk publish lets sellers publish many ready drafts Live at once active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement,old_v25_43_170_announcement]:
-        set_setting('announcement','V25.43.171 Update: Report Listing removed (use Support), even button widths, clickable photo + simpler listing page active')
+    old_v25_43_171_announcement='V25.43.171'+' Update: Report Listing removed (use Support), even button widths, clickable photo + simpler listing page active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement,old_v25_43_170_announcement,old_v25_43_171_announcement]:
+        set_setting('announcement','V25.43.172 Add: listings now need a vinyl and cover condition grade before they can go Live active')
 setup()
 recovery_token_bridge()
 
@@ -7525,18 +7526,30 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
                 result=enrich_next_discogs_batch(int(sid))
                 st.success(f"Fetched {result['enriched']}. {result['remaining']} item(s) still pending -- click again to continue.")
                 st.rerun()
+    # Founder: "I notice the grading is incomplete. There need to be
+    # grading for both the vinyl and the cover." Surfaces the real count
+    # so an item missing a grade isn't just silently unpublishable with no
+    # indication of how many need attention or where to find them.
+    ungraded_mask=(prods['media_grade'].fillna('').str.strip()=='') | (prods['sleeve_grade'].fillna('').str.strip()=='')
+    ungraded_live_count=int((ungraded_mask & (prods['listing_status'].fillna('')=='Live')).sum())
+    ungraded_total=int(ungraded_mask.sum())
+    if ungraded_total:
+        live_note=f" ({ungraded_live_count} already Live)" if ungraded_live_count else ''
+        st.info(f"{ungraded_total} listing{'s' if ungraded_total!=1 else ''} still {'need' if ungraded_total!=1 else 'needs'} a vinyl and/or cover condition grade{live_note}. Select a listing below to add it under Vinyl/media condition and Sleeve/cover condition.")
     # Bulk publish: founder, live, after seeing only 8 of ~800 imported
     # items were Live -- "why are my listings not live?" -- then asked for
     # a faster way than reviewing all 800 one at a time. A Draft listing
     # only needs a photo to go Live via the single-item flow (no price
     # floor there), but publishing hundreds at once deserves a stricter
-    # bar: also require a real price, so a batch action can't accidentally
-    # put free listings in front of buyers.
+    # bar: also require a real price and complete grading (both media AND
+    # sleeve -- founder: "the grading is incomplete. There need to be
+    # grading for both the vinyl and the cover"), so a batch action can't
+    # put free or under-graded listings in front of buyers.
     if is_approved and rules_ok:
-        ready_mask=(prods['listing_status'].fillna('')=='Draft') & (prods['price'].fillna(0).astype(float)>0) & (prods['image_url'].fillna('')!='')
+        ready_mask=(prods['listing_status'].fillna('')=='Draft') & (prods['price'].fillna(0).astype(float)>0) & (prods['image_url'].fillna('')!='') & (prods['media_grade'].fillna('').str.strip()!='') & (prods['sleeve_grade'].fillna('').str.strip()!='')
         ready_ids=prods.loc[ready_mask,'id'].astype(int).tolist()
         if ready_ids:
-            with st.expander(f'Bulk publish -- {len(ready_ids)} Draft listing{"s" if len(ready_ids)!=1 else ""} ready to go Live (have a photo and a price)'):
+            with st.expander(f'Bulk publish -- {len(ready_ids)} Draft listing{"s" if len(ready_ids)!=1 else ""} ready to go Live (have a photo, a price, and complete grading)'):
                 ready_prods=prods[ready_mask]
                 option_labels={int(r['id']):f"#{int(r['id'])} — {safe(r.get('title'),'Untitled')} — {safe(r.get('artist'),'No artist')} — {money(r.get('price'))}" for _,r in ready_prods.iterrows()}
                 selected_ids=st.multiselect('Listings to publish',options=ready_ids,default=ready_ids,format_func=lambda i:option_labels.get(i,f'#{i}'),key=f'{key_prefix}_bulk_publish_select')
@@ -7609,6 +7622,29 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
         core_update('products',{'price':float(new_price),'updated_at':now()},{'id':int(pid),'seller_id':int(sid)},'UPDATE products SET price=?,updated_at=? WHERE id=? AND seller_id=?',(float(new_price),now(),int(pid),sid))
         st.success(f'Price updated to {money(new_price)}.')
         st.rerun()
+    # Founder: "I notice the grading is incomplete. There need to be
+    # grading for both the vinyl and the cover." A large share of the
+    # Discogs collection import came through with no sleeve grade at all
+    # (that field is optional on Discogs and a lot of collectors skip it)
+    # and a smaller share with no media grade either -- and there was
+    # previously no way to add either one without leaving My Inventory and
+    # re-running the whole Add Inventory wizard, which doesn't support
+    # editing an existing row anyway. NOT_GRADED_OPTION is a real,
+    # distinct choice (not just blank) so it's visibly different from
+    # picking a real grade, both here and in the underlying stored value.
+    NOT_GRADED_OPTION='Not graded yet'
+    grade_options=[NOT_GRADED_OPTION]+GRADE_SCALE
+    current_media_grade=safe(row.get('media_grade'))
+    current_sleeve_grade=safe(row.get('sleeve_grade'))
+    gc1,gc2=st.columns(2)
+    new_media_grade=gc1.selectbox('Vinyl/media condition',grade_options,index=grade_options.index(current_media_grade) if current_media_grade in grade_options else 0,key=f'{key_prefix}_media_grade_{int(pid)}')
+    new_sleeve_grade=gc2.selectbox('Sleeve/cover condition',grade_options,index=grade_options.index(current_sleeve_grade) if current_sleeve_grade in grade_options else 0,key=f'{key_prefix}_sleeve_grade_{int(pid)}')
+    if st.button('Update grading',key=f'{key_prefix}_grading_update_{int(pid)}',width='stretch'):
+        save_media=new_media_grade if new_media_grade!=NOT_GRADED_OPTION else ''
+        save_sleeve=new_sleeve_grade if new_sleeve_grade!=NOT_GRADED_OPTION else ''
+        core_update('products',{'media_grade':save_media,'sleeve_grade':save_sleeve,'updated_at':now()},{'id':int(pid),'seller_id':int(sid)},'UPDATE products SET media_grade=?,sleeve_grade=?,updated_at=? WHERE id=? AND seller_id=?',(save_media,save_sleeve,now(),int(pid),sid))
+        st.success('Grading updated.')
+        st.rerun()
     current_status=safe(row.get('listing_status'))
     st.write(f"**Current status:** {current_status}")
     listing_status_badge(current_status)
@@ -7635,6 +7671,17 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
             return
         if status=='Live' and not safe(row.get('image_url')):
             st.error('This listing has no photo yet -- add one (or use the auto-filled reference image) before publishing. Every live listing needs at least one photo.')
+            return
+        # Founder: "I notice the grading is incomplete. There need to be
+        # grading for both the vinyl and the cover." A listing missing
+        # either grade was previously publishable with incomplete
+        # condition info -- both media (vinyl) and sleeve (cover) grade
+        # are now required before something can go Live.
+        if status=='Live' and not safe(row.get('media_grade')):
+            st.error('This listing has no vinyl/media condition grade yet -- set one before publishing.')
+            return
+        if status=='Live' and not safe(row.get('sleeve_grade')):
+            st.error('This listing has no sleeve/cover condition grade yet -- set one before publishing.')
             return
         if status==current_status:
             st.info(f'Status is already {status} -- nothing to update.')

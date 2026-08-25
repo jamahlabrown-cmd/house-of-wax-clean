@@ -1406,6 +1406,130 @@ def test_publish_via_status_dropdown_allowed_with_a_photo():
     )
 
 
+def test_publish_via_status_dropdown_blocked_without_media_grade():
+    # Founder: "I notice the grading is incomplete. There need to be
+    # grading for both the vinyl and the cover." A listing missing the
+    # media (vinyl) grade should not be publishable.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "No Media Grade Publish Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    draft_product_id = _new_isolated_product(hw_app, seller_id, "No Media Grade Draft Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', image_url='https://example.com/real-photo.jpg', media_grade='', sleeve_grade='VG' WHERE id=?", (draft_product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(draft_product_id).run()
+    at.selectbox(key=f"primary_my_inventory_seller_action_{draft_product_id}").set_value("Live").run()
+    at.button(key=f"primary_my_inventory_update_{draft_product_id}").click().run()
+    assert not at.exception, at.exception
+
+    assert hw_app.df("SELECT listing_status FROM products WHERE id=?", (draft_product_id,)).iloc[0]["listing_status"] == "Draft", (
+        "Listing should still be Draft -- publish must be blocked with no media grade"
+    )
+    error_text = " ".join(e.value for e in at.error)
+    assert "vinyl" in error_text.lower() or "media" in error_text.lower(), f"Expected a media-grade-required error, got: {error_text}"
+
+
+def test_publish_via_status_dropdown_blocked_without_sleeve_grade():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "No Sleeve Grade Publish Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    draft_product_id = _new_isolated_product(hw_app, seller_id, "No Sleeve Grade Draft Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', image_url='https://example.com/real-photo.jpg', media_grade='VG+', sleeve_grade='' WHERE id=?", (draft_product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(draft_product_id).run()
+    at.selectbox(key=f"primary_my_inventory_seller_action_{draft_product_id}").set_value("Live").run()
+    at.button(key=f"primary_my_inventory_update_{draft_product_id}").click().run()
+    assert not at.exception, at.exception
+
+    assert hw_app.df("SELECT listing_status FROM products WHERE id=?", (draft_product_id,)).iloc[0]["listing_status"] == "Draft", (
+        "Listing should still be Draft -- publish must be blocked with no sleeve grade"
+    )
+    error_text = " ".join(e.value for e in at.error)
+    assert "sleeve" in error_text.lower() or "cover" in error_text.lower(), f"Expected a sleeve-grade-required error, got: {error_text}"
+
+
+def test_seller_can_edit_grading_in_my_inventory():
+    # Founder: same grading-completeness request -- and there was
+    # previously no way to add a missing grade to an already-imported
+    # listing without leaving My Inventory and re-running the whole Add
+    # Inventory wizard (which doesn't support editing an existing row).
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Edit Grading Test Seller")
+    product_id = _new_isolated_product(hw_app, seller_id, "Ungraded Item")
+    hw_app.run("UPDATE products SET media_grade='', sleeve_grade='' WHERE id=?", (product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(product_id).run()
+    assert not at.exception, at.exception
+
+    at.selectbox(key=f"primary_my_inventory_media_grade_{product_id}").set_value("Near Mint").run()
+    at.selectbox(key=f"primary_my_inventory_sleeve_grade_{product_id}").set_value("VG+").run()
+    at.button(key=f"primary_my_inventory_grading_update_{product_id}").click().run()
+    assert not at.exception, at.exception
+
+    row = hw_app.df("SELECT media_grade, sleeve_grade FROM products WHERE id=?", (product_id,)).iloc[0]
+    assert row["media_grade"] == "Near Mint"
+    assert row["sleeve_grade"] == "VG+"
+
+
+def test_bulk_publish_excludes_listings_missing_grading():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id, seller_email = _setup_approved_seller_for_bulk_publish(hw_app, "Bulk Publish Grading Gate Seller")
+
+    fully_ready = _new_isolated_product(hw_app, seller_id, "Fully Ready Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='https://img.discogs.com/ready.jpg', media_grade='VG+', sleeve_grade='VG' WHERE id=?", (fully_ready,))
+
+    no_sleeve_grade = _new_isolated_product(hw_app, seller_id, "Missing Sleeve Grade Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='https://img.discogs.com/no-sleeve.jpg', media_grade='VG+', sleeve_grade='' WHERE id=?", (no_sleeve_grade,))
+
+    no_media_grade = _new_isolated_product(hw_app, seller_id, "Missing Media Grade Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='https://img.discogs.com/no-media.jpg', media_grade='', sleeve_grade='VG' WHERE id=?", (no_media_grade,))
+
+    at = _load_my_inventory(hw_app, seller_id, seller_email)
+    multiselects = [m for m in at.multiselect if m.key == "primary_my_inventory_bulk_publish_select"]
+    assert multiselects, "Expected the bulk publish multiselect to render"
+    assert multiselects[0].value == [fully_ready], (
+        f"Only the fully-graded item should be offered for bulk publish, got: {multiselects[0].value}"
+    )
+
+
 def test_real_admin_does_not_see_testing_mode_language():
     # Founder, live, signed in as a real admin (not via the Testing mode
     # toggle): "I'm still seeing testing language on here... that looks

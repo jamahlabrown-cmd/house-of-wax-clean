@@ -19,7 +19,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.172 ADD: VINYL AND COVER CONDITION GRADING REQUIRED BEFORE A LISTING CAN GO LIVE'
+APP_VERSION='V25.43.173 FIX: BUYER PAGES NO LONGER CRASH ON A NULL PRODUCT_ID/STRIKES VALUE (NAN-SAFE INT CONVERSION)'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -36,6 +36,21 @@ def safe(v,d=''):
     except Exception: pass
     s=str(v)
     return d if s.lower() in ['nan','none'] else s
+def int_or(v,default=0):
+    # A NULL DB column comes back through pandas as a genuine float NaN,
+    # and NaN is truthy in Python -- "int(x.get(col) or default)" does NOT
+    # catch it, so it crashes with "cannot convert float NaN to integer"
+    # the moment any row actually has a null in that column (real incident:
+    # buyer_activity_tables() crashed for every page that touches it for a
+    # buyer with a listing_inquiries row whose product_id was null). Route
+    # every nullable-column int conversion through this instead of a bare
+    # int(... or default).
+    if v is None: return default
+    try:
+        if pd.isna(v): return default
+    except Exception: pass
+    try: return int(v)
+    except Exception: return default
 def money(v):
     try: return f'${float(v):,.2f}'
     except Exception: return '$0.00'
@@ -88,6 +103,25 @@ def map_discogs_condition(value):
     # 'Generic'/'No Cover'/blank aren't real condition grades -- never guess
     # one that isn't there.
     return DISCOGS_CONDITION_MAP.get(safe(value).strip().lower(),'')
+# Sleeve-only special states -- distinct from both a real condition grade
+# and from "not graded yet". A record sold without any cover (a lot of 7"
+# singles and promos) has nothing to grade; a generic/unbranded sleeve is a
+# real physical object the seller can still grade later, but "Generic" on
+# Discogs describes the sleeve TYPE, not a condition, so it's never treated
+# as if it were one. Both count as a real answer for the publish-gate check
+# (there's a real answer on file), unlike blank/"Not graded yet".
+NO_SLEEVE_VALUE='No sleeve/cover'
+GENERIC_SLEEVE_VALUE='Generic sleeve (ungraded)'
+def map_discogs_sleeve_condition(value):
+    real_grade=map_discogs_condition(value)
+    if real_grade:
+        return real_grade
+    v=safe(value).strip().lower()
+    if v=='no cover':
+        return NO_SLEEVE_VALUE
+    if v=='generic':
+        return GENERIC_SLEEVE_VALUE
+    return ''
 DISCOGS_GRADE_ALIASES={'Mint':'Mint (M)','Near Mint':'Near Mint (NM or M-)','VG+':'Very Good Plus (VG+)','VG':'Very Good (VG)','Good+':'Good Plus (G+)','Good':'Good (G)','Fair':'Fair (F)','Poor':'Poor (P)'}
 def grade_price_multiplier(media_grade, sleeve_grade=None):
     # Media condition drives resale value more than sleeve condition, so
@@ -493,8 +527,8 @@ def apply_image_click_navigation():
         request_marketplace_navigation('Search Music')
         del st.query_params['open_product']
 def set_pending_action(action_type, product=None):
-    product_id=int(product.get('id') or 0) if product is not None else int(st.session_state.get('product_id') or 0)
-    seller_id=int(product.get('seller_id') or 0) if product is not None else 0
+    product_id=int_or(product.get('id')) if product is not None else int(st.session_state.get('product_id') or 0)
+    seller_id=int_or(product.get('seller_id')) if product is not None else 0
     st.session_state['pending_action']={'action_type':safe(action_type),'product_id':product_id,'seller_id':seller_id,'return_page':'Search Music'}
     if product_id:
         st.session_state['product_id']=product_id
@@ -1589,8 +1623,9 @@ def setup():
     old_v25_43_169_announcement='V25.43.169'+' Add: sellers can delete Sold listings too (unless a real platform sale is on record) active'
     old_v25_43_170_announcement='V25.43.170'+' Add: bulk publish lets sellers publish many ready drafts Live at once active'
     old_v25_43_171_announcement='V25.43.171'+' Update: Report Listing removed (use Support), even button widths, clickable photo + simpler listing page active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement,old_v25_43_170_announcement,old_v25_43_171_announcement]:
-        set_setting('announcement','V25.43.172 Add: listings now need a vinyl and cover condition grade before they can go Live active')
+    old_v25_43_172_announcement='V25.43.172'+' Add: listings now need a vinyl and cover condition grade before they can go Live active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement,old_v25_43_170_announcement,old_v25_43_171_announcement,old_v25_43_172_announcement]:
+        set_setting('announcement','V25.43.173 Fix: buyer pages no longer crash on a listing with missing data active')
 setup()
 recovery_token_bridge()
 
@@ -2564,7 +2599,7 @@ def account_page():
                 st.write('**Seller application status:** '+seller_status)
                 if seller is not None:
                     st.write(f"**Store:** {safe(seller.get('store_name'))} | {safe(seller.get('email'))}")
-                    seller_strikes=int(seller.get('strikes') or 0)
+                    seller_strikes=int_or(seller.get('strikes'))
                     if seller_strikes:
                         st.warning(f"{seller_strikes} strike{'s' if seller_strikes!=1 else ''} on your account for confirmed non-delivery. {auth_trouble_hint()}")
                 if seller_status=='Approved Seller':
@@ -2782,8 +2817,8 @@ def enrich_activity_rows(records):
     product_cache={}
     seller_cache={}
     for idx,row in out.iterrows():
-        pid=int(row.get('product_id') or 0)
-        sid=int(row.get('seller_id') or 0)
+        pid=int_or(row.get('product_id'))
+        sid=int_or(row.get('seller_id'))
         if pid and pid not in product_cache:
             product_cache[pid]=hosted_select('products',{'id':pid},limit=1).iloc[0].to_dict() if hosted_enabled() and not hosted_select('products',{'id':pid},limit=1).empty else {}
         if sid and sid not in seller_cache:
@@ -3271,7 +3306,7 @@ def seller_profile(sid):
         st.metric('Average rating',f"{summary['average']} / 5",help=f"Based on {summary['count']} review(s)")
         for _,rv in reviews.iterrows():
             with st.container(border=True):
-                st.write('⭐ '*int(rv.get('rating') or 0)+f" ({int(rv.get('rating') or 0)}/5)")
+                st.write('⭐ '*int_or(rv.get('rating'))+f" ({int_or(rv.get('rating'))}/5)")
                 st.caption(f"{safe(rv.get('buyer_display_name'),'A House Of Wax buyer')} • {safe(rv.get('created_at'))}")
                 if safe(rv.get('review_text')):
                     st.write(safe(rv.get('review_text')))
@@ -4612,7 +4647,7 @@ def buyer_workspace_tabs(bid):
         # sat above this same form's own upload field. The upload field
         # below is the single place to add or change a photo.
         render_trust_tier(buyer_completed_purchases_count(bid),buyer_review_summary(bid),'buyer')
-        buyer_strikes=int(b.get('strikes') or 0)
+        buyer_strikes=int_or(b.get('strikes'))
         if buyer_strikes:
             st.warning(f"{buyer_strikes} strike{'s' if buyer_strikes!=1 else ''} on your account for not paying within the {PAYMENT_WINDOW_DAYS}-day window after checkout. Sellers can see this.")
         with st.form('bp_auth'):
@@ -5082,7 +5117,7 @@ def add_to_cart(buyer_id, product):
     product_id=int(product.get('id') or 0)
     if not product_id or is_in_cart(buyer_id,product_id):
         return 0
-    data={'buyer_id':int(buyer_id),'product_id':product_id,'seller_id':int(product.get('seller_id') or 0),'added_price':float(product.get('price') or 0),'created_at':now(),'updated_at':now()}
+    data={'buyer_id':int(buyer_id),'product_id':product_id,'seller_id':int_or(product.get('seller_id')),'added_price':float(product.get('price') or 0),'created_at':now(),'updated_at':now()}
     return core_insert('cart_items',data,"""INSERT INTO cart_items(buyer_id,product_id,seller_id,added_price,created_at,updated_at) VALUES(?,?,?,?,?,?)""",(data['buyer_id'],data['product_id'],data['seller_id'],data['added_price'],data['created_at'],data['updated_at']))
 
 def buyer_cart_items(buyer_id):
@@ -5112,12 +5147,12 @@ def enrich_cart_rows(cart_df):
     product_cache={}
     seller_cache={}
     for idx,row in out.iterrows():
-        pid=int(row.get('product_id') or 0)
+        pid=int_or(row.get('product_id'))
         if pid not in product_cache:
             prow=hosted_select('products',{'id':pid},limit=1) if hosted_enabled() else df('SELECT * FROM products WHERE id=?',(pid,))
             product_cache[pid]=prow.iloc[0].to_dict() if not prow.empty else {}
         product=product_cache.get(pid,{})
-        sid=int(product.get('seller_id') or row.get('seller_id') or 0)
+        sid=int_or(product.get('seller_id')) or int_or(row.get('seller_id'))
         if sid and sid not in seller_cache:
             seller_cache[sid]=get_seller(sid)
         seller=seller_cache.get(sid)
@@ -7256,7 +7291,7 @@ def expire_overdue_purchase_requests():
         if safe(buyer_id):
             buyer=get_buyer(int(buyer_id))
             if buyer is not None:
-                new_strikes=int(buyer.get('strikes') or 0)+1
+                new_strikes=int_or(buyer.get('strikes'))+1
                 ok=core_update('buyers',{'strikes':new_strikes},{'id':int(buyer_id)},'UPDATE buyers SET strikes=? WHERE id=?',(new_strikes,int(buyer_id)),quiet=True)
                 if not ok and hosted_enabled():
                     PAYMENT_EXPIRY_STATUS['last_error']=SUPABASE_STATUS.get('last_error') or 'Unknown error adding a buyer strike'
@@ -7283,7 +7318,7 @@ def seller_purchase_request_view(sid):
         st.write(f"**Listing:** {safe(row.get('artist'))} - {safe(row.get('title'))}")
         st.write(f"**Listing status:** {safe(row.get('listing_status'))}")
         buyer_record=get_buyer(int(row.get('buyer_id'))) if safe(row.get('buyer_id')) else None
-        buyer_strikes=int(buyer_record.get('strikes') or 0) if buyer_record is not None else 0
+        buyer_strikes=int_or(buyer_record.get('strikes')) if buyer_record is not None else 0
         strike_note=f" ⚠️ {buyer_strikes} unpaid strike{'s' if buyer_strikes!=1 else ''} on record" if buyer_strikes else ''
         st.write(f"**Buyer:** {safe(row.get('buyer_name'))}{strike_note}")
         if safe(row.get('buyer_id')):
@@ -7375,7 +7410,7 @@ def admin_purchase_request_view():
         st.write(f"**Listing:** {safe(row.get('artist'))} - {safe(row.get('title'))}")
         st.write(f"**Listing status:** {safe(row.get('listing_status'))}")
         buyer_record=get_buyer(int(row.get('buyer_id'))) if safe(row.get('buyer_id')) else None
-        buyer_strikes=int(buyer_record.get('strikes') or 0) if buyer_record is not None else 0
+        buyer_strikes=int_or(buyer_record.get('strikes')) if buyer_record is not None else 0
         strike_note=f" ⚠️ {buyer_strikes} unpaid strike{'s' if buyer_strikes!=1 else ''} on record" if buyer_strikes else ''
         st.write(f"**Buyer:** {safe(row.get('buyer_name'))} • {safe(row.get('buyer_contact'))}{strike_note}")
         st.write(f"**Pickup/shipping:** {safe(row.get('fulfillment_preference'))}")
@@ -7588,7 +7623,7 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
     st.write(f"**Selected item:** {safe(row.get('title'),'Untitled')} • {safe(row.get('artist'),'No artist/brand')} • {money(row.get('price'))}")
     if safe(row.get('image_url')):
         st.image(safe(row.get('image_url')),width=180)
-    view_count=int(row.get('view_count') or 0)
+    view_count=int_or(row.get('view_count'))
     watchers=find_want_list_matches_for_notify(row.get('artist'),row.get('title'))
     st.caption(f"👀 {view_count} view{'s' if view_count!=1 else ''} · {len(watchers)} buyer{'s' if len(watchers)!=1 else ''} watching for this")
     # Reviewing/pricing an already-imported listing (e.g. from the Discogs
@@ -7634,11 +7669,16 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
     # picking a real grade, both here and in the underlying stored value.
     NOT_GRADED_OPTION='Not graded yet'
     grade_options=[NOT_GRADED_OPTION]+GRADE_SCALE
+    # Sleeve gets two extra real answers beyond an actual condition grade:
+    # some records genuinely never had a cover (nothing to grade), others
+    # have a plain/generic sleeve that's a real object but not yet assessed.
+    # Both count as a real answer, not a "still needs grading" placeholder.
+    sleeve_grade_options=[NOT_GRADED_OPTION,NO_SLEEVE_VALUE,GENERIC_SLEEVE_VALUE]+GRADE_SCALE
     current_media_grade=safe(row.get('media_grade'))
     current_sleeve_grade=safe(row.get('sleeve_grade'))
     gc1,gc2=st.columns(2)
     new_media_grade=gc1.selectbox('Vinyl/media condition',grade_options,index=grade_options.index(current_media_grade) if current_media_grade in grade_options else 0,key=f'{key_prefix}_media_grade_{int(pid)}')
-    new_sleeve_grade=gc2.selectbox('Sleeve/cover condition',grade_options,index=grade_options.index(current_sleeve_grade) if current_sleeve_grade in grade_options else 0,key=f'{key_prefix}_sleeve_grade_{int(pid)}')
+    new_sleeve_grade=gc2.selectbox('Sleeve/cover condition',sleeve_grade_options,index=sleeve_grade_options.index(current_sleeve_grade) if current_sleeve_grade in sleeve_grade_options else 0,key=f'{key_prefix}_sleeve_grade_{int(pid)}')
     if st.button('Update grading',key=f'{key_prefix}_grading_update_{int(pid)}',width='stretch'):
         save_media=new_media_grade if new_media_grade!=NOT_GRADED_OPTION else ''
         save_sleeve=new_sleeve_grade if new_sleeve_grade!=NOT_GRADED_OPTION else ''
@@ -7875,7 +7915,7 @@ def parse_discogs_collection_csv(df, sid):
             'release_year':safe(r.get('Released')),
             'genre':'',
             'media_grade':map_discogs_condition(r.get('Collection Media Condition')),
-            'sleeve_grade':map_discogs_condition(r.get('Collection Sleeve Condition')),
+            'sleeve_grade':map_discogs_sleeve_condition(r.get('Collection Sleeve Condition')),
             'condition_notes':safe(r.get('Collection Notes')),
             'description':'',
             'price':0,
@@ -7971,8 +8011,8 @@ def listing_review_queue():
         return
     enriched=reports.copy()
     for idx,row in enriched.iterrows():
-        listing_id=int(row.get('listing_id') or 0)
-        seller_id=int(row.get('seller_id') or 0)
+        listing_id=int_or(row.get('listing_id'))
+        seller_id=int_or(row.get('seller_id'))
         listing=hosted_select('products',{'id':listing_id},limit=1) if hosted_enabled() and listing_id else (df('SELECT * FROM products WHERE id=?',(listing_id,)) if listing_id else pd.DataFrame())
         seller=get_seller(seller_id) if seller_id else None
         if not listing.empty:
@@ -7983,12 +8023,12 @@ def listing_review_queue():
             enriched.at[idx,'seller_status']=normalize_seller_status(seller.get('status'))
     cols=[c for c in ['id','listing_id','listing_title','seller_id','store_name','reason','details','status','listing_status','seller_status','created_at','updated_at'] if c in enriched.columns]
     st.dataframe(enriched[cols],width='stretch')
-    labels=[f"{int(r.get('id'))} | Listing {int(r.get('listing_id') or 0)} | Seller {int(r.get('seller_id') or 0)} | {safe(r.get('reason'))} | {safe(r.get('status'))}" for _,r in reports.iterrows()]
+    labels=[f"{int_or(r.get('id'))} | Listing {int_or(r.get('listing_id'))} | Seller {int_or(r.get('seller_id'))} | {safe(r.get('reason'))} | {safe(r.get('status'))}" for _,r in reports.iterrows()]
     pick=st.selectbox('Open report',labels,key='moderation_report_pick')
     rid=int(pick.split('|')[0].strip())
     report=reports[reports['id']==rid].iloc[0]
-    listing_id=int(report.get('listing_id') or 0)
-    seller_id=int(report.get('seller_id') or 0)
+    listing_id=int_or(report.get('listing_id'))
+    seller_id=int_or(report.get('seller_id'))
     listing=hosted_select('products',{'id':listing_id},limit=1) if hosted_enabled() and listing_id else (df('SELECT * FROM products WHERE id=?',(listing_id,)) if listing_id else pd.DataFrame())
     seller=get_seller(seller_id) if seller_id else None
     with st.container(border=True):
@@ -8001,7 +8041,7 @@ def listing_review_queue():
         st.write('**Listing operational status:**')
         listing_status_badge(safe(row.get('listing_status')))
         primary_image=listing_primary_image(row)
-        listing_preview_card(row.get('category'),row.get('artist'),row.get('title'),row.get('format'),row.get('label'),row.get('release_year'),row.get('genre'),row.get('media_grade'),row.get('sleeve_grade'),float(row.get('price') or 0),int(row.get('quantity') or 1),float(row.get('shipping_price') or 0),primary_image,row.get('description'),has_listing_photos(listing_id),'','admin')
+        listing_preview_card(row.get('category'),row.get('artist'),row.get('title'),row.get('format'),row.get('label'),row.get('release_year'),row.get('genre'),row.get('media_grade'),row.get('sleeve_grade'),float(row.get('price') or 0),int_or(row.get('quantity'),1),float(row.get('shipping_price') or 0),primary_image,row.get('description'),has_listing_photos(listing_id),'','admin')
     notes=st.text_area('Moderation notes',value=safe(report.get('details')),key='moderation_notes')
     c1,c2,c3,c4=st.columns(4)
     if c1.button('Mark Report Reviewed',key=f'report_reviewed_{rid}'):
@@ -8035,7 +8075,7 @@ def listing_review_queue():
         st.divider()
         st.caption('Use only after confirming the buyer actually paid and the seller did not deliver or resolve it -- this is a manual, human-reviewed action, not automatic (there is no shipping/tracking data to check automatically).')
         if st.button('Strike Seller (Non-Delivery)',key=f'strike_seller_non_delivery_{rid}'):
-            new_strikes=int(seller.get('strikes') or 0)+1
+            new_strikes=int_or(seller.get('strikes'))+1
             core_update('sellers',{'strikes':new_strikes},{'id':seller_id},'UPDATE sellers SET strikes=? WHERE id=?',(new_strikes,seller_id))
             core_update('listing_reports',{'status':'Resolved','updated_at':now()},{'id':rid},"UPDATE listing_reports SET status='Resolved',updated_at=? WHERE id=?",(now(),rid))
             st.error(f'Seller struck for non-delivery ({new_strikes} strike{"s" if new_strikes!=1 else ""} on record).')
@@ -8316,8 +8356,8 @@ def user_directory_dataframe():
     rows=[]
     if not users.empty:
         for _,u in users.iterrows():
-            bid=int(u.get('buyer_id') or 0)
-            sid=int(u.get('seller_id') or 0)
+            bid=int_or(u.get('buyer_id'))
+            sid=int_or(u.get('seller_id'))
             buyer=buyers[buyers['id']==bid].iloc[0].to_dict() if bid and not buyers.empty and 'id' in buyers.columns and not buyers[buyers['id']==bid].empty else {}
             seller=sellers[sellers['id']==sid].iloc[0].to_dict() if sid and not sellers.empty and 'id' in sellers.columns and not sellers[sellers['id']==sid].empty else {}
             seller_status=safe(u.get('seller_application_status')) or (normalize_seller_status(seller.get('status')) if seller else 'Not Applied')

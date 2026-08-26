@@ -608,6 +608,24 @@ def test_map_discogs_condition_handles_all_real_values():
         assert hw_app.map_discogs_condition(not_a_grade) == "", not_a_grade
 
 
+def test_map_discogs_sleeve_condition_handles_no_cover_and_generic():
+    # Founder: "I can understand the ones that don't have sleeves but for
+    # the one[s] that do we should make that an option." Sleeve condition
+    # gets two extra real, non-blank answers beyond an actual grade -- a
+    # record with literally no cover has nothing to grade, and a generic/
+    # unbranded sleeve is a real object that just isn't a graded condition
+    # on Discogs. Neither should look like plain "still ungraded" blank.
+    import app as hw_app
+    assert hw_app.map_discogs_sleeve_condition("No Cover") == hw_app.NO_SLEEVE_VALUE
+    assert hw_app.map_discogs_sleeve_condition("no cover") == hw_app.NO_SLEEVE_VALUE
+    assert hw_app.map_discogs_sleeve_condition("Generic") == hw_app.GENERIC_SLEEVE_VALUE
+    # Real condition grades still map exactly like map_discogs_condition.
+    assert hw_app.map_discogs_sleeve_condition("Very Good Plus (VG+)") == "VG+"
+    # Truly unknown/blank stays blank -- never guess.
+    for not_a_grade in ["", None, "Not Graded"]:
+        assert hw_app.map_discogs_sleeve_condition(not_a_grade) == "", not_a_grade
+
+
 def test_is_discogs_collection_export_detects_real_header():
     import app as hw_app
     discogs_columns = ["Catalog#", "Artist", "Title", "Label", "Format", "Rating", "Released", "release_id", "CollectionFolder", "Date Added", "Collection Media Condition", "Collection Sleeve Condition", "Collection Notes"]
@@ -658,6 +676,17 @@ def test_parse_discogs_collection_csv_maps_fields_and_forces_draft():
     cass_row["Format"] = "Cass, Album"
     cass_mapped = hw_app.parse_discogs_collection_csv(pd.DataFrame([cass_row]), seller_id)[0]
     assert cass_mapped["category"] == "Cassettes"
+
+    no_cover_row = dict(row)
+    no_cover_row["Collection Sleeve Condition"] = "No Cover"
+    no_cover_mapped = hw_app.parse_discogs_collection_csv(pd.DataFrame([no_cover_row]), seller_id)[0]
+    assert no_cover_mapped["sleeve_grade"] == hw_app.NO_SLEEVE_VALUE
+    assert no_cover_mapped["media_grade"] == "Near Mint", "Media grade mapping is untouched by the sleeve-specific fix"
+
+    generic_row = dict(row)
+    generic_row["Collection Sleeve Condition"] = "Generic"
+    generic_mapped = hw_app.parse_discogs_collection_csv(pd.DataFrame([generic_row]), seller_id)[0]
+    assert generic_mapped["sleeve_grade"] == hw_app.GENERIC_SLEEVE_VALUE
 
 
 def test_enrich_next_discogs_batch_updates_image_only_leaves_price_and_status_alone(monkeypatch):
@@ -1108,6 +1137,48 @@ def test_has_listing_photos_bulk_uses_one_query_per_chunk_not_per_item(monkeypat
     assert sum(len(c["product_id"]) for c in calls) == 450
 
 
+# ---------- Real incident: a buyer with a null product_id on one row crashed every page that loaded their activity ----------
+
+def test_int_or_handles_none_nan_and_real_values():
+    # A NULL DB column comes back through pandas as a genuine float NaN, and
+    # NaN is truthy in Python -- "int(x or default)" does not catch it and
+    # crashes with "cannot convert float NaN to integer". int_or must.
+    import app as hw_app
+    assert hw_app.int_or(None) == 0
+    assert hw_app.int_or(float("nan")) == 0
+    assert hw_app.int_or(float("nan"), 7) == 7
+    assert hw_app.int_or(42) == 42
+    assert hw_app.int_or(42.0) == 42
+    assert hw_app.int_or("not a number") == 0
+
+
+def test_enrich_activity_rows_does_not_crash_on_a_null_product_id():
+    # Real production incident: a buyer had a listing_inquiries row whose
+    # product_id was null (an inquiry about a listing that no longer
+    # exists). buyer_activity_tables() always computes inquiries internally
+    # even when a caller only wants purchases (e.g. seller_ready_to_pay_groups),
+    # so this crashed every page for that buyer -- Cart AND My Account both,
+    # confirmed via the founder's screenshots: "ValueError: cannot convert
+    # float NaN to integer".
+    import app as hw_app
+    records = pd.DataFrame([
+        {"id": 3, "buyer_id": 125, "seller_id": 14, "product_id": float("nan"), "status": "New"},
+        {"id": 9, "buyer_id": 125, "seller_id": 14, "product_id": 11, "status": "New"},
+    ])
+    result = hw_app.enrich_activity_rows(records)
+    assert len(result) == 2
+
+
+def test_enrich_cart_rows_does_not_crash_on_a_null_product_id():
+    import app as hw_app
+    records = pd.DataFrame([
+        {"id": 1, "buyer_id": 125, "seller_id": 14, "product_id": float("nan")},
+    ])
+    result = hw_app.enrich_cart_rows(records)
+    assert len(result) == 1
+    assert result.iloc[0]["available"] == False
+
+
 # ---------- Deleting inventory (founder: sellers need a way to delete listings that sold, including sold off-platform) ----------
 
 def test_product_has_completed_platform_sale_true_when_real_sold_purchase_request_exists():
@@ -1506,6 +1577,47 @@ def test_seller_can_edit_grading_in_my_inventory():
     row = hw_app.df("SELECT media_grade, sleeve_grade FROM products WHERE id=?", (product_id,)).iloc[0]
     assert row["media_grade"] == "Near Mint"
     assert row["sleeve_grade"] == "VG+"
+
+
+def test_seller_can_mark_no_sleeve_and_it_satisfies_the_publish_gate():
+    # Founder: "I can understand the ones that don't have sleeves but for
+    # the one[s] that do we should make that an option." A record with no
+    # cover at all has a real, selectable answer now (not just blank), and
+    # picking it should be enough to satisfy the sleeve-grading requirement
+    # for publishing -- there's nothing left to grade.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "No Sleeve Option Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    product_id = _new_isolated_product(hw_app, seller_id, "No Cover Single")
+    hw_app.run("UPDATE products SET listing_status='Draft', image_url='https://example.com/real-photo.jpg', media_grade='VG+', sleeve_grade='' WHERE id=?", (product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(product_id).run()
+
+    at.selectbox(key=f"primary_my_inventory_sleeve_grade_{product_id}").set_value(hw_app.NO_SLEEVE_VALUE).run()
+    at.button(key=f"primary_my_inventory_grading_update_{product_id}").click().run()
+    at.run()
+    assert not at.exception, at.exception
+    assert hw_app.df("SELECT sleeve_grade FROM products WHERE id=?", (product_id,)).iloc[0]["sleeve_grade"] == hw_app.NO_SLEEVE_VALUE
+
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(product_id).run()
+    at.selectbox(key=f"primary_my_inventory_seller_action_{product_id}").set_value("Live").run()
+    at.button(key=f"primary_my_inventory_update_{product_id}").click().run()
+    assert not at.exception, at.exception
+    assert hw_app.df("SELECT listing_status FROM products WHERE id=?", (product_id,)).iloc[0]["listing_status"] == "Live", (
+        "Marking 'No sleeve/cover' should count as a real answer and allow publishing"
+    )
 
 
 def test_bulk_publish_excludes_listings_missing_grading():

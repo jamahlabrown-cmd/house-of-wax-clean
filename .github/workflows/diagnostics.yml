@@ -15,9 +15,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install requests certifi
+      - run: pip install requests certifi pandas streamlit
       - name: Run diagnostics
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           DIAGNOSTIC_ALERT_TO: hello@shophouseofwax.com
         run: python scripts/diagnostics.py
+      - name: Run payment-flow check
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          DIAG_TEST_SELLER_PASSWORD: ${{ secrets.DIAG_TEST_SELLER_PASSWORD }}
+          DIAG_TEST_BUYER_PASSWORD: ${{ secrets.DIAG_TEST_BUYER_PASSWORD }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          DIAGNOSTIC_ALERT_TO: hello@shophouseofwax.com
+        run: python scripts/payment_flow_check.py

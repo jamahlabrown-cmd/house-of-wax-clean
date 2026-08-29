@@ -3379,15 +3379,38 @@ def seller_profile(sid):
     if prods.empty: st.info('No public inventory yet. Draft, Hidden, Under Review, and Removed listings stay private or unavailable inside Seller Tools.')
     else:
         cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
+        # Same pagination reasoning as marketplace()'s Search Music grid --
+        # a store this size (800+ items) is real, non-network Streamlit
+        # render overhead even after the seller/gallery lookups are
+        # batched, so cap any single render to a fixed page size.
+        STORE_PAGE_SIZE=24
+        total_pages=max(1,(len(prods)+STORE_PAGE_SIZE-1)//STORE_PAGE_SIZE)
+        store_page_key=f'seller_store_page_{int(sid)}'
+        page=int(st.session_state.get(store_page_key,1))
+        if page<1 or page>total_pages:
+            page=1
+        st.session_state[store_page_key]=page
+        start=(page-1)*STORE_PAGE_SIZE
+        page_prods=prods.iloc[start:start+STORE_PAGE_SIZE]
         # Every listing here belongs to this one seller already loaded
         # above (s) -- no per-card seller lookup needed at all. The gallery
-        # fetch still gets batched once for the whole grid instead of once
-        # per card (see bulk_listing_galleries()).
+        # fetch still gets batched once for the page instead of once per
+        # card (see bulk_listing_galleries()).
         seller_cache={int(sid):s}
-        gallery_cache=bulk_listing_galleries(prods['id'].tolist())
+        gallery_cache=bulk_listing_galleries(page_prods['id'].tolist())
         cols=st.columns(4)
-        for i,(_,p) in enumerate(prods.iterrows()):
+        for i,(_,p) in enumerate(page_prods.iterrows()):
             with cols[i%4]: product_card(p,buyer_id=cart_bid,seller_cache=seller_cache,gallery_cache=gallery_cache)
+        if total_pages>1:
+            st.divider()
+            pc1,pc2,pc3=st.columns([1,2,1])
+            if pc1.button('← Previous',key=f'{store_page_key}_prev',width='stretch',disabled=(page<=1)):
+                st.session_state[store_page_key]=page-1
+                st.rerun()
+            pc2.write(f"Page {page} of {total_pages}")
+            if pc3.button('Next →',key=f'{store_page_key}_next',width='stretch',disabled=(page>=total_pages)):
+                st.session_state[store_page_key]=page+1
+                st.rerun()
 def record_listing_view(pid, seller_id):
     # Seller-facing feedback loop: sellers previously had no idea whether a
     # listing was getting looked at at all. Skip the seller's own views of
@@ -4591,17 +4614,43 @@ def marketplace():
         st.info('No matching live listings found. Try a different artist, title, barcode, or seller name.')
         return
     cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
+    # Even after batching away the N+1 network calls above, rendering 800+
+    # individual widget-heavy cards in one script run is still real,
+    # non-network Streamlit overhead -- confirmed live, this alone still
+    # took ~80 seconds with an unfiltered default view (down from 5+
+    # minutes/never finishing before the batching fix, but still not
+    # fast). Paginating keeps any single render to a fixed, small number of
+    # cards regardless of how large the catalog grows.
+    MARKETPLACE_PAGE_SIZE=24
+    total_results=len(prods)
+    total_pages=max(1,(total_results+MARKETPLACE_PAGE_SIZE-1)//MARKETPLACE_PAGE_SIZE)
+    page=int(st.session_state.get('marketplace_page',1))
+    if page<1 or page>total_pages:
+        page=1
+    st.session_state['marketplace_page']=page
+    start=(page-1)*MARKETPLACE_PAGE_SIZE
+    page_prods=prods.iloc[start:start+MARKETPLACE_PAGE_SIZE]
     # Batch the two lookups every card used to do individually -- with the
-    # full marketplace unfiltered, this is 800+ cards each independently
-    # round-tripping Supabase for its seller and its photo gallery. That
-    # N+1 pattern is what actually made this page take minutes to load
-    # (founder, live: "it's taken at least five minutes to get to the
-    # search bar"), not app sleep/cold-start as first suspected.
-    seller_cache=bulk_get_sellers(prods['seller_id'].dropna().tolist()) if 'seller_id' in prods.columns else {}
-    gallery_cache=bulk_listing_galleries(prods['id'].tolist())
+    # full marketplace unfiltered, this used to be 800+ cards each
+    # independently round-tripping Supabase for its seller and its photo
+    # gallery. That N+1 pattern is what actually made this page take
+    # minutes to load (founder, live: "it's taken at least five minutes to
+    # get to the search bar"), not app sleep/cold-start as first suspected.
+    seller_cache=bulk_get_sellers(page_prods['seller_id'].dropna().tolist()) if 'seller_id' in page_prods.columns else {}
+    gallery_cache=bulk_listing_galleries(page_prods['id'].tolist())
     cols=st.columns(4)
-    for i,(_,p) in enumerate(prods.iterrows()):
+    for i,(_,p) in enumerate(page_prods.iterrows()):
         with cols[i%4]: product_card(p,buyer_id=cart_bid,seller_cache=seller_cache,gallery_cache=gallery_cache)
+    if total_pages>1:
+        st.divider()
+        pc1,pc2,pc3=st.columns([1,2,1])
+        if pc1.button('← Previous',key='marketplace_prev_page',width='stretch',disabled=(page<=1)):
+            st.session_state['marketplace_page']=page-1
+            st.rerun()
+        pc2.write(f"Page {page} of {total_pages}")
+        if pc3.button('Next →',key='marketplace_next_page',width='stretch',disabled=(page>=total_pages)):
+            st.session_state['marketplace_page']=page+1
+            st.rerun()
 def cart_page():
     header(); marketplace_context('House Of Wax Marketplace -> Cart'); st.header('My Cart')
     if not is_authenticated():

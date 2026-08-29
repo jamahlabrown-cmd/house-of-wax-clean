@@ -1640,6 +1640,74 @@ def test_publish_via_status_dropdown_blocked_without_sleeve_grade():
     assert "sleeve" in error_text.lower() or "cover" in error_text.lower(), f"Expected a sleeve-grade-required error, got: {error_text}"
 
 
+def test_publish_via_status_dropdown_blocked_without_paypal_link():
+    # Founder, live: a listing went public with no way for a buyer to
+    # actually pay -- the seller had never filled in PayPal info at all.
+    # A Draft with a photo and complete grading should still be blocked
+    # from going Live if the seller's own paypal_link is blank.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "No PayPal Publish Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes', paypal_link='' WHERE id=?", (seller_id,))
+    draft_product_id = _new_isolated_product(hw_app, seller_id, "No PayPal Draft Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', image_url='https://example.com/real-photo.jpg', media_grade='VG+', sleeve_grade='VG' WHERE id=?", (draft_product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(draft_product_id).run()
+    at.selectbox(key=f"primary_my_inventory_seller_action_{draft_product_id}").set_value("Live").run()
+    at.button(key=f"primary_my_inventory_update_{draft_product_id}").click().run()
+    assert not at.exception, at.exception
+
+    assert hw_app.df("SELECT listing_status FROM products WHERE id=?", (draft_product_id,)).iloc[0]["listing_status"] == "Draft", (
+        "Listing should still be Draft -- publish must be blocked with no PayPal info on file"
+    )
+    error_text = " ".join(e.value for e in at.error)
+    assert "paypal" in error_text.lower(), f"Expected a PayPal-required error, got: {error_text}"
+
+
+def test_publish_via_status_dropdown_allowed_with_paypal_link():
+    # Positive control -- a seller with a real paypal_link and otherwise
+    # complete listing should publish normally, same as before this gate.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Has PayPal Publish Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes', paypal_link='paypal.me/testseller' WHERE id=?", (seller_id,))
+    draft_product_id = _new_isolated_product(hw_app, seller_id, "Has PayPal Draft Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', image_url='https://example.com/real-photo.jpg', media_grade='VG+', sleeve_grade='VG' WHERE id=?", (draft_product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(draft_product_id).run()
+    at.selectbox(key=f"primary_my_inventory_seller_action_{draft_product_id}").set_value("Live").run()
+    at.button(key=f"primary_my_inventory_update_{draft_product_id}").click().run()
+    assert not at.exception, at.exception
+
+    assert hw_app.df("SELECT listing_status FROM products WHERE id=?", (draft_product_id,)).iloc[0]["listing_status"] == "Live", (
+        "Listing should publish normally once the seller has a real PayPal link on file"
+    )
+
+
 def test_seller_can_edit_grading_in_my_inventory():
     # Founder: same grading-completeness request -- and there was
     # previously no way to add a missing grade to an already-imported
@@ -1735,6 +1803,47 @@ def test_bulk_publish_excludes_listings_missing_grading():
     assert multiselects, "Expected the bulk publish multiselect to render"
     assert multiselects[0].value == [fully_ready], (
         f"Only the fully-graded item should be offered for bulk publish, got: {multiselects[0].value}"
+    )
+
+
+def test_bulk_publish_hidden_when_seller_has_no_paypal_link():
+    # Founder, live: a listing went public with no way for a buyer to
+    # actually pay. Bulk Publish is the fastest way to put many listings
+    # live at once, so it needs the same PayPal-on-file requirement as the
+    # single-item path -- every row here belongs to one seller, so a
+    # missing paypal_link should block ALL of them, not just be silently
+    # ignored per-row.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id, seller_email = _setup_approved_seller_for_bulk_publish(hw_app, "Bulk Publish No PayPal Seller")
+    hw_app.run("UPDATE sellers SET paypal_link='' WHERE id=?", (seller_id,))
+
+    ready_id = _new_isolated_product(hw_app, seller_id, "Otherwise Ready Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='https://img.discogs.com/ready.jpg', media_grade='VG+', sleeve_grade='VG' WHERE id=?", (ready_id,))
+
+    at = _load_my_inventory(hw_app, seller_id, seller_email)
+    multiselects = [m for m in at.multiselect if m.key == "primary_my_inventory_bulk_publish_select"]
+    assert not multiselects, "Bulk publish must not be offered when the seller has no PayPal info on file"
+    warning_text = " ".join(w.value for w in at.warning)
+    assert "paypal" in warning_text.lower(), f"Expected a PayPal-required warning, got: {warning_text}"
+
+
+def test_bulk_publish_offered_when_seller_has_paypal_link():
+    # Positive control -- otherwise-ready listings should still bulk
+    # publish normally once the seller has a real paypal_link on file.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id, seller_email = _setup_approved_seller_for_bulk_publish(hw_app, "Bulk Publish Has PayPal Seller")
+    hw_app.run("UPDATE sellers SET paypal_link='paypal.me/testseller' WHERE id=?", (seller_id,))
+
+    ready_id = _new_isolated_product(hw_app, seller_id, "Ready Item With PayPal")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='https://img.discogs.com/ready.jpg', media_grade='VG+', sleeve_grade='VG' WHERE id=?", (ready_id,))
+
+    at = _load_my_inventory(hw_app, seller_id, seller_email)
+    multiselects = [m for m in at.multiselect if m.key == "primary_my_inventory_bulk_publish_select"]
+    assert multiselects, "Expected the bulk publish multiselect to render when the seller has PayPal info on file"
+    assert multiselects[0].value == [ready_id], (
+        f"Expected the ready item to be offered for bulk publish, got: {multiselects[0].value}"
     )
 
 
@@ -2040,7 +2149,12 @@ def _new_isolated_seller(hw_app, store_name):
     # against a given database. A uuid suffix makes every call unique
     # regardless of how many times it's been run before.
     email = store_name.lower().replace(" ", "-") + f"-{uuid.uuid4().hex[:8]}@example.com"
-    data = {'store_name': store_name, 'owner_name': 'Test Owner', 'email': email, 'phone': '', 'city': '', 'state': '', 'website': '', 'instagram': '', 'store_bio': '', 'seller_story': '', 'specialties': '', 'logo_url': '', 'banner_url': '', 'status': 'Approved Seller', 'seller_level': 'Verified Seller', 'rating': 100, 'completed_sales': 0, 'disputes': 0, 'strikes': 0, 'auction_override': 'Yes', 'access_code': '', 'created_at': hw_app.now()}
+    # paypal_link defaults to a real value here (like media_grade/sleeve_grade
+    # default to real values in _new_isolated_product) so the many existing
+    # "should publish successfully" tests aren't broken by the PayPal-required
+    # publish gate -- tests that specifically exercise that gate clear it
+    # back to '' themselves.
+    data = {'store_name': store_name, 'owner_name': 'Test Owner', 'email': email, 'phone': '', 'city': '', 'state': '', 'website': '', 'instagram': '', 'store_bio': '', 'seller_story': '', 'specialties': '', 'logo_url': '', 'banner_url': '', 'status': 'Approved Seller', 'seller_level': 'Verified Seller', 'rating': 100, 'completed_sales': 0, 'disputes': 0, 'strikes': 0, 'auction_override': 'Yes', 'access_code': '', 'paypal_link': 'seller@example.com', 'created_at': hw_app.now()}
     keys = list(data.keys())
     placeholders = ",".join("?" for _ in keys)
     hw_app.run(f"INSERT INTO sellers({','.join(keys)}) VALUES({placeholders})", tuple(data[k] for k in keys))

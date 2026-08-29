@@ -16,6 +16,11 @@
     <priority>0.9</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/221.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/330.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.3</priority>
@@ -911,11 +916,6 @@
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/371.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
     <loc>https://shophouseofwax.com/listings/504.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -1036,7 +1036,7 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/237.html</loc>
+    <loc>https://shophouseofwax.com/listings/420.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1086,7 +1086,7 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/22.html</loc>
+    <loc>https://shophouseofwax.com/listings/237.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1136,6 +1136,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/22.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/418.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -1147,11 +1152,6 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/415.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/412.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1216,12 +1216,12 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/410.html</loc>
+    <loc>https://shophouseofwax.com/listings/412.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/408.html</loc>
+    <loc>https://shophouseofwax.com/listings/410.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1281,7 +1281,7 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/407.html</loc>
+    <loc>https://shophouseofwax.com/listings/408.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1341,7 +1341,7 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/270.html</loc>
+    <loc>https://shophouseofwax.com/listings/407.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1351,7 +1351,7 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/200.html</loc>
+    <loc>https://shophouseofwax.com/listings/270.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1396,12 +1396,12 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/21.html</loc>
+    <loc>https://shophouseofwax.com/listings/200.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/405.html</loc>
+    <loc>https://shophouseofwax.com/listings/21.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1461,17 +1461,17 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/405.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/403.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/398.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/396.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1526,12 +1526,12 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/389.html</loc>
+    <loc>https://shophouseofwax.com/listings/396.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/387.html</loc>
+    <loc>https://shophouseofwax.com/listings/389.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1571,6 +1571,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/387.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/386.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -1582,11 +1587,6 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/193.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/20.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1622,6 +1622,11 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/775.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://shophouseofwax.com/listings/20.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1751,11 +1756,6 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/381.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
     <loc>https://shophouseofwax.com/listings/519.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -1806,17 +1806,17 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/381.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/377.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/376.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/152.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1852,6 +1852,11 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/860.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://shophouseofwax.com/listings/152.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1986,11 +1991,6 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/374.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
     <loc>https://shophouseofwax.com/listings/58.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -2041,17 +2041,17 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/374.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/372.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/365.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/355.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -2096,6 +2096,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/355.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/354.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -2107,11 +2112,6 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/349.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/347.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -2141,12 +2141,12 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/345.html</loc>
+    <loc>https://shophouseofwax.com/listings/347.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/124.html</loc>
+    <loc>https://shophouseofwax.com/listings/345.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -2206,17 +2206,17 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/124.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/344.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/342.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/339.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -2261,6 +2261,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/339.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/337.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -2272,11 +2277,6 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/579.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/323.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -2311,12 +2311,12 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/321.html</loc>
+    <loc>https://shophouseofwax.com/listings/323.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/319.html</loc>
+    <loc>https://shophouseofwax.com/listings/321.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -2376,12 +2376,12 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/144.html</loc>
+    <loc>https://shophouseofwax.com/listings/319.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/106.html</loc>
+    <loc>https://shophouseofwax.com/listings/144.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -2437,6 +2437,11 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/276.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://shophouseofwax.com/listings/106.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -2501,11 +2506,6 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/314.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
     <loc>https://shophouseofwax.com/listings/709.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -2546,12 +2546,12 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/308.html</loc>
+    <loc>https://shophouseofwax.com/listings/314.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/306.html</loc>
+    <loc>https://shophouseofwax.com/listings/308.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -2607,6 +2607,11 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/351.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://shophouseofwax.com/listings/306.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -2746,11 +2751,6 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/607.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
     <loc>https://shophouseofwax.com/listings/97.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -2787,6 +2787,11 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/454.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://shophouseofwax.com/listings/607.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -2861,11 +2866,6 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/294.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
     <loc>https://shophouseofwax.com/listings/101.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -2901,6 +2901,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/294.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/292.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -2912,11 +2917,6 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/284.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/280.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -2956,6 +2956,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/280.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/278.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -2972,11 +2977,6 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/17.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/271.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -3011,12 +3011,12 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/573.html</loc>
+    <loc>https://shophouseofwax.com/listings/271.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/265.html</loc>
+    <loc>https://shophouseofwax.com/listings/573.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -3026,7 +3026,7 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/263.html</loc>
+    <loc>https://shophouseofwax.com/listings/265.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -3066,6 +3066,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/263.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/260.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -3082,11 +3087,6 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/70.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/32.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -3137,6 +3137,11 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/648.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://shophouseofwax.com/listings/32.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -3266,22 +3271,17 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/256.html</loc>
+    <loc>https://shophouseofwax.com/listings/422.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/420.html</loc>
+    <loc>https://shophouseofwax.com/listings/253.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/251.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/250.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -3321,7 +3321,7 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/248.html</loc>
+    <loc>https://shophouseofwax.com/listings/250.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -3371,7 +3371,7 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/246.html</loc>
+    <loc>https://shophouseofwax.com/listings/248.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -3386,7 +3386,7 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/242.html</loc>
+    <loc>https://shophouseofwax.com/listings/246.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -3406,12 +3406,12 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/39.html</loc>
+    <loc>https://shophouseofwax.com/listings/242.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/29.html</loc>
+    <loc>https://shophouseofwax.com/listings/39.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -3456,6 +3456,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/29.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/708.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -3481,12 +3486,27 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/253.html</loc>
+    <loc>https://shophouseofwax.com/listings/31.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/422.html</loc>
+    <loc>https://shophouseofwax.com/listings/38.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://shophouseofwax.com/listings/69.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://shophouseofwax.com/listings/108.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://shophouseofwax.com/listings/256.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -3666,6 +3686,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/371.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/569.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -3712,26 +3737,6 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/849.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/31.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/38.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/69.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/108.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -3836,11 +3841,6 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://shophouseofwax.com/listings/234.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
     <loc>https://shophouseofwax.com/listings/202.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -3931,6 +3931,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/234.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/232.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -3942,11 +3947,6 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/229.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/226.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -4001,17 +4001,17 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/226.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/224.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/222.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/221.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -4311,6 +4311,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://shophouseofwax.com/listings/14.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://shophouseofwax.com/listings/8.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -4322,11 +4327,6 @@
   </url>
   <url>
     <loc>https://shophouseofwax.com/listings/10.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://shophouseofwax.com/listings/14.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>

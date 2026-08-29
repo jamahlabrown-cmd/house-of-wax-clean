@@ -3115,6 +3115,88 @@ def test_cart_page_shows_unavailable_item_without_crashing():
     )
 
 
+def _cart_remove_failure_probe():
+    import app as hw_app
+    import pandas as pd
+    group = pd.DataFrame([{
+        'id': 1, 'product_id': 1, 'seller_id': 1, 'artist': 'Test Artist',
+        'title': 'Cart Remove Failure Probe Album', 'price': 24.99,
+        'listing_status': 'Live', 'available': True, 'store_name': 'Test Store',
+    }])
+    hw_app.render_seller_cart_group(1, 1, group)
+
+
+def test_cart_remove_failure_is_surfaced_not_silently_swallowed(monkeypatch):
+    # Founder: "people can't delete items from their cart." Real production
+    # root cause: PostgREST DELETE requests that RLS filters down to zero
+    # matched rows still come back HTTP 200 "success" with an empty body --
+    # not an error -- so remove_from_cart() used to be trusted blindly and
+    # the page just reran as if the click had worked. The item was still
+    # there on the next load with no explanation. The Remove button must
+    # check the result and say something instead of pretending it worked.
+    # Uses AppTest.from_function (same pattern as
+    # test_reservation_failure_is_surfaced_not_silently_swallowed above) --
+    # AppTest.from_file re-execs app.py's own top-level source into a fresh
+    # namespace on every .run(), which does not reliably pick up a
+    # monkeypatch applied to the separately-imported `app` module object.
+    import app as hw_app
+
+    monkeypatch.setattr(hw_app, "remove_from_cart", lambda cart_item_id: False)
+
+    at = AppTest.from_function(_cart_remove_failure_probe, default_timeout=30)
+    at.run()
+    assert not at.exception, at.exception
+
+    remove_button = next(b for b in at.button if b.key == "cart_remove_1")
+    remove_button.click().run()
+    assert not at.exception, at.exception
+
+    errors = [e.value for e in at.error]
+    assert any("could not remove" in e.lower() for e in errors), (
+        f"Expected a could-not-remove error to be surfaced, got errors={errors}"
+    )
+
+
+def test_hosted_delete_treats_a_zero_row_match_as_failure(monkeypatch):
+    # Direct unit coverage for the fix itself: hosted_delete() now requests
+    # return=representation and treats an empty payload (RLS silently
+    # filtered the row out of the DELETE's WHERE match, or it just didn't
+    # exist) as a failure, even though the HTTP call itself reports ok=True
+    # -- this can't be exercised through the local SQLite path at all since
+    # there's no RLS engine there, see house-of-wax-hosted-select-testing-gap.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", lambda method, table_name, **k: ([], {"ok": True, "status_code": 200, "message": ""}))
+    assert hw_app.hosted_delete("cart_items", {"id": 1}) is False
+
+
+def test_hosted_delete_returns_true_when_a_row_is_actually_deleted(monkeypatch):
+    # Positive control for the guard above.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", lambda method, table_name, **k: ([{"id": 1}], {"ok": True, "status_code": 200, "message": ""}))
+    assert hw_app.hosted_delete("cart_items", {"id": 1}) is True
+
+
+def test_hosted_update_treats_a_zero_row_match_as_failure(monkeypatch):
+    # Same silent-failure shape as hosted_delete above, for UPDATE -- an RLS
+    # policy that filters the row out of the WHERE match returns HTTP 200
+    # with an empty representation, not an error, so `ok` alone isn't
+    # enough to know whether anything was actually changed.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", lambda method, table_name, **k: ([], {"ok": True, "status_code": 200, "message": ""}))
+    assert hw_app.hosted_update("cart_items", {"status": "x"}, {"id": 1}) is False
+
+
+def test_hosted_update_returns_true_when_a_row_is_actually_updated(monkeypatch):
+    # Positive control for the guard above.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", lambda method, table_name, **k: ([{"id": 1, "status": "x"}], {"ok": True, "status_code": 200, "message": ""}))
+    assert hw_app.hosted_update("cart_items", {"status": "x"}, {"id": 1}) is True
+
+
 def test_checkout_confirmation_still_shows_after_cart_group_empties():
     # Regression guard: a seller's cart group disappears the instant checkout
     # succeeds (its items just left cart_items) -- render_seller_cart_group()

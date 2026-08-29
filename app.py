@@ -19,7 +19,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.174 FIX: SEARCH MUSIC N+1 QUERY SLOWNESS; ADD: REMOVE CART ITEMS BEFORE PAYING, PAYPAL REQUIRED TO PUBLISH'
+APP_VERSION='V25.43.175 FIX: CART/ORDER DELETE-UPDATE FAILURES (RLS SILENT ZERO-ROW MATCH) NOW SURFACE A REAL ERROR INSTEAD OF SILENTLY DOING NOTHING'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -325,14 +325,40 @@ def hosted_update(table_name, data, filters, quiet=False):
     # error for a background strike-tracking write they had no part in.
     if not quiet:
         show_hosted_error('update',table_name,detail)
-    return bool(detail.get('ok'))
+    if not detail.get('ok'):
+        return False
+    # Same silent-failure shape fixed in hosted_delete() just above: RLS
+    # filtering the row out of the WHERE match returns 200 "success" with
+    # an empty representation, not an HTTP error -- so `ok` alone can't
+    # tell a real update from one that touched nothing. This caller uses
+    # the default prefer='return=representation', so an empty payload here
+    # really does mean zero rows were actually updated.
+    if not payload:
+        SUPABASE_STATUS['last_error']=f"{table_name}: update matched no rows (RLS or filter mismatch) for {filters}"
+        return False
+    return True
 def hosted_delete(table_name, filters):
     if not hosted_enabled():
         return False
     params={k:f'eq.{v}' for k,v in filters.items()}
-    payload,detail=hosted_request('delete',table_name,params=params,prefer='')
+    # Founder: "people can't delete items from their cart." RLS blocking a
+    # DELETE doesn't come back as an HTTP error the way it does for
+    # update/insert -- PostgREST just filters the matched row out of the
+    # affected set and still returns 200/204 "success" with nothing
+    # deleted, the exact same silent-failure shape as the Buy Now
+    # reservation bug (V25.43.112) and the buyer-strike sweep bug
+    # (V25.43.113), just one layer sneakier since there's no bad status
+    # code to catch at all. return=representation makes PostgREST hand
+    # back the row(s) it actually deleted -- an empty list means nothing
+    # was deleted even though the request itself "succeeded".
+    payload,detail=hosted_request('delete',table_name,params=params,prefer='return=representation')
     show_hosted_error('delete',table_name,detail)
-    return bool(detail.get('ok'))
+    if not detail.get('ok'):
+        return False
+    if not payload:
+        SUPABASE_STATUS['last_error']=f"{table_name}: delete matched no rows (RLS or filter mismatch) for {filters}"
+        return False
+    return True
 def core_table(table_name, order=None):
     if hosted_enabled() and table_name in CORE_HOSTED_TABLES:
         return hosted_select(table_name,order=order)
@@ -1625,8 +1651,9 @@ def setup():
     old_v25_43_171_announcement='V25.43.171'+' Update: Report Listing removed (use Support), even button widths, clickable photo + simpler listing page active'
     old_v25_43_172_announcement='V25.43.172'+' Add: listings now need a vinyl and cover condition grade before they can go Live active'
     old_v25_43_173_announcement='V25.43.173'+' Fix: buyer pages no longer crash on a listing with missing data active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement,old_v25_43_170_announcement,old_v25_43_171_announcement,old_v25_43_172_announcement,old_v25_43_173_announcement]:
-        set_setting('announcement','V25.43.174 Fix: Search Music was slow/hanging; Add: remove cart items before paying, PayPal required to publish active')
+    old_v25_43_174_announcement='V25.43.174'+' Fix: Search Music was slow/hanging; Add: remove cart items before paying, PayPal required to publish active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement,old_v25_43_170_announcement,old_v25_43_171_announcement,old_v25_43_172_announcement,old_v25_43_173_announcement,old_v25_43_174_announcement]:
+        set_setting('announcement','V25.43.175 Fix: cart Remove now tells you if it actually failed instead of silently doing nothing active')
 setup()
 recovery_token_bridge()
 
@@ -4737,16 +4764,28 @@ def render_seller_cart_group(bid, seller_id, group):
             subtotal+=price
             c2.write(money(price))
             if c3.button('Remove',key=f'cart_remove_{cart_id}'):
-                remove_from_cart(cart_id)
-                st.rerun()
+                # Founder: "people can't delete items from their cart."
+                # remove_from_cart() used to be trusted blindly -- if the
+                # delete was silently blocked (RLS matched zero rows, same
+                # failure shape as the Buy Now reservation bug), the button
+                # click did nothing but the page still reran as if it had
+                # worked, and the item was right back on the next load with
+                # no explanation at all. Check the result instead of
+                # assuming success.
+                if remove_from_cart(cart_id):
+                    st.rerun()
+                else:
+                    st.error("Could not remove that item -- please try again, or contact Support if it keeps happening.")
         for _,row in unavailable_rows.iterrows():
             cart_id=int(row['id'])
             reason=listing_availability_label(row) if safe(row.get('listing_status')) else 'Listing no longer exists'
             c1,c2=st.columns([4,1])
             c1.warning(f"{safe(row.get('artist')) or 'This item'} — {safe(row.get('title'))}: no longer available ({reason}).")
             if c2.button('Remove',key=f'cart_remove_{cart_id}'):
-                remove_from_cart(cart_id)
-                st.rerun()
+                if remove_from_cart(cart_id):
+                    st.rerun()
+                else:
+                    st.error("Could not remove that item -- please try again, or contact Support if it keeps happening.")
         if available_rows.empty:
             st.caption('Nothing available to check out in this group -- remove the unavailable item(s) above.')
             return

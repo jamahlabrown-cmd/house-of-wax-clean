@@ -1137,6 +1137,102 @@ def test_has_listing_photos_bulk_uses_one_query_per_chunk_not_per_item(monkeypat
     assert sum(len(c["product_id"]) for c in calls) == 450
 
 
+def test_bulk_get_sellers_uses_one_query_per_chunk_not_per_item():
+    # Same class of bug as has_listing_photos_bulk above, on the seller
+    # side: product_card() used to call get_seller() fresh for every single
+    # card. Real incident: with 800+ live listings on Search Music, that's
+    # 800+ Supabase round-trips just for seller lookups on one page load --
+    # founder, live: "it's taken at least five minutes to get to the search
+    # bar." This proves bulk_get_sellers() actually batches.
+    import app as hw_app
+    calls = []
+
+    def fake_hosted_select(table_name, filters=None, order=None, limit=None, in_filters=None, select=None):
+        calls.append(in_filters)
+        return pd.DataFrame(columns=["id", "store_name"])
+
+    orig_hosted_enabled = hw_app.hosted_enabled
+    orig_hosted_select = hw_app.hosted_select
+    hw_app.hosted_enabled = lambda: True
+    hw_app.hosted_select = fake_hosted_select
+    try:
+        ids = list(range(1, 451))
+        hw_app.bulk_get_sellers(ids)
+    finally:
+        hw_app.hosted_enabled = orig_hosted_enabled
+        hw_app.hosted_select = orig_hosted_select
+    assert len(calls) == 3, f"Expected 3 chunked calls for 450 seller ids, got {len(calls)}: {calls}"
+    assert sum(len(c["id"]) for c in calls) == 450
+
+
+def test_bulk_listing_galleries_uses_one_query_per_chunk_not_per_item():
+    import app as hw_app
+    calls = []
+
+    def fake_hosted_select(table_name, filters=None, order=None, limit=None, in_filters=None, select=None):
+        calls.append(in_filters)
+        return pd.DataFrame(columns=["product_id", "image_url", "caption"])
+
+    orig_hosted_enabled = hw_app.hosted_enabled
+    orig_hosted_select = hw_app.hosted_select
+    hw_app.hosted_enabled = lambda: True
+    hw_app.hosted_select = fake_hosted_select
+    try:
+        ids = list(range(1, 451))
+        result = hw_app.bulk_listing_galleries(ids)
+    finally:
+        hw_app.hosted_enabled = orig_hosted_enabled
+        hw_app.hosted_select = orig_hosted_select
+    assert len(calls) == 3, f"Expected 3 chunked calls for 450 product ids, got {len(calls)}: {calls}"
+    assert len(result) == 450, "Every requested id should have an entry, even with no gallery rows"
+
+
+def test_search_music_does_not_query_sellers_or_gallery_once_per_listing(monkeypatch):
+    # End-to-end version of the fix, through the real Search Music page:
+    # several live listings from the same seller used to mean one
+    # get_seller() call AND one product_gallery fetch per listing (product_card
+    # calling listing_primary_image() and has_listing_photos() separately,
+    # each doing their own fetch). This drives the actual page and asserts
+    # the seller/gallery query counts stay small and flat regardless of how
+    # many listings are showing, not proportional to them.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id, seller_email = _setup_approved_seller_for_bulk_publish(hw_app, "N+1 Regression Test Seller")
+    for i in range(6):
+        pid = _new_isolated_product(hw_app, seller_id, f"N+1 Test Item {i}")
+        hw_app.run("UPDATE products SET listing_status='Live' WHERE id=?", (pid,))
+
+    seller_calls = []
+    gallery_calls = []
+    orig_get_seller = hw_app.get_seller
+    orig_gallery = hw_app.listing_gallery_images
+
+    def counting_get_seller(i):
+        seller_calls.append(i)
+        return orig_get_seller(i)
+
+    def counting_gallery(pid):
+        gallery_calls.append(pid)
+        return orig_gallery(pid)
+
+    monkeypatch.setattr(hw_app, "get_seller", counting_get_seller)
+    monkeypatch.setattr(hw_app, "listing_gallery_images", counting_gallery)
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    goto(at, "Search Music")
+    assert not at.exception, at.exception
+
+    assert len(seller_calls) <= 1, (
+        f"Expected at most one per-item get_seller() call (batched via bulk_get_sellers otherwise), "
+        f"got {len(seller_calls)} for 6 listings from the same seller: {seller_calls}"
+    )
+    assert len(gallery_calls) <= 1, (
+        f"Expected listing_gallery_images() to not run once per card (batched via bulk_listing_galleries "
+        f"otherwise), got {len(gallery_calls)} for 6 listings: {gallery_calls}"
+    )
+
+
 # ---------- Real incident: a buyer with a null product_id on one row crashed every page that loaded their activity ----------
 
 def test_int_or_handles_none_nan_and_real_values():

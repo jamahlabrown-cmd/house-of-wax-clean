@@ -2262,6 +2262,27 @@ def get_seller(i):
     else:
         r=df('SELECT * FROM sellers WHERE id=?',(int(i),))
     return None if r.empty else r.iloc[0]
+def bulk_get_sellers(seller_ids):
+    # Batch equivalent of get_seller() for many ids at once -- grid views
+    # (Search Music, a seller's public storefront) that render one
+    # product_card() per listing used to call get_seller() fresh inside
+    # every single card, one Supabase round-trip per listing even though
+    # most listings in a store share the same handful of sellers. Real
+    # incident: a page with 800+ live listings took minutes to render
+    # because of exactly this pattern, compounded with the gallery N+1
+    # below. Returns {seller_id: seller_row}.
+    ids=list({int(i) for i in seller_ids if safe(i)!=''})
+    if not ids:
+        return {}
+    if hosted_enabled():
+        frames=[]
+        for i in range(0,len(ids),200):
+            frames.append(hosted_select('sellers',{},in_filters={'id':ids[i:i+200]}))
+        rows=pd.concat(frames,ignore_index=True) if frames else pd.DataFrame()
+    else:
+        placeholders=','.join('?' for _ in ids)
+        rows=df(f'SELECT * FROM sellers WHERE id IN ({placeholders})',tuple(ids))
+    return {int(r['id']):r for _,r in rows.iterrows()} if not rows.empty else {}
 def get_seller_full(i):
     # Includes paypal_link -- only for the seller viewing their own profile,
     # or a buyer who needs it to pay a seller they're already transacting
@@ -2761,9 +2782,7 @@ def listing_gallery_images(pid):
     except Exception:
         return pd.DataFrame()
 
-def listing_primary_image(p):
-    pid=int(p.get('id') or 0)
-    gallery=listing_gallery_images(pid) if pid else pd.DataFrame()
+def _primary_image_from_gallery(p, gallery):
     if not gallery.empty:
         main=gallery[gallery['caption'].fillna('').str.lower().str.contains('main listing photo',na=False)]
         local=gallery[gallery['image_url'].fillna('').apply(is_local_uploaded_image)]
@@ -2779,9 +2798,43 @@ def listing_primary_image(p):
         return safe(gallery.iloc[0]['image_url'])
     return ''
 
-def has_listing_photos(pid):
-    gallery=listing_gallery_images(pid)
+def _has_photos_from_gallery(gallery):
     return not gallery.empty and gallery['image_url'].fillna('').apply(is_local_uploaded_image).any()
+
+def listing_primary_image(p):
+    pid=int(p.get('id') or 0)
+    gallery=listing_gallery_images(pid) if pid else pd.DataFrame()
+    return _primary_image_from_gallery(p,gallery)
+
+def has_listing_photos(pid):
+    return _has_photos_from_gallery(listing_gallery_images(pid))
+
+def bulk_listing_galleries(product_ids):
+    # One batched product_gallery fetch split by product_id, instead of
+    # listing_gallery_images() being called fresh per item -- used by grid
+    # views (Search Music, a seller's public storefront) that render one
+    # product_card() per listing. Real incident: with 800+ live listings,
+    # every card independently round-tripping Supabase for its own gallery
+    # (via both listing_primary_image() AND has_listing_photos() -- two
+    # separate fetches of the same rows) made the page take minutes to
+    # load. Returns {product_id: gallery_dataframe}, always including every
+    # requested id (empty DataFrame if that listing has no gallery rows).
+    ids=[int(i) for i in product_ids if safe(i)!='']
+    if not ids:
+        return {}
+    if hosted_enabled():
+        frames=[]
+        for i in range(0,len(ids),200):
+            frames.append(hosted_select('product_gallery',{},in_filters={'product_id':ids[i:i+200]},order='id.asc'))
+        gallery=pd.concat(frames,ignore_index=True) if frames else pd.DataFrame()
+    else:
+        placeholders=','.join('?' for _ in ids)
+        gallery=df(f'SELECT * FROM product_gallery WHERE product_id IN ({placeholders}) ORDER BY id ASC',tuple(ids))
+    out={i:pd.DataFrame() for i in ids}
+    if not gallery.empty and 'product_id' in gallery.columns:
+        for pid,group in gallery.groupby('product_id'):
+            out[int(pid)]=group
+    return out
 
 def has_listing_photos_bulk(product_ids):
     # Batch equivalent of has_listing_photos() for a whole list of products
@@ -3145,15 +3198,26 @@ def filter_global_marketplace_listings(prods, keyword='', category='All', fmt='A
         shown=shown.sort_values('created_at',ascending=False,na_position='last') if 'created_at' in shown.columns else shown
     return shown
 
-def product_card(p, buyer_id=None):
+def product_card(p, buyer_id=None, seller_cache=None, gallery_cache=None):
     # Compact layout: a small thumbnail next to the details instead of a
     # full-width image, one merged caption line instead of three, and the
     # buyer actions in a single button row instead of stacked full-width --
     # founder feedback that cards were far too large to scale once a store
     # has real inventory ("it should be a quarter of the size").
+    #
+    # seller_cache/gallery_cache: optional pre-fetched lookups (see
+    # bulk_get_sellers()/bulk_listing_galleries()) so a grid of many cards
+    # can share a handful of batched queries instead of every card doing
+    # its own get_seller()/gallery fetch. Real incident: an 800+-listing
+    # page took minutes to load from exactly that N+1 pattern. Callers that
+    # render just one or a few cards can omit these and get the old
+    # per-card-lookup behavior.
     with st.container(border=True):
-        seller=get_seller(int(p['seller_id'])) if safe(p.get('seller_id')) else None
-        image=listing_primary_image(p)
+        sid=int(p['seller_id']) if safe(p.get('seller_id')) else 0
+        seller=(seller_cache.get(sid) if seller_cache is not None else (get_seller(sid) if sid else None))
+        pid=int(p['id'])
+        gallery=gallery_cache.get(pid,pd.DataFrame()) if gallery_cache is not None else listing_gallery_images(pid)
+        image=_primary_image_from_gallery(p,gallery)
         img_col,info_col=st.columns([1,2])
         with img_col:
             # Founder: "I would like for the pic on the file to be
@@ -3187,7 +3251,7 @@ def product_card(p, buyer_id=None):
                 status_badge(status_label,'danger')
             elif status_label!='Available':
                 listing_status_badge(status_label)
-        if has_listing_photos(int(p['id'])):
+        if _has_photos_from_gallery(gallery):
             st.caption('📷 Seller photos included')
         if is_available_listing(p):
             # Founder: "The view button can go away because it's not
@@ -3315,9 +3379,15 @@ def seller_profile(sid):
     if prods.empty: st.info('No public inventory yet. Draft, Hidden, Under Review, and Removed listings stay private or unavailable inside Seller Tools.')
     else:
         cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
+        # Every listing here belongs to this one seller already loaded
+        # above (s) -- no per-card seller lookup needed at all. The gallery
+        # fetch still gets batched once for the whole grid instead of once
+        # per card (see bulk_listing_galleries()).
+        seller_cache={int(sid):s}
+        gallery_cache=bulk_listing_galleries(prods['id'].tolist())
         cols=st.columns(4)
         for i,(_,p) in enumerate(prods.iterrows()):
-            with cols[i%4]: product_card(p,buyer_id=cart_bid)
+            with cols[i%4]: product_card(p,buyer_id=cart_bid,seller_cache=seller_cache,gallery_cache=gallery_cache)
 def record_listing_view(pid, seller_id):
     # Seller-facing feedback loop: sellers previously had no idea whether a
     # listing was getting looked at at all. Skip the seller's own views of
@@ -4521,9 +4591,17 @@ def marketplace():
         st.info('No matching live listings found. Try a different artist, title, barcode, or seller name.')
         return
     cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
+    # Batch the two lookups every card used to do individually -- with the
+    # full marketplace unfiltered, this is 800+ cards each independently
+    # round-tripping Supabase for its seller and its photo gallery. That
+    # N+1 pattern is what actually made this page take minutes to load
+    # (founder, live: "it's taken at least five minutes to get to the
+    # search bar"), not app sleep/cold-start as first suspected.
+    seller_cache=bulk_get_sellers(prods['seller_id'].dropna().tolist()) if 'seller_id' in prods.columns else {}
+    gallery_cache=bulk_listing_galleries(prods['id'].tolist())
     cols=st.columns(4)
     for i,(_,p) in enumerate(prods.iterrows()):
-        with cols[i%4]: product_card(p,buyer_id=cart_bid)
+        with cols[i%4]: product_card(p,buyer_id=cart_bid,seller_cache=seller_cache,gallery_cache=gallery_cache)
 def cart_page():
     header(); marketplace_context('House Of Wax Marketplace -> Cart'); st.header('My Cart')
     if not is_authenticated():

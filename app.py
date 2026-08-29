@@ -1091,7 +1091,7 @@ SELLER_STATUSES=['Pending Seller Approval','Approved Seller','Suspended Seller']
 LISTING_STATUSES=['Draft','Live','Hidden','Sold','Reported','Under Review','Removed by House Of Wax']
 PUBLIC_LISTING_STATUSES=['Live','Active','Approved','Public']
 INQUIRY_STATUSES=['New','Seller Responded','Closed']
-PURCHASE_REQUEST_STATUSES=['New','Offer Pending','Seller Countered','Seller Accepted','Seller Declined','Pending Pickup/Payment','Sold','Buyer Did Not Pay','Closed']
+PURCHASE_REQUEST_STATUSES=['New','Offer Pending','Seller Countered','Seller Accepted','Seller Declined','Pending Pickup/Payment','Sold','Buyer Did Not Pay','Buyer Cancelled','Closed']
 UNAVAILABLE_LISTING_STATUSES=['Pending Pickup/Payment','Pending','Sold']
 ACCOUNT_ROLES=['Buyer','Seller','Admin']
 KEY_DATA_TABLES=['app_users','products','sellers','listing_inquiries','purchase_requests','product_gallery','tester_feedback','listing_reports']
@@ -3075,11 +3075,25 @@ def seller_ready_to_pay_groups(bid):
 def render_seller_payment_group(group, key_prefix):
     with st.container(border=True):
         st.write(f"**{group['store_name']}** — {len(group['line_items'])} item(s)")
+        # Founder, live: "I need to have a way to be able to take something
+        # out of my cart if I change my mind prior to placing an order."
+        # Once checkout happens the item isn't cart_items anymore, it's a
+        # real purchase_requests row -- there was never a way to back out
+        # of one short of waiting out the whole payment window. This is a
+        # real, immediate cancel: reopens the listing (same revert-to-Live
+        # logic as a seller declining) and does NOT count as a missed-
+        # payment strike, since it's the buyer backing out before ever
+        # committing to pay, not failing to follow through.
         for li in group['line_items']:
+            item_col,cancel_col=st.columns([5,1])
             label=f"- {li['artist']} — {li['title']}: {money(li['amount'])}"
             if li['due']:
                 label+=f" (pay by {datetime.fromisoformat(li['due']).strftime('%B %d, %Y')})"
-            st.write(label)
+            item_col.write(label)
+            if cancel_col.button('Remove',key=f'{key_prefix}_cancel_{li["id"]}'):
+                update_purchase_request_status(li['id'],'Buyer Cancelled',seller_id=group['seller_id'])
+                st.success(f"Removed {li['artist']} — {li['title']}. The listing is available again.")
+                st.rerun()
         if group['total']<=0:
             st.warning('These listings have no price set -- ask the seller through House Of Wax before paying.')
             return
@@ -7377,7 +7391,7 @@ def update_purchase_request_status(request_id, status, seller_id=None, quiet=Fal
             core_update('products',{'listing_status':'Pending Pickup/Payment','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Pending Pickup/Payment',updated_at=? WHERE id=?",(now(),pid),quiet=quiet)
         elif status=='Sold':
             core_update('products',{'listing_status':'Sold','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Sold',updated_at=? WHERE id=?",(now(),pid),quiet=quiet)
-        elif status in ('Seller Declined','Closed','Buyer Did Not Pay'):
+        elif status in ('Seller Declined','Closed','Buyer Did Not Pay','Buyer Cancelled'):
             # A deal that fell through used to leave the listing stuck at
             # Pending Pickup/Payment forever, permanently hiding it from
             # buyers even though nothing was ever sold. Return it to Live,

@@ -3105,6 +3105,69 @@ def test_my_orders_shows_one_combined_payment_per_seller_not_per_item():
     )
 
 
+def test_buyer_can_cancel_a_ready_to_pay_order():
+    # Founder, live: "I need to have a way to be able to take something out
+    # of my cart if I change my mind prior to placing an order." Once
+    # checkout happens the item isn't cart_items anymore -- it's a real
+    # purchase_requests row -- and there was previously no way to back out
+    # of one short of waiting out the whole 5-day payment window.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+
+    buyer_id = _new_isolated_buyer(hw_app, "cancel_order_test_buyer")
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Cancel Order Test Album")
+    hw_app.run("UPDATE products SET listing_status='Pending Pickup/Payment' WHERE id=?", (product_id,))
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,status,payment_due_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (product_id, seller_id, buyer_id, "Cancel Test Buyer", "cancel@example.com", "Seller Accepted", hw_app.payment_due_at_string(), hw_app.now(), hw_app.now()),
+    )
+    pr_id = int(hw_app.df("SELECT id FROM purchase_requests WHERE product_id=? AND buyer_id=?", (product_id, buyer_id)).iloc[0]["id"])
+
+    buyer = hw_app.get_buyer(buyer_id)
+    _real_buyer_session(at, hw_app, buyer_id, buyer["email"])
+    goto(at, "My Account", area_key="marketplace_navigation")
+    assert not at.exception, at.exception
+
+    remove_buttons = [b for b in at.button if b.key and b.key.endswith(f"_cancel_{pr_id}")]
+    assert len(remove_buttons) >= 1, "Expected a Remove button for this ready-to-pay item"
+    remove_buttons[0].click().run()
+    assert not at.exception, at.exception
+
+    row = hw_app.df("SELECT status FROM purchase_requests WHERE id=?", (pr_id,)).iloc[0]
+    assert row["status"] == "Buyer Cancelled", f"Expected 'Buyer Cancelled', got {row['status']}"
+    product_status = hw_app.df("SELECT listing_status FROM products WHERE id=?", (product_id,)).iloc[0]["listing_status"]
+    assert product_status == "Live", f"Expected the listing to reopen after cancel, got {product_status}"
+
+    groups = hw_app.seller_ready_to_pay_groups(buyer_id)
+    assert not any(g["seller_id"] == seller_id for g in groups), "Cancelled order should no longer show as ready to pay"
+
+
+def test_buyer_cancelling_an_order_does_not_add_a_strike():
+    # A voluntary cancel before ever paying is not the same as missing the
+    # payment window -- expire_overdue_purchase_requests() is the only
+    # place that should ever add a buyer strike.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    buyer_id = _new_isolated_buyer(hw_app, "cancel_no_strike_test_buyer")
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Cancel No Strike Test Album")
+    starting_strikes = int(hw_app.get_buyer(buyer_id).get("strikes") or 0)
+    hw_app.run("UPDATE products SET listing_status='Pending Pickup/Payment' WHERE id=?", (product_id,))
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,status,payment_due_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (product_id, seller_id, buyer_id, "Cancel No Strike Buyer", "cancelnostrike@example.com", "Seller Accepted", hw_app.payment_due_at_string(), hw_app.now(), hw_app.now()),
+    )
+    pr_id = int(hw_app.df("SELECT id FROM purchase_requests WHERE product_id=? AND buyer_id=?", (product_id, buyer_id)).iloc[0]["id"])
+
+    hw_app.update_purchase_request_status(pr_id, "Buyer Cancelled", seller_id=seller_id)
+
+    ending_strikes = int(hw_app.get_buyer(buyer_id).get("strikes") or 0)
+    assert ending_strikes == starting_strikes, "Cancelling before paying should not add a strike"
+
+
 def test_mobile_quick_nav_bar_includes_cart():
     # Regression guard: mobile_navigation_bar() (the "Go to" quick-nav row
     # shown at the top of every page) keeps its own hardcoded button list,

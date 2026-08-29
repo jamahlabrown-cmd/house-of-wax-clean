@@ -3108,14 +3108,25 @@ def buyer_request_history(bid):
             st.dataframe(purchases[cols],width='stretch')
 
 def enrich_listing_with_seller_columns(products):
+    # This runs on EVERY live listing on EVERY Search Music load, before
+    # any pagination/filtering happens -- it used to call get_seller() once
+    # per row here too, on top of the per-card N+1 in product_card(). This
+    # was the real reason the page was still slow even after fixing that
+    # one: 800+ individual seller lookups happening upstream, unaffected by
+    # pagination since it runs before the results are even sliced. Batched
+    # via bulk_get_sellers() the same way, so it's a small, flat number of
+    # queries regardless of how many listings exist.
     if products.empty:
         return products
     out=products.copy()
     for col in ['store_name','seller_status','seller_level','seller_city','seller_state']:
         if col not in out.columns:
             out[col]=''
+    seller_ids=out['seller_id'].dropna().tolist() if 'seller_id' in out.columns else []
+    seller_cache=bulk_get_sellers(seller_ids)
     for idx,row in out.iterrows():
-        seller=get_seller(int(row.get('seller_id') or 0)) if safe(row.get('seller_id')) else None
+        sid=int(row.get('seller_id') or 0) if safe(row.get('seller_id')) else 0
+        seller=seller_cache.get(sid) if sid else None
         if seller is not None:
             out.at[idx,'store_name']=safe(seller.get('store_name'))
             out.at[idx,'seller_status']=normalize_seller_status(seller.get('status'))

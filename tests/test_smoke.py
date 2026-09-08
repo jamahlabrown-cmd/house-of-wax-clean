@@ -21,6 +21,7 @@ Supabase project once one exists.
 """
 import sys
 import os
+import uuid
 import pytest
 import pandas as pd
 
@@ -607,6 +608,24 @@ def test_map_discogs_condition_handles_all_real_values():
         assert hw_app.map_discogs_condition(not_a_grade) == "", not_a_grade
 
 
+def test_map_discogs_sleeve_condition_handles_no_cover_and_generic():
+    # Founder: "I can understand the ones that don't have sleeves but for
+    # the one[s] that do we should make that an option." Sleeve condition
+    # gets two extra real, non-blank answers beyond an actual grade -- a
+    # record with literally no cover has nothing to grade, and a generic/
+    # unbranded sleeve is a real object that just isn't a graded condition
+    # on Discogs. Neither should look like plain "still ungraded" blank.
+    import app as hw_app
+    assert hw_app.map_discogs_sleeve_condition("No Cover") == hw_app.NO_SLEEVE_VALUE
+    assert hw_app.map_discogs_sleeve_condition("no cover") == hw_app.NO_SLEEVE_VALUE
+    assert hw_app.map_discogs_sleeve_condition("Generic") == hw_app.GENERIC_SLEEVE_VALUE
+    # Real condition grades still map exactly like map_discogs_condition.
+    assert hw_app.map_discogs_sleeve_condition("Very Good Plus (VG+)") == "VG+"
+    # Truly unknown/blank stays blank -- never guess.
+    for not_a_grade in ["", None, "Not Graded"]:
+        assert hw_app.map_discogs_sleeve_condition(not_a_grade) == "", not_a_grade
+
+
 def test_is_discogs_collection_export_detects_real_header():
     import app as hw_app
     discogs_columns = ["Catalog#", "Artist", "Title", "Label", "Format", "Rating", "Released", "release_id", "CollectionFolder", "Date Added", "Collection Media Condition", "Collection Sleeve Condition", "Collection Notes"]
@@ -658,8 +677,25 @@ def test_parse_discogs_collection_csv_maps_fields_and_forces_draft():
     cass_mapped = hw_app.parse_discogs_collection_csv(pd.DataFrame([cass_row]), seller_id)[0]
     assert cass_mapped["category"] == "Cassettes"
 
+    no_cover_row = dict(row)
+    no_cover_row["Collection Sleeve Condition"] = "No Cover"
+    no_cover_mapped = hw_app.parse_discogs_collection_csv(pd.DataFrame([no_cover_row]), seller_id)[0]
+    assert no_cover_mapped["sleeve_grade"] == hw_app.NO_SLEEVE_VALUE
+    assert no_cover_mapped["media_grade"] == "Near Mint", "Media grade mapping is untouched by the sleeve-specific fix"
 
-def test_enrich_next_discogs_batch_updates_image_and_price_leaves_status_draft(monkeypatch):
+    generic_row = dict(row)
+    generic_row["Collection Sleeve Condition"] = "Generic"
+    generic_mapped = hw_app.parse_discogs_collection_csv(pd.DataFrame([generic_row]), seller_id)[0]
+    assert generic_mapped["sleeve_grade"] == hw_app.GENERIC_SLEEVE_VALUE
+
+
+def test_enrich_next_discogs_batch_updates_image_only_leaves_price_and_status_alone(monkeypatch):
+    # Founder: "I only want price suggestion to show when the item is being
+    # inputted into the system. At that point the seller chooses how much
+    # they want to list the item for." Enrichment must fetch cover art
+    # only -- price stays exactly as it was (0 for a fresh import) even
+    # when Discogs returns a real lowest_price, so the seller is the one
+    # who actually sets it, guided by the (now-rounded) suggested range.
     import app as hw_app
     seller_id = _new_isolated_seller(hw_app, "Discogs Enrich Test Seller")
     hw_app.run(
@@ -680,7 +716,7 @@ def test_enrich_next_discogs_batch_updates_image_and_price_leaves_status_draft(m
 
     row = hw_app.df("SELECT * FROM products WHERE id=?", (product_id,)).iloc[0]
     assert row["image_url"] == "https://img.discogs.com/example.jpg"
-    assert float(row["price"]) == 12.5
+    assert float(row["price"]) == 0, "Price must stay unset -- the seller chooses it, enrichment never auto-fills it"
     assert row["listing_status"] == "Draft", "Enrichment must never flip status to Live on its own"
 
 
@@ -719,10 +755,12 @@ def test_enrich_next_discogs_batch_stops_retrying_items_discogs_has_nothing_for(
     assert calls == [], "The permanently-unfetchable item should not be retried on later batches"
 
 
-def test_enrich_next_discogs_batch_marks_price_only_items_as_resolved(monkeypatch):
-    # Same class of bug for the partial case: Discogs has a price but no
-    # cover art for a release. That item should still leave the pending
-    # queue once tried, with a note that only the photo is missing.
+def test_enrich_next_discogs_batch_marks_no_image_items_as_resolved_without_writing_price(monkeypatch):
+    # Partial case: Discogs returns a price but no cover art for a release.
+    # That item should still leave the pending queue once tried, with a
+    # note that a photo is missing -- and price must stay untouched, since
+    # enrichment no longer auto-fills it (the seller sets it, guided by the
+    # suggested range).
     import app as hw_app
     seller_id = _new_isolated_seller(hw_app, "Discogs Price Only Test Seller")
     hw_app.run(
@@ -738,7 +776,7 @@ def test_enrich_next_discogs_batch_marks_price_only_items_as_resolved(monkeypatc
     assert result["remaining"] == 0
 
     row = hw_app.df("SELECT * FROM products WHERE id=?", (product_id,)).iloc[0]
-    assert float(row["price"]) == 9.99
+    assert float(row["price"]) == 0, "Price must stay unset even when Discogs returns a lowest_price"
     assert row["reviewer_notes"], "Expected a note that cover art specifically wasn't found"
 
 
@@ -946,6 +984,866 @@ def test_seller_action_dropdown_reflects_newly_selected_listings_real_status():
     assert not at.exception, at.exception
     assert at.selectbox(key=f"primary_my_inventory_seller_action_{draft_product_id}").value == "Draft", (
         "Switching to a different listing should show a dropdown defaulted to THAT listing's real status"
+    )
+
+
+def test_my_inventory_shows_price_range_and_lets_seller_update_price():
+    # Founder: "make sure it is giving range of price suggestions for the
+    # music items" -- reviewing an already-imported listing in My Inventory
+    # previously had no price guidance and no way to change the price at
+    # all without leaving the page (upload_product() only supports creating
+    # a NEW listing, not editing an existing one). This adds both: a real
+    # low-high range (not a single number) using the same
+    # suggest_seller_price_range() the listing-creation form already uses,
+    # plus an editable price field that actually saves.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Price Range Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    # Two comparable priced items (same artist, real prices) so
+    # suggest_price_range_from_how_history has something to compute a
+    # range from -- it needs at least 2 matching-artist items with a
+    # positive price.
+    comp1 = _new_isolated_product(hw_app, seller_id, "Comparable Item One")
+    comp2 = _new_isolated_product(hw_app, seller_id, "Comparable Item Two")
+    hw_app.run("UPDATE products SET artist='Range Test Artist', price=20.00 WHERE id=?", (comp1,))
+    hw_app.run("UPDATE products SET artist='Range Test Artist', price=30.00 WHERE id=?", (comp2,))
+    target_id = _new_isolated_product(hw_app, seller_id, "Item Needing A Price")
+    hw_app.run("UPDATE products SET artist='Range Test Artist', listing_status='Draft', price=0 WHERE id=?", (target_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(target_id).run()
+    assert not at.exception, at.exception
+
+    caption_text = " ".join(c.value for c in at.caption)
+    assert "Suggested price range" in caption_text, f"Expected a price-range caption, got: {caption_text}"
+    # Compute the expected range the same way the app does (quantiles of
+    # [20, 30], adjusted for the target listing's own grade), rather than
+    # hardcoding the grade-multiplier math here. round_price_range_up()
+    # rounds both ends up to the nearest whole dollar (founder: "make sure
+    # we are maximizing this part" -- clean numbers, never rounded down).
+    expected = hw_app.suggest_seller_price_range("Range Test Artist", None, "VG+", "VG", "Item Needing A Price")
+    assert expected["low"] % 1 == 0 and expected["high"] % 1 == 0, "Suggested range must be whole dollars"
+    assert hw_app.money(expected["low"]) in caption_text and hw_app.money(expected["high"]) in caption_text, (
+        f"Expected {hw_app.money(expected['low'])}-{hw_app.money(expected['high'])} in caption, got: {caption_text}"
+    )
+
+    at.number_input(key=f"primary_my_inventory_price_{target_id}").set_value(27.5).run()
+    at.button(key=f"primary_my_inventory_price_update_{target_id}").click().run()
+    assert not at.exception, at.exception
+    assert hw_app.df("SELECT price FROM products WHERE id=?", (target_id,)).iloc[0]["price"] == 27.5, (
+        "Price should actually persist after clicking Update price"
+    )
+
+    # Founder: "I only want price suggestion to show when the item is being
+    # inputted into the system. At that point the seller chooses how much
+    # they want to list the item for." Now that a real price has been set,
+    # the suggestion must not keep reappearing on every future visit.
+    caption_text_after = " ".join(c.value for c in at.caption)
+    assert "Suggested price range" not in caption_text_after, (
+        f"Suggestion should disappear once a real price is set, got: {caption_text_after}"
+    )
+
+
+def test_my_inventory_dataframe_shows_cover_photo_column():
+    # Founder: "I don't see photo of the album covers or any other pics."
+    # The inventory table had a text Yes/No indicator but never rendered
+    # the actual image, which made reviewing a large imported batch a wall
+    # of text with no visual to recognize items by.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Cover Photo Test Seller")
+    product_id = _new_isolated_product(hw_app, seller_id, "Item With A Cover")
+    hw_app.run("UPDATE products SET image_url='https://img.discogs.com/cover-test.jpg' WHERE id=?", (product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    assert not at.exception, at.exception
+
+    table = at.dataframe[0].value
+    assert "Cover" in table.columns, f"Expected a Cover column in My Inventory, got: {list(table.columns)}"
+    assert "https://img.discogs.com/cover-test.jpg" in table["Cover"].values, (
+        "Expected the item's real image_url to appear in the Cover column"
+    )
+
+
+def test_has_listing_photos_bulk_matches_per_item_lookup():
+    # Correctness check for the batched version against the same fixtures
+    # the single-item has_listing_photos() would be asked about: a real
+    # seller-uploaded photo counts, a reference/auto image URL and no
+    # gallery rows at all both don't.
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Bulk Photo Lookup Seller")
+    with_real_photo = _new_isolated_product(hw_app, seller_id, "Has A Real Photo")
+    with_reference_only = _new_isolated_product(hw_app, seller_id, "Reference Photo Only")
+    with_no_gallery_rows = _new_isolated_product(hw_app, seller_id, "No Gallery Rows At All")
+
+    hw_app.run(
+        "INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)",
+        (with_real_photo, "house_of_wax_uploads/real-photo.jpg", "Main listing photo", hw_app.now()),
+    )
+    hw_app.run(
+        "INSERT INTO product_gallery(product_id,image_url,caption,created_at) VALUES(?,?,?,?)",
+        (with_reference_only, "https://img.discogs.com/reference.jpg", "Reference art", hw_app.now()),
+    )
+
+    result = hw_app.has_listing_photos_bulk([with_real_photo, with_reference_only, with_no_gallery_rows])
+    assert result == {with_real_photo}, f"Expected only the real-photo item to match, got: {result}"
+
+    # Must agree with the original per-item function on the same fixtures.
+    assert hw_app.has_listing_photos(with_real_photo) == True
+    assert hw_app.has_listing_photos(with_reference_only) == False
+    assert hw_app.has_listing_photos(with_no_gallery_rows) == False
+
+    assert hw_app.has_listing_photos_bulk([]) == set()
+
+
+def test_has_listing_photos_bulk_uses_one_query_per_chunk_not_per_item(monkeypatch):
+    # Founder felt this live: My Inventory took 30-45+ seconds to load for
+    # a large store because has_listing_photos() ran once per row (one
+    # product_gallery network round-trip per listing). This proves the fix
+    # actually batches -- a few hosted_select calls total, not one per id.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    calls = []
+
+    def fake_hosted_select(table_name, filters=None, order=None, limit=None, in_filters=None, select=None):
+        calls.append(in_filters)
+        return pd.DataFrame(columns=["product_id", "image_url"])
+
+    monkeypatch.setattr(hw_app, "hosted_select", fake_hosted_select)
+    ids = list(range(1, 451))  # spans more than one 200-id chunk
+    hw_app.has_listing_photos_bulk(ids)
+    assert len(calls) == 3, f"Expected 3 chunked calls for 450 ids (200/200/50), got {len(calls)}: {calls}"
+    assert sum(len(c["product_id"]) for c in calls) == 450
+
+
+def test_bulk_get_sellers_uses_one_query_per_chunk_not_per_item():
+    # Same class of bug as has_listing_photos_bulk above, on the seller
+    # side: product_card() used to call get_seller() fresh for every single
+    # card. Real incident: with 800+ live listings on Search Music, that's
+    # 800+ Supabase round-trips just for seller lookups on one page load --
+    # founder, live: "it's taken at least five minutes to get to the search
+    # bar." This proves bulk_get_sellers() actually batches.
+    import app as hw_app
+    calls = []
+
+    def fake_hosted_select(table_name, filters=None, order=None, limit=None, in_filters=None, select=None):
+        calls.append(in_filters)
+        return pd.DataFrame(columns=["id", "store_name"])
+
+    orig_hosted_enabled = hw_app.hosted_enabled
+    orig_hosted_select = hw_app.hosted_select
+    hw_app.hosted_enabled = lambda: True
+    hw_app.hosted_select = fake_hosted_select
+    try:
+        ids = list(range(1, 451))
+        hw_app.bulk_get_sellers(ids)
+    finally:
+        hw_app.hosted_enabled = orig_hosted_enabled
+        hw_app.hosted_select = orig_hosted_select
+    assert len(calls) == 3, f"Expected 3 chunked calls for 450 seller ids, got {len(calls)}: {calls}"
+    assert sum(len(c["id"]) for c in calls) == 450
+
+
+def test_bulk_listing_galleries_uses_one_query_per_chunk_not_per_item():
+    import app as hw_app
+    calls = []
+
+    def fake_hosted_select(table_name, filters=None, order=None, limit=None, in_filters=None, select=None):
+        calls.append(in_filters)
+        return pd.DataFrame(columns=["product_id", "image_url", "caption"])
+
+    orig_hosted_enabled = hw_app.hosted_enabled
+    orig_hosted_select = hw_app.hosted_select
+    hw_app.hosted_enabled = lambda: True
+    hw_app.hosted_select = fake_hosted_select
+    try:
+        ids = list(range(1, 451))
+        result = hw_app.bulk_listing_galleries(ids)
+    finally:
+        hw_app.hosted_enabled = orig_hosted_enabled
+        hw_app.hosted_select = orig_hosted_select
+    assert len(calls) == 3, f"Expected 3 chunked calls for 450 product ids, got {len(calls)}: {calls}"
+    assert len(result) == 450, "Every requested id should have an entry, even with no gallery rows"
+
+
+def test_search_music_does_not_query_sellers_or_gallery_once_per_listing(monkeypatch):
+    # End-to-end version of the fix, through the real Search Music page:
+    # several live listings from the same seller used to mean one
+    # get_seller() call AND one product_gallery fetch per listing (product_card
+    # calling listing_primary_image() and has_listing_photos() separately,
+    # each doing their own fetch). This drives the actual page and asserts
+    # the seller/gallery query counts stay small and flat regardless of how
+    # many listings are showing, not proportional to them.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id, seller_email = _setup_approved_seller_for_bulk_publish(hw_app, "N+1 Regression Test Seller")
+    for i in range(6):
+        pid = _new_isolated_product(hw_app, seller_id, f"N+1 Test Item {i}")
+        hw_app.run("UPDATE products SET listing_status='Live' WHERE id=?", (pid,))
+
+    seller_calls = []
+    gallery_calls = []
+    orig_get_seller = hw_app.get_seller
+    orig_gallery = hw_app.listing_gallery_images
+
+    def counting_get_seller(i):
+        seller_calls.append(i)
+        return orig_get_seller(i)
+
+    def counting_gallery(pid):
+        gallery_calls.append(pid)
+        return orig_gallery(pid)
+
+    monkeypatch.setattr(hw_app, "get_seller", counting_get_seller)
+    monkeypatch.setattr(hw_app, "listing_gallery_images", counting_gallery)
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    goto(at, "Search Music")
+    assert not at.exception, at.exception
+
+    assert len(seller_calls) <= 1, (
+        f"Expected at most one per-item get_seller() call (batched via bulk_get_sellers otherwise), "
+        f"got {len(seller_calls)} for 6 listings from the same seller: {seller_calls}"
+    )
+    assert len(gallery_calls) <= 1, (
+        f"Expected listing_gallery_images() to not run once per card (batched via bulk_listing_galleries "
+        f"otherwise), got {len(gallery_calls)} for 6 listings: {gallery_calls}"
+    )
+
+
+# ---------- Real incident: a buyer with a null product_id on one row crashed every page that loaded their activity ----------
+
+def test_int_or_handles_none_nan_and_real_values():
+    # A NULL DB column comes back through pandas as a genuine float NaN, and
+    # NaN is truthy in Python -- "int(x or default)" does not catch it and
+    # crashes with "cannot convert float NaN to integer". int_or must.
+    import app as hw_app
+    assert hw_app.int_or(None) == 0
+    assert hw_app.int_or(float("nan")) == 0
+    assert hw_app.int_or(float("nan"), 7) == 7
+    assert hw_app.int_or(42) == 42
+    assert hw_app.int_or(42.0) == 42
+    assert hw_app.int_or("not a number") == 0
+
+
+def test_enrich_activity_rows_does_not_crash_on_a_null_product_id():
+    # Real production incident: a buyer had a listing_inquiries row whose
+    # product_id was null (an inquiry about a listing that no longer
+    # exists). buyer_activity_tables() always computes inquiries internally
+    # even when a caller only wants purchases (e.g. seller_ready_to_pay_groups),
+    # so this crashed every page for that buyer -- Cart AND My Account both,
+    # confirmed via the founder's screenshots: "ValueError: cannot convert
+    # float NaN to integer".
+    import app as hw_app
+    records = pd.DataFrame([
+        {"id": 3, "buyer_id": 125, "seller_id": 14, "product_id": float("nan"), "status": "New"},
+        {"id": 9, "buyer_id": 125, "seller_id": 14, "product_id": 11, "status": "New"},
+    ])
+    result = hw_app.enrich_activity_rows(records)
+    assert len(result) == 2
+
+
+def test_enrich_cart_rows_does_not_crash_on_a_null_product_id():
+    import app as hw_app
+    records = pd.DataFrame([
+        {"id": 1, "buyer_id": 125, "seller_id": 14, "product_id": float("nan")},
+    ])
+    result = hw_app.enrich_cart_rows(records)
+    assert len(result) == 1
+    assert result.iloc[0]["available"] == False
+
+
+# ---------- Deleting inventory (founder: sellers need a way to delete listings that sold, including sold off-platform) ----------
+
+def test_product_has_completed_platform_sale_true_when_real_sold_purchase_request_exists():
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Real Sale Test Seller")
+    product_id = _new_isolated_product(hw_app, seller_id, "Item Sold Through House Of Wax")
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_name,buyer_contact,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+        (product_id, seller_id, "Real Buyer", "buyer@example.com", "Sold", hw_app.now(), hw_app.now()),
+    )
+    assert hw_app.product_has_completed_platform_sale(product_id) is True
+
+
+def test_product_has_completed_platform_sale_false_with_no_purchase_request():
+    # The common case for "sold another way" -- seller marks it Sold
+    # themselves, no real purchase_requests row was ever created for it.
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Off Platform Sale Test Seller")
+    product_id = _new_isolated_product(hw_app, seller_id, "Item Sold Somewhere Else")
+    assert hw_app.product_has_completed_platform_sale(product_id) is False
+
+
+def test_product_has_completed_platform_sale_false_when_only_an_unfulfilled_offer_exists():
+    # A purchase_requests row that never actually completed (still New,
+    # never reached status=Sold) must not count as real sale history.
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Pending Offer Test Seller")
+    product_id = _new_isolated_product(hw_app, seller_id, "Item With Only An Open Offer")
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_name,buyer_contact,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+        (product_id, seller_id, "Interested Buyer", "buyer2@example.com", "New", hw_app.now(), hw_app.now()),
+    )
+    assert hw_app.product_has_completed_platform_sale(product_id) is False
+
+
+def test_seller_can_delete_sold_listing_with_no_real_purchase_history():
+    # Founder: "Some people may sell other ways and some items will sell
+    # and they can't delete it from their inventory." Sold listings used
+    # to never be deletable at all, no matter what.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Delete Sold No History Seller")
+    product_id = _new_isolated_product(hw_app, seller_id, "Sold Elsewhere Item")
+    hw_app.run("UPDATE products SET listing_status='Sold' WHERE id=?", (product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    at.checkbox(key="primary_my_inventory_show_sold").set_value(True).run()
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(product_id).run()
+    assert not at.exception, at.exception
+
+    confirm = next(c for c in at.checkbox if c.key == f"primary_my_inventory_delete_confirm_{product_id}")
+    confirm.set_value(True).run()
+    delete_button = next(b for b in at.button if b.key == f"primary_my_inventory_delete_{product_id}")
+    delete_button.click().run()
+    assert not at.exception, at.exception
+
+    remaining = hw_app.df("SELECT * FROM products WHERE id=?", (product_id,))
+    assert remaining.empty, "Sold listing with no real purchase history should be deletable"
+
+
+def test_seller_cannot_delete_sold_listing_with_real_completed_sale():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Delete Sold Real History Seller")
+    product_id = _new_isolated_product(hw_app, seller_id, "Genuinely Sold On House Of Wax")
+    hw_app.run("UPDATE products SET listing_status='Sold' WHERE id=?", (product_id,))
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_name,buyer_contact,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+        (product_id, seller_id, "Real Buyer", "buyer3@example.com", "Sold", hw_app.now(), hw_app.now()),
+    )
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    at.checkbox(key="primary_my_inventory_show_sold").set_value(True).run()
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(product_id).run()
+    assert not at.exception, at.exception
+
+    delete_buttons = [b for b in at.button if b.key == f"primary_my_inventory_delete_{product_id}"]
+    assert not delete_buttons, "A listing with a real completed sale must not offer a delete button"
+    all_text = " ".join(w.value for w in at.warning)
+    assert "completed House Of Wax sale" in all_text
+
+    remaining = hw_app.df("SELECT * FROM products WHERE id=?", (product_id,))
+    assert not remaining.empty, "Listing with real sale history must not be deletable"
+
+
+# ---------- Bulk publish (founder: "why are my listings not live?" -> reviewing ~800 imported drafts one at a time is too slow) ----------
+
+def _setup_approved_seller_for_bulk_publish(hw_app, store_name):
+    seller_id = _new_isolated_seller(hw_app, store_name)
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+    return seller_id, seller_email
+
+
+def _load_my_inventory(hw_app, seller_id, seller_email):
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    assert not at.exception, at.exception
+    return at
+
+
+def test_bulk_publish_only_offers_drafts_with_both_a_photo_and_a_price():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id, seller_email = _setup_approved_seller_for_bulk_publish(hw_app, "Bulk Publish Eligibility Seller")
+
+    ready_id = _new_isolated_product(hw_app, seller_id, "Ready To Publish")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='https://img.discogs.com/ready.jpg' WHERE id=?", (ready_id,))
+
+    no_price_id = _new_isolated_product(hw_app, seller_id, "Has Photo No Price")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=0, image_url='https://img.discogs.com/no-price.jpg' WHERE id=?", (no_price_id,))
+
+    no_photo_id = _new_isolated_product(hw_app, seller_id, "Has Price No Photo")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='' WHERE id=?", (no_photo_id,))
+
+    at = _load_my_inventory(hw_app, seller_id, seller_email)
+    multiselects = [m for m in at.multiselect if m.key == "primary_my_inventory_bulk_publish_select"]
+    assert multiselects, "Expected the bulk publish multiselect to render when at least one listing is ready"
+    ms = multiselects[0]
+    assert ms.value == [ready_id], f"Expected only the ready listing as default selection, got: {ms.value}"
+
+
+def test_bulk_publish_hidden_when_no_listings_are_ready():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id, seller_email = _setup_approved_seller_for_bulk_publish(hw_app, "Bulk Publish None Ready Seller")
+    no_price_id = _new_isolated_product(hw_app, seller_id, "Still Needs A Price")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=0, image_url='https://img.discogs.com/pending.jpg' WHERE id=?", (no_price_id,))
+
+    at = _load_my_inventory(hw_app, seller_id, seller_email)
+    multiselects = [m for m in at.multiselect if m.key == "primary_my_inventory_bulk_publish_select"]
+    assert not multiselects, "Bulk publish section should not render when nothing is ready"
+
+
+def test_bulk_publish_hidden_when_seller_rules_not_accepted():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Bulk Publish Rules Not Accepted Seller")
+    # Deliberately skip accepting rules, unlike _setup_approved_seller_for_bulk_publish.
+    seller_email = hw_app.get_seller(seller_id)["email"]
+    ready_id = _new_isolated_product(hw_app, seller_id, "Ready But Rules Not Accepted")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='https://img.discogs.com/ready.jpg' WHERE id=?", (ready_id,))
+
+    at = _load_my_inventory(hw_app, seller_id, seller_email)
+    multiselects = [m for m in at.multiselect if m.key == "primary_my_inventory_bulk_publish_select"]
+    assert not multiselects, "Bulk publish must not be offered before seller rules are accepted"
+
+
+def test_bulk_publish_publishes_only_selected_listings_and_leaves_others_alone():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id, seller_email = _setup_approved_seller_for_bulk_publish(hw_app, "Bulk Publish Action Seller")
+
+    ready_a = _new_isolated_product(hw_app, seller_id, "Ready Item A")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=5, image_url='https://img.discogs.com/a.jpg' WHERE id=?", (ready_a,))
+    ready_b = _new_isolated_product(hw_app, seller_id, "Ready Item B")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=8, image_url='https://img.discogs.com/b.jpg' WHERE id=?", (ready_b,))
+    not_ready = _new_isolated_product(hw_app, seller_id, "Not Ready Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=0, image_url='https://img.discogs.com/c.jpg' WHERE id=?", (not_ready,))
+
+    at = _load_my_inventory(hw_app, seller_id, seller_email)
+    ms = next(m for m in at.multiselect if m.key == "primary_my_inventory_bulk_publish_select")
+    # Deselect item B, keep only A -- proves the selection actually controls
+    # what gets published, not just "publish everything ready."
+    ms.set_value([ready_a]).run()
+    publish_buttons = [b for b in at.button if b.key == "primary_my_inventory_bulk_publish_button"]
+    assert publish_buttons, "Expected the bulk publish button"
+    publish_buttons[0].click().run()
+    assert not at.exception, at.exception
+
+    statuses = hw_app.df("SELECT id,listing_status FROM products WHERE id IN (?,?,?)", (ready_a, ready_b, not_ready))
+    by_id = dict(zip(statuses["id"], statuses["listing_status"]))
+    assert by_id[ready_a] == "Live", "Selected ready item should be published"
+    assert by_id[ready_b] == "Draft", "Deselected ready item should stay Draft"
+    assert by_id[not_ready] == "Draft", "Item missing a price must never be published, selected or not"
+
+
+def test_round_price_range_up_rounds_to_whole_dollars_never_down():
+    # Founder: "The price is not in whole numbers. I want to make sure we
+    # are maximizing this part." Raw quantile/API prices come back in odd
+    # cents -- round both ends up (never down) to a clean whole dollar.
+    import app as hw_app
+    result = hw_app.round_price_range_up({"low": 7.94, "high": 11.47, "source": "test"})
+    assert result["low"] == 8.0
+    assert result["high"] == 12.0
+
+    # Already-whole values should stay put, not get bumped up an extra dollar.
+    exact = hw_app.round_price_range_up({"low": 10.0, "high": 20.0, "source": "test"})
+    assert exact["low"] == 10.0
+    assert exact["high"] == 20.0
+
+    # A tight range still rounds each end up independently -- $9.99-$10.01
+    # becomes $10-$11, not squashed into a single number.
+    tight = hw_app.round_price_range_up({"low": 9.99, "high": 10.01, "source": "test"})
+    assert tight["low"] == 10.0
+    assert tight["high"] == 11.0
+
+    assert hw_app.round_price_range_up(None) is None
+
+
+def test_publish_via_status_dropdown_blocked_without_a_photo():
+    # Founder: "we should have it where all submissions for sale have
+    # photos of lp and record" -- every live listing needs at least one
+    # photo (the auto-filled reference image, or the seller's own), and
+    # nothing previously enforced that on the My Inventory status-dropdown
+    # path (as opposed to the listing-creation form, which is a separate
+    # code path). A draft with no image_url should not be publishable.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "No Photo Publish Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    draft_product_id = _new_isolated_product(hw_app, seller_id, "No Photo Draft Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', image_url='' WHERE id=?", (draft_product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(draft_product_id).run()
+    at.selectbox(key=f"primary_my_inventory_seller_action_{draft_product_id}").set_value("Live").run()
+    at.button(key=f"primary_my_inventory_update_{draft_product_id}").click().run()
+    assert not at.exception, at.exception
+
+    assert hw_app.df("SELECT listing_status FROM products WHERE id=?", (draft_product_id,)).iloc[0]["listing_status"] == "Draft", (
+        "Listing should still be Draft -- publish must be blocked with no photo"
+    )
+    error_text = " ".join(e.value for e in at.error)
+    assert "photo" in error_text.lower(), f"Expected a photo-required error, got: {error_text}"
+
+
+def test_publish_via_status_dropdown_allowed_with_a_photo():
+    # Positive control for the guard above -- a listing that DOES have a
+    # photo should publish normally, same as before this fix.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Has Photo Publish Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    draft_product_id = _new_isolated_product(hw_app, seller_id, "Has Photo Draft Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', image_url='https://example.com/real-photo.jpg' WHERE id=?", (draft_product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(draft_product_id).run()
+    at.selectbox(key=f"primary_my_inventory_seller_action_{draft_product_id}").set_value("Live").run()
+    at.button(key=f"primary_my_inventory_update_{draft_product_id}").click().run()
+    assert not at.exception, at.exception
+
+    assert hw_app.df("SELECT listing_status FROM products WHERE id=?", (draft_product_id,)).iloc[0]["listing_status"] == "Live", (
+        "Listing with a real photo should publish normally"
+    )
+
+
+def test_publish_via_status_dropdown_blocked_without_media_grade():
+    # Founder: "I notice the grading is incomplete. There need to be
+    # grading for both the vinyl and the cover." A listing missing the
+    # media (vinyl) grade should not be publishable.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "No Media Grade Publish Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    draft_product_id = _new_isolated_product(hw_app, seller_id, "No Media Grade Draft Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', image_url='https://example.com/real-photo.jpg', media_grade='', sleeve_grade='VG' WHERE id=?", (draft_product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(draft_product_id).run()
+    at.selectbox(key=f"primary_my_inventory_seller_action_{draft_product_id}").set_value("Live").run()
+    at.button(key=f"primary_my_inventory_update_{draft_product_id}").click().run()
+    assert not at.exception, at.exception
+
+    assert hw_app.df("SELECT listing_status FROM products WHERE id=?", (draft_product_id,)).iloc[0]["listing_status"] == "Draft", (
+        "Listing should still be Draft -- publish must be blocked with no media grade"
+    )
+    error_text = " ".join(e.value for e in at.error)
+    assert "vinyl" in error_text.lower() or "media" in error_text.lower(), f"Expected a media-grade-required error, got: {error_text}"
+
+
+def test_publish_via_status_dropdown_blocked_without_sleeve_grade():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "No Sleeve Grade Publish Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    draft_product_id = _new_isolated_product(hw_app, seller_id, "No Sleeve Grade Draft Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', image_url='https://example.com/real-photo.jpg', media_grade='VG+', sleeve_grade='' WHERE id=?", (draft_product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(draft_product_id).run()
+    at.selectbox(key=f"primary_my_inventory_seller_action_{draft_product_id}").set_value("Live").run()
+    at.button(key=f"primary_my_inventory_update_{draft_product_id}").click().run()
+    assert not at.exception, at.exception
+
+    assert hw_app.df("SELECT listing_status FROM products WHERE id=?", (draft_product_id,)).iloc[0]["listing_status"] == "Draft", (
+        "Listing should still be Draft -- publish must be blocked with no sleeve grade"
+    )
+    error_text = " ".join(e.value for e in at.error)
+    assert "sleeve" in error_text.lower() or "cover" in error_text.lower(), f"Expected a sleeve-grade-required error, got: {error_text}"
+
+
+def test_publish_via_status_dropdown_blocked_without_paypal_link():
+    # Founder, live: a listing went public with no way for a buyer to
+    # actually pay -- the seller had never filled in PayPal info at all.
+    # A Draft with a photo and complete grading should still be blocked
+    # from going Live if the seller's own paypal_link is blank.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "No PayPal Publish Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes', paypal_link='' WHERE id=?", (seller_id,))
+    draft_product_id = _new_isolated_product(hw_app, seller_id, "No PayPal Draft Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', image_url='https://example.com/real-photo.jpg', media_grade='VG+', sleeve_grade='VG' WHERE id=?", (draft_product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(draft_product_id).run()
+    at.selectbox(key=f"primary_my_inventory_seller_action_{draft_product_id}").set_value("Live").run()
+    at.button(key=f"primary_my_inventory_update_{draft_product_id}").click().run()
+    assert not at.exception, at.exception
+
+    assert hw_app.df("SELECT listing_status FROM products WHERE id=?", (draft_product_id,)).iloc[0]["listing_status"] == "Draft", (
+        "Listing should still be Draft -- publish must be blocked with no PayPal info on file"
+    )
+    error_text = " ".join(e.value for e in at.error)
+    assert "paypal" in error_text.lower(), f"Expected a PayPal-required error, got: {error_text}"
+
+
+def test_publish_via_status_dropdown_allowed_with_paypal_link():
+    # Positive control -- a seller with a real paypal_link and otherwise
+    # complete listing should publish normally, same as before this gate.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Has PayPal Publish Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes', paypal_link='paypal.me/testseller' WHERE id=?", (seller_id,))
+    draft_product_id = _new_isolated_product(hw_app, seller_id, "Has PayPal Draft Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', image_url='https://example.com/real-photo.jpg', media_grade='VG+', sleeve_grade='VG' WHERE id=?", (draft_product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(draft_product_id).run()
+    at.selectbox(key=f"primary_my_inventory_seller_action_{draft_product_id}").set_value("Live").run()
+    at.button(key=f"primary_my_inventory_update_{draft_product_id}").click().run()
+    assert not at.exception, at.exception
+
+    assert hw_app.df("SELECT listing_status FROM products WHERE id=?", (draft_product_id,)).iloc[0]["listing_status"] == "Live", (
+        "Listing should publish normally once the seller has a real PayPal link on file"
+    )
+
+
+def test_seller_can_edit_grading_in_my_inventory():
+    # Founder: same grading-completeness request -- and there was
+    # previously no way to add a missing grade to an already-imported
+    # listing without leaving My Inventory and re-running the whole Add
+    # Inventory wizard (which doesn't support editing an existing row).
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "Edit Grading Test Seller")
+    product_id = _new_isolated_product(hw_app, seller_id, "Ungraded Item")
+    hw_app.run("UPDATE products SET media_grade='', sleeve_grade='' WHERE id=?", (product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(product_id).run()
+    assert not at.exception, at.exception
+
+    at.selectbox(key=f"primary_my_inventory_media_grade_{product_id}").set_value("Near Mint").run()
+    at.selectbox(key=f"primary_my_inventory_sleeve_grade_{product_id}").set_value("VG+").run()
+    at.button(key=f"primary_my_inventory_grading_update_{product_id}").click().run()
+    assert not at.exception, at.exception
+
+    row = hw_app.df("SELECT media_grade, sleeve_grade FROM products WHERE id=?", (product_id,)).iloc[0]
+    assert row["media_grade"] == "Near Mint"
+    assert row["sleeve_grade"] == "VG+"
+
+
+def test_seller_can_mark_no_sleeve_and_it_satisfies_the_publish_gate():
+    # Founder: "I can understand the ones that don't have sleeves but for
+    # the one[s] that do we should make that an option." A record with no
+    # cover at all has a real, selectable answer now (not just blank), and
+    # picking it should be enough to satisfy the sleeve-grading requirement
+    # for publishing -- there's nothing left to grade.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id = _new_isolated_seller(hw_app, "No Sleeve Option Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    product_id = _new_isolated_product(hw_app, seller_id, "No Cover Single")
+    hw_app.run("UPDATE products SET listing_status='Draft', image_url='https://example.com/real-photo.jpg', media_grade='VG+', sleeve_grade='' WHERE id=?", (product_id,))
+    seller_email = hw_app.get_seller(seller_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,seller_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-seller-uuid-{seller_id}", seller_email, "Real Seller", "Seller", seller_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-seller-uuid-{seller_id}", "email": seller_email, "access_token": "fake"}
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section_auth").set_value("My Inventory").run()
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(product_id).run()
+
+    at.selectbox(key=f"primary_my_inventory_sleeve_grade_{product_id}").set_value(hw_app.NO_SLEEVE_VALUE).run()
+    at.button(key=f"primary_my_inventory_grading_update_{product_id}").click().run()
+    at.run()
+    assert not at.exception, at.exception
+    assert hw_app.df("SELECT sleeve_grade FROM products WHERE id=?", (product_id,)).iloc[0]["sleeve_grade"] == hw_app.NO_SLEEVE_VALUE
+
+    at.selectbox(key="primary_my_inventory_listing_id").set_value(product_id).run()
+    at.selectbox(key=f"primary_my_inventory_seller_action_{product_id}").set_value("Live").run()
+    at.button(key=f"primary_my_inventory_update_{product_id}").click().run()
+    assert not at.exception, at.exception
+    assert hw_app.df("SELECT listing_status FROM products WHERE id=?", (product_id,)).iloc[0]["listing_status"] == "Live", (
+        "Marking 'No sleeve/cover' should count as a real answer and allow publishing"
+    )
+
+
+def test_bulk_publish_excludes_listings_missing_grading():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id, seller_email = _setup_approved_seller_for_bulk_publish(hw_app, "Bulk Publish Grading Gate Seller")
+
+    fully_ready = _new_isolated_product(hw_app, seller_id, "Fully Ready Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='https://img.discogs.com/ready.jpg', media_grade='VG+', sleeve_grade='VG' WHERE id=?", (fully_ready,))
+
+    no_sleeve_grade = _new_isolated_product(hw_app, seller_id, "Missing Sleeve Grade Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='https://img.discogs.com/no-sleeve.jpg', media_grade='VG+', sleeve_grade='' WHERE id=?", (no_sleeve_grade,))
+
+    no_media_grade = _new_isolated_product(hw_app, seller_id, "Missing Media Grade Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='https://img.discogs.com/no-media.jpg', media_grade='', sleeve_grade='VG' WHERE id=?", (no_media_grade,))
+
+    at = _load_my_inventory(hw_app, seller_id, seller_email)
+    multiselects = [m for m in at.multiselect if m.key == "primary_my_inventory_bulk_publish_select"]
+    assert multiselects, "Expected the bulk publish multiselect to render"
+    assert multiselects[0].value == [fully_ready], (
+        f"Only the fully-graded item should be offered for bulk publish, got: {multiselects[0].value}"
+    )
+
+
+def test_bulk_publish_hidden_when_seller_has_no_paypal_link():
+    # Founder, live: a listing went public with no way for a buyer to
+    # actually pay. Bulk Publish is the fastest way to put many listings
+    # live at once, so it needs the same PayPal-on-file requirement as the
+    # single-item path -- every row here belongs to one seller, so a
+    # missing paypal_link should block ALL of them, not just be silently
+    # ignored per-row.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id, seller_email = _setup_approved_seller_for_bulk_publish(hw_app, "Bulk Publish No PayPal Seller")
+    hw_app.run("UPDATE sellers SET paypal_link='' WHERE id=?", (seller_id,))
+
+    ready_id = _new_isolated_product(hw_app, seller_id, "Otherwise Ready Item")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='https://img.discogs.com/ready.jpg', media_grade='VG+', sleeve_grade='VG' WHERE id=?", (ready_id,))
+
+    at = _load_my_inventory(hw_app, seller_id, seller_email)
+    multiselects = [m for m in at.multiselect if m.key == "primary_my_inventory_bulk_publish_select"]
+    assert not multiselects, "Bulk publish must not be offered when the seller has no PayPal info on file"
+    warning_text = " ".join(w.value for w in at.warning)
+    assert "paypal" in warning_text.lower(), f"Expected a PayPal-required warning, got: {warning_text}"
+
+
+def test_bulk_publish_offered_when_seller_has_paypal_link():
+    # Positive control -- otherwise-ready listings should still bulk
+    # publish normally once the seller has a real paypal_link on file.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    seller_id, seller_email = _setup_approved_seller_for_bulk_publish(hw_app, "Bulk Publish Has PayPal Seller")
+    hw_app.run("UPDATE sellers SET paypal_link='paypal.me/testseller' WHERE id=?", (seller_id,))
+
+    ready_id = _new_isolated_product(hw_app, seller_id, "Ready Item With PayPal")
+    hw_app.run("UPDATE products SET listing_status='Draft', price=9.99, image_url='https://img.discogs.com/ready.jpg', media_grade='VG+', sleeve_grade='VG' WHERE id=?", (ready_id,))
+
+    at = _load_my_inventory(hw_app, seller_id, seller_email)
+    multiselects = [m for m in at.multiselect if m.key == "primary_my_inventory_bulk_publish_select"]
+    assert multiselects, "Expected the bulk publish multiselect to render when the seller has PayPal info on file"
+    assert multiselects[0].value == [ready_id], (
+        f"Expected the ready item to be offered for bulk publish, got: {multiselects[0].value}"
     )
 
 
@@ -1238,8 +2136,25 @@ def _new_isolated_seller(hw_app, store_name):
     # ensure_seller() reuses whatever seller row already exists in the
     # shared SQLite file (same reasoning as _new_isolated_product below).
     # Give each test needing its own seller/inventory a dedicated row.
-    email = store_name.lower().replace(" ", "-") + "@example.com"
-    data = {'store_name': store_name, 'owner_name': 'Test Owner', 'email': email, 'phone': '', 'city': '', 'state': '', 'website': '', 'instagram': '', 'store_bio': '', 'seller_story': '', 'specialties': '', 'logo_url': '', 'banner_url': '', 'status': 'Approved Seller', 'seller_level': 'Verified Seller', 'rating': 100, 'completed_sales': 0, 'disputes': 0, 'strikes': 0, 'auction_override': 'Yes', 'access_code': '', 'created_at': hw_app.now()}
+    #
+    # The email used to be generated deterministically from store_name alone
+    # (e.g. "seller-action-dropdown-test-seller@example.com") -- fine within
+    # a single suite run since test names differ, but sellers.email has a
+    # real UNIQUE constraint, and the local house_of_wax.db file persists
+    # across separate pytest invocations rather than resetting each time.
+    # Re-running the suite (or even just this one test) against that same
+    # file a second time collided with its own leftover row from the first
+    # run, throwing "UNIQUE constraint failed: sellers.email" -- not a real
+    # app bug, just this helper not being safe to call more than once ever
+    # against a given database. A uuid suffix makes every call unique
+    # regardless of how many times it's been run before.
+    email = store_name.lower().replace(" ", "-") + f"-{uuid.uuid4().hex[:8]}@example.com"
+    # paypal_link defaults to a real value here (like media_grade/sleeve_grade
+    # default to real values in _new_isolated_product) so the many existing
+    # "should publish successfully" tests aren't broken by the PayPal-required
+    # publish gate -- tests that specifically exercise that gate clear it
+    # back to '' themselves.
+    data = {'store_name': store_name, 'owner_name': 'Test Owner', 'email': email, 'phone': '', 'city': '', 'state': '', 'website': '', 'instagram': '', 'store_bio': '', 'seller_story': '', 'specialties': '', 'logo_url': '', 'banner_url': '', 'status': 'Approved Seller', 'seller_level': 'Verified Seller', 'rating': 100, 'completed_sales': 0, 'disputes': 0, 'strikes': 0, 'auction_override': 'Yes', 'access_code': '', 'paypal_link': 'seller@example.com', 'created_at': hw_app.now()}
     keys = list(data.keys())
     placeholders = ",".join("?" for _ in keys)
     hw_app.run(f"INSERT INTO sellers({','.join(keys)}) VALUES({placeholders})", tuple(data[k] for k in keys))
@@ -1264,7 +2179,9 @@ def _new_isolated_buyer(hw_app, email_prefix):
     # _real_buyer_session's app_users row is keyed on a unique auth_user_id
     # AND a unique email, so any two tests sharing a buyer would collide on
     # both. Give each test needing a real signed-in session its own buyer.
-    email = f"{email_prefix}@example.com"
+    # uuid suffix for the same reason as _new_isolated_seller above -- safe
+    # to call more than once against a database that persists across runs.
+    email = f"{email_prefix}-{uuid.uuid4().hex[:8]}@example.com"
     return hw_app.create_buyer(email, email_prefix.replace("_", " ").title())
 
 
@@ -1451,7 +2368,7 @@ def test_buy_button_is_gone_from_search_music_and_product_detail():
     assert not at.exception
 
     button_keys = [b.key for b in at.button if b.key]
-    assert any(k.startswith("item_") for k in button_keys), "Expected the seeded listing card to actually render"
+    assert any(k.startswith("ask_item_") for k in button_keys), "Expected the seeded listing card to actually render"
     assert not any(k.startswith("buy_request_item_") for k in button_keys), "Buy button should be gone from listing cards"
     button_labels = [b.proto.label for b in at.button]
     assert "Buy" not in button_labels, f"Unexpected 'Buy' button still present: {button_labels}"
@@ -1626,18 +2543,19 @@ def test_seller_inventory_shows_view_and_watching_counts():
     )
 
 
-def test_view_button_navigates_away_from_sellers_public_inventory_page():
-    # Founder, screen recording: browsing a seller's store (Seller Stores ->
-    # a seller's public profile -> "Public inventory" section), tapping
-    # View/Ask/Offer on a listing card visibly triggers a rerun (button
-    # lights up, page dims/reloads) but lands back on the exact same seller
-    # profile page every time -- only Cart appeared to "work". Root cause:
-    # seller_stores() checks session_state['seller_id'] and dispatches to
-    # seller_profile() unconditionally, with no check for 'product_id' at
-    # all -- so product_card()'s View/Ask/Offer buttons (which only set
-    # product_id and rerun) get silently swallowed. Cart "worked" only
-    # because add_to_cart() succeeds and updates the card in place without
-    # needing navigation.
+def test_clicking_listing_photo_navigates_away_from_sellers_public_inventory_page():
+    # Founder, screen recording (original bug, back when this was a "View"
+    # button): browsing a seller's store (Seller Stores -> a seller's
+    # public profile -> "Public inventory" section), tapping View/Ask/Offer
+    # on a listing card visibly triggers a rerun but lands back on the
+    # exact same seller profile page every time. Root cause: seller_stores()
+    # checks session_state['seller_id'] and dispatches to seller_profile()
+    # unconditionally, with no check for 'product_id' at all. The View
+    # button itself is gone now (founder: "the view button can go away
+    # because it's not needed" -- the thumbnail is clickable instead), but
+    # the same underlying navigation guarantee still has to hold for the
+    # photo-click mechanism that replaced it (?open_product= query param,
+    # consumed by apply_image_click_navigation()).
     import app as hw_app
     seller_id = _new_isolated_seller(hw_app, "Nav Bug Test Store")
     product_id = _new_isolated_product(hw_app, seller_id, "Nav Bug Test Album")
@@ -1655,18 +2573,55 @@ def test_view_button_navigates_away_from_sellers_public_inventory_page():
     assert not at.exception, at.exception
     assert any("Public inventory" in s.value for s in at.subheader), "Expected to land on the seller's public inventory"
 
-    view_buttons = [b for b in at.button if b.key == f"item_{product_id}"]
-    assert view_buttons, "Expected a View button for the seeded listing"
-    view_buttons[0].click().run()
+    assert not [b for b in at.button if b.key == f"item_{product_id}"], (
+        "The View button should be gone -- the listing photo is the click-through now"
+    )
+
+    # Simulates clicking the listing photo: a real <a href="?open_product=...">
+    # (from st.image's link=), not a Streamlit rerun trigger, so exercise it
+    # the same way a real browser navigation would -- set the query param
+    # and load the page fresh.
+    at.query_params["open_product"] = str(product_id)
+    at.run()
     assert not at.exception, at.exception
 
     titles = [t.value for t in at.title]
     assert any("Nav Bug Test Album" in t for t in titles), (
-        f"Expected View to navigate to the product detail page (title should mention the album), got titles: {titles}"
+        f"Expected the photo click to navigate to the product detail page (title should mention the album), got titles: {titles}"
     )
     subheaders = [s.value for s in at.subheader]
     assert not any("Public inventory" in s for s in subheaders), (
         "Should have navigated away from the seller's public inventory grid, not stayed on it"
+    )
+    assert "open_product" not in at.query_params, "The query param should be consumed, not left dangling"
+
+
+def test_open_product_link_works_from_a_completely_fresh_session():
+    # Regression guard for a real bug caught live (not by the test above):
+    # st.image's link= renders a real <a href>, which is a full browser
+    # navigation -- it drops the WebSocket and starts a BRAND NEW Streamlit
+    # session, unlike st.button (an in-app rerun on the SAME session). A
+    # fresh session's own default nav logic lands on Home, which never
+    # checks product_id at all, so the very first click from any fresh
+    # page load did nothing until apply_image_click_navigation() also
+    # forced marketplace_navigation to Search Music (same fix
+    # apply_share_deep_link() already needed for the same reason). This
+    # test deliberately does NOT reuse an existing `at` session/goto() the
+    # way the test above does, specifically because that reuse is what let
+    # the bug slip past that test in the first place.
+    import app as hw_app
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Fresh Session Photo Click Test Album")
+    hw_app.run("UPDATE products SET listing_status='Live' WHERE id=?", (product_id,))
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.query_params["open_product"] = str(product_id)
+    at.run()
+    assert not at.exception, at.exception
+
+    titles = [t.value for t in at.title]
+    assert any("Fresh Session Photo Click Test Album" in t for t in titles), (
+        f"A fresh session landing on ?open_product= should go straight to that listing's detail page, got titles: {titles}"
     )
 
 
@@ -1948,6 +2903,43 @@ def test_add_to_cart_is_idempotent_and_shows_in_cart_badge():
     assert len(cart_rows_after) == 1, f"Expected still exactly one cart_items row after re-render, got {len(cart_rows_after)}"
 
 
+def test_product_detail_has_no_duplicate_ask_offer_buttons():
+    # Founder: "there are some redundancies. The buy button is very low on
+    # the screen and is hard to find." The old page had Ask/Offer as quick
+    # buttons right under the price that only pre-expanded the SAME two
+    # forms rendered again, full-width, under a separate "Buyer actions"
+    # header after Description/Video -- Add to Cart lived only down there.
+    # Buyer actions now render exactly once, right under the price.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "No Duplicate Buttons Test Album")
+
+    goto(at, "Search Music", area_key="marketplace_navigation")
+    at.session_state["product_id"] = int(product_id)
+    at.run()
+    assert not at.exception, at.exception
+
+    button_keys = [b.key for b in at.button if b.key]
+    assert not any(k.startswith("detail_ask_top_") for k in button_keys), (
+        f"The old duplicate top Ask button should be gone, got: {button_keys}"
+    )
+    assert not any(k.startswith("detail_offer_top_") for k in button_keys), (
+        f"The old duplicate top Offer button should be gone, got: {button_keys}"
+    )
+    subheaders = [s.value for s in at.subheader]
+    assert "Buyer actions" not in subheaders, (
+        f"The separate 'Buyer actions' section should be gone -- merged into one place near the price, got: {subheaders}"
+    )
+    # The real, single Ask/Offer/Cart entry points must still all be present.
+    assert any(k == f"cart_add_detail_{product_id}" for k in button_keys), "Expected the Add to Cart button"
+    expander_labels = [e.label for e in at.get("expander")]
+    assert "Ask About This Item / Contact Seller" in expander_labels
+    assert "Make an Offer" in expander_labels
+
+
 def test_anonymous_add_to_cart_resumes_after_sign_in():
     # Anonymous visitor clicks Add to Cart -> gets redirected to sign in with
     # a pending action saved -- then, once signed in, restore_pending_action()
@@ -2123,6 +3115,88 @@ def test_cart_page_shows_unavailable_item_without_crashing():
     )
 
 
+def _cart_remove_failure_probe():
+    import app as hw_app
+    import pandas as pd
+    group = pd.DataFrame([{
+        'id': 1, 'product_id': 1, 'seller_id': 1, 'artist': 'Test Artist',
+        'title': 'Cart Remove Failure Probe Album', 'price': 24.99,
+        'listing_status': 'Live', 'available': True, 'store_name': 'Test Store',
+    }])
+    hw_app.render_seller_cart_group(1, 1, group)
+
+
+def test_cart_remove_failure_is_surfaced_not_silently_swallowed(monkeypatch):
+    # Founder: "people can't delete items from their cart." Real production
+    # root cause: PostgREST DELETE requests that RLS filters down to zero
+    # matched rows still come back HTTP 200 "success" with an empty body --
+    # not an error -- so remove_from_cart() used to be trusted blindly and
+    # the page just reran as if the click had worked. The item was still
+    # there on the next load with no explanation. The Remove button must
+    # check the result and say something instead of pretending it worked.
+    # Uses AppTest.from_function (same pattern as
+    # test_reservation_failure_is_surfaced_not_silently_swallowed above) --
+    # AppTest.from_file re-execs app.py's own top-level source into a fresh
+    # namespace on every .run(), which does not reliably pick up a
+    # monkeypatch applied to the separately-imported `app` module object.
+    import app as hw_app
+
+    monkeypatch.setattr(hw_app, "remove_from_cart", lambda cart_item_id: False)
+
+    at = AppTest.from_function(_cart_remove_failure_probe, default_timeout=30)
+    at.run()
+    assert not at.exception, at.exception
+
+    remove_button = next(b for b in at.button if b.key == "cart_remove_1")
+    remove_button.click().run()
+    assert not at.exception, at.exception
+
+    errors = [e.value for e in at.error]
+    assert any("could not remove" in e.lower() for e in errors), (
+        f"Expected a could-not-remove error to be surfaced, got errors={errors}"
+    )
+
+
+def test_hosted_delete_treats_a_zero_row_match_as_failure(monkeypatch):
+    # Direct unit coverage for the fix itself: hosted_delete() now requests
+    # return=representation and treats an empty payload (RLS silently
+    # filtered the row out of the DELETE's WHERE match, or it just didn't
+    # exist) as a failure, even though the HTTP call itself reports ok=True
+    # -- this can't be exercised through the local SQLite path at all since
+    # there's no RLS engine there, see house-of-wax-hosted-select-testing-gap.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", lambda method, table_name, **k: ([], {"ok": True, "status_code": 200, "message": ""}))
+    assert hw_app.hosted_delete("cart_items", {"id": 1}) is False
+
+
+def test_hosted_delete_returns_true_when_a_row_is_actually_deleted(monkeypatch):
+    # Positive control for the guard above.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", lambda method, table_name, **k: ([{"id": 1}], {"ok": True, "status_code": 200, "message": ""}))
+    assert hw_app.hosted_delete("cart_items", {"id": 1}) is True
+
+
+def test_hosted_update_treats_a_zero_row_match_as_failure(monkeypatch):
+    # Same silent-failure shape as hosted_delete above, for UPDATE -- an RLS
+    # policy that filters the row out of the WHERE match returns HTTP 200
+    # with an empty representation, not an error, so `ok` alone isn't
+    # enough to know whether anything was actually changed.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", lambda method, table_name, **k: ([], {"ok": True, "status_code": 200, "message": ""}))
+    assert hw_app.hosted_update("cart_items", {"status": "x"}, {"id": 1}) is False
+
+
+def test_hosted_update_returns_true_when_a_row_is_actually_updated(monkeypatch):
+    # Positive control for the guard above.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", lambda method, table_name, **k: ([{"id": 1, "status": "x"}], {"ok": True, "status_code": 200, "message": ""}))
+    assert hw_app.hosted_update("cart_items", {"status": "x"}, {"id": 1}) is True
+
+
 def test_checkout_confirmation_still_shows_after_cart_group_empties():
     # Regression guard: a seller's cart group disappears the instant checkout
     # succeeds (its items just left cart_items) -- render_seller_cart_group()
@@ -2225,6 +3299,69 @@ def test_my_orders_shows_one_combined_payment_per_seller_not_per_item():
     assert "49.98" in total_lines[0], (
         f"Expected the combined total of both items ($24.99 demo price each = $49.98), got {total_lines[0]}"
     )
+
+
+def test_buyer_can_cancel_a_ready_to_pay_order():
+    # Founder, live: "I need to have a way to be able to take something out
+    # of my cart if I change my mind prior to placing an order." Once
+    # checkout happens the item isn't cart_items anymore -- it's a real
+    # purchase_requests row -- and there was previously no way to back out
+    # of one short of waiting out the whole 5-day payment window.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+
+    buyer_id = _new_isolated_buyer(hw_app, "cancel_order_test_buyer")
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Cancel Order Test Album")
+    hw_app.run("UPDATE products SET listing_status='Pending Pickup/Payment' WHERE id=?", (product_id,))
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,status,payment_due_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (product_id, seller_id, buyer_id, "Cancel Test Buyer", "cancel@example.com", "Seller Accepted", hw_app.payment_due_at_string(), hw_app.now(), hw_app.now()),
+    )
+    pr_id = int(hw_app.df("SELECT id FROM purchase_requests WHERE product_id=? AND buyer_id=?", (product_id, buyer_id)).iloc[0]["id"])
+
+    buyer = hw_app.get_buyer(buyer_id)
+    _real_buyer_session(at, hw_app, buyer_id, buyer["email"])
+    goto(at, "My Account", area_key="marketplace_navigation")
+    assert not at.exception, at.exception
+
+    remove_buttons = [b for b in at.button if b.key and b.key.endswith(f"_cancel_{pr_id}")]
+    assert len(remove_buttons) >= 1, "Expected a Remove button for this ready-to-pay item"
+    remove_buttons[0].click().run()
+    assert not at.exception, at.exception
+
+    row = hw_app.df("SELECT status FROM purchase_requests WHERE id=?", (pr_id,)).iloc[0]
+    assert row["status"] == "Buyer Cancelled", f"Expected 'Buyer Cancelled', got {row['status']}"
+    product_status = hw_app.df("SELECT listing_status FROM products WHERE id=?", (product_id,)).iloc[0]["listing_status"]
+    assert product_status == "Live", f"Expected the listing to reopen after cancel, got {product_status}"
+
+    groups = hw_app.seller_ready_to_pay_groups(buyer_id)
+    assert not any(g["seller_id"] == seller_id for g in groups), "Cancelled order should no longer show as ready to pay"
+
+
+def test_buyer_cancelling_an_order_does_not_add_a_strike():
+    # A voluntary cancel before ever paying is not the same as missing the
+    # payment window -- expire_overdue_purchase_requests() is the only
+    # place that should ever add a buyer strike.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    buyer_id = _new_isolated_buyer(hw_app, "cancel_no_strike_test_buyer")
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Cancel No Strike Test Album")
+    starting_strikes = int(hw_app.get_buyer(buyer_id).get("strikes") or 0)
+    hw_app.run("UPDATE products SET listing_status='Pending Pickup/Payment' WHERE id=?", (product_id,))
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,status,payment_due_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (product_id, seller_id, buyer_id, "Cancel No Strike Buyer", "cancelnostrike@example.com", "Seller Accepted", hw_app.payment_due_at_string(), hw_app.now(), hw_app.now()),
+    )
+    pr_id = int(hw_app.df("SELECT id FROM purchase_requests WHERE product_id=? AND buyer_id=?", (product_id, buyer_id)).iloc[0]["id"])
+
+    hw_app.update_purchase_request_status(pr_id, "Buyer Cancelled", seller_id=seller_id)
+
+    ending_strikes = int(hw_app.get_buyer(buyer_id).get("strikes") or 0)
+    assert ending_strikes == starting_strikes, "Cancelling before paying should not add a strike"
 
 
 def test_mobile_quick_nav_bar_includes_cart():
@@ -2756,6 +3893,45 @@ def test_upload_product_prefills_reference_image_from_photo_library():
 
 # ---------- Support / Contact page (founder: replace/supplement the per-listing Report button with a general support path) ----------
 
+def test_report_listing_button_is_gone_from_buyer_facing_pages():
+    # Founder: "Please remove the report listing button. That can be done
+    # in customer support." Report Seller (on a seller's public profile)
+    # is a separate, intentionally-kept flow -- only the per-listing Report
+    # Listing button/form goes away, replaced by the general Support page.
+    import app as hw_app
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Report Button Removal Test Album")
+    hw_app.run("UPDATE products SET listing_status='Live' WHERE id=?", (product_id,))
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+
+    # Card view (Search Music grid).
+    goto(at, "Search Music", area_key="marketplace_navigation")
+    assert not at.exception, at.exception
+    expander_labels = [e.label for e in at.get("expander")]
+    assert "Report Listing" not in expander_labels, f"Report Listing should be gone from listing cards, got: {expander_labels}"
+
+    # Full listing detail page.
+    at.session_state["product_id"] = int(product_id)
+    at.run()
+    assert not at.exception, at.exception
+    expander_labels = [e.label for e in at.get("expander")]
+    assert "Report Listing" not in expander_labels, f"Report Listing should be gone from the listing detail page, got: {expander_labels}"
+    all_text = " ".join(m.value for m in at.markdown) + " ".join(i.value for i in at.info)
+    assert "Support" in all_text, "Expected the listing detail page to point buyers at Support instead"
+
+    # Report Seller must still be intact -- this removal is listing-specific.
+    if "product_id" in at.session_state:
+        del at.session_state["product_id"]
+    at.session_state["seller_id"] = int(seller_id)
+    at.run()
+    assert not at.exception, at.exception
+    expander_labels = [e.label for e in at.get("expander")]
+    assert "Report Seller" in expander_labels, f"Report Seller should still be available on the seller profile, got: {expander_labels}"
+
+
 def test_support_page_reachable_via_query_param_and_has_a_way_back():
     at = AppTest.from_file("app.py", default_timeout=30)
     at.query_params["support"] = "1"
@@ -2803,6 +3979,81 @@ def test_support_request_submission_saves_and_shows_in_admin_queue():
     assert any("Cannot find my order confirmation." in t for t in all_text), (
         "Submitted support request should show up in the admin Support Requests queue"
     )
+
+
+def test_notify_admins_new_support_request_emails_every_admin(monkeypatch):
+    # Founder: a new support request only ever showed up if someone
+    # remembered to open the admin panel and check -- no alert otherwise.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "admin_email_allowlist", lambda: ["admin1@example.com", "admin2@example.com"])
+    sent = []
+    monkeypatch.setattr(
+        hw_app, "send_email",
+        lambda to_email, subject, html_body: sent.append((to_email, subject, html_body)) or True,
+    )
+
+    hw_app.notify_admins_new_support_request("Jamie", "buyer@example.com", "Payment issue", "My order never showed up.")
+
+    assert len(sent) == 2, f"Expected one email per configured admin, got: {sent}"
+    assert [s[0] for s in sent] == ["admin1@example.com", "admin2@example.com"]
+    for to_email, subject, body in sent:
+        assert "Payment issue" in subject
+        assert "buyer@example.com" in body
+        assert "My order never showed up." in body
+
+
+def test_notify_admins_new_support_request_noop_when_no_admins_configured(monkeypatch):
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "admin_email_allowlist", lambda: [])
+    calls = []
+    monkeypatch.setattr(hw_app, "send_email", lambda *a, **k: calls.append(a) or True)
+    hw_app.notify_admins_new_support_request("Jamie", "buyer@example.com", "General", "Hello")
+    assert calls == [], "Should not attempt to send any email when no admins are configured"
+
+
+def test_support_form_submission_actually_emails_the_admin(monkeypatch):
+    # Integration-level proof of the fix, not just the helper function in
+    # isolation: submitting the real support form must trigger a real
+    # outbound email call to the configured admin address.
+    import app as hw_app
+    monkeypatch.setenv("ADMIN_EMAILS", "founder@example.com")
+    # send_email() reads RESEND_API_KEY via st.secrets.get(), not
+    # config_value() -- so unlike ADMIN_EMAILS above, an env var alone
+    # doesn't reach it. st.secrets blocks plain attribute assignment
+    # entirely (raises TypeError), so use its own public API for injecting
+    # a secret programmatically; it persists across AppTest's reruns since
+    # it's the same secrets singleton each time (only the script's own
+    # top-level `def`s get rebound on rerun, not imported module state).
+    hw_app.st.secrets.merge_programmatic_secrets({"RESEND_API_KEY": "fake-resend-key-for-tests"})
+    calls = []
+
+    class FakeResponse:
+        status_code = 200
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        calls.append((url, json))
+        return FakeResponse()
+
+    monkeypatch.setattr(hw_app.requests, "post", fake_post)
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.query_params["support"] = "1"
+    at.run()
+    assert not at.exception, at.exception
+
+    email_input = next(t for t in at.text_input if (t.label or "").startswith("Your email"))
+    email_input.set_value("worried-buyer@example.com").run()
+    message_input = next(t for t in at.text_area if (t.label or "").startswith("Tell us what is going on"))
+    message_input.set_value("My package never arrived.").run()
+    submit_buttons = [b for b in at.button if (b.label or "") == "Send to House Of Wax"]
+    submit_buttons[0].click().run()
+    assert not at.exception, at.exception
+
+    assert calls, "Expected the support form submission to trigger a real send_email -> requests.post call"
+    _, payload = calls[0]
+    assert payload["to"] == ["founder@example.com"], f"Expected the admin address as recipient, got: {payload['to']}"
+    assert "worried-buyer@example.com" in payload["html"]
+    assert "My package never arrived." in payload["html"]
 
 
 def test_insert_only_tables_use_return_minimal_not_representation(monkeypatch):
@@ -3073,3 +4324,147 @@ def test_barcode_flow_is_a_single_unified_search_no_duplicate_ui():
     assert "Source URL" not in combined
     # A match was found, so backup links still should not render.
     assert "Backup source links" not in markdown_text
+
+
+# ---------- Camera barcode scanning ----------
+# Founder: "can I scan barcode in to house of wax" -- previously the barcode
+# box just told sellers to switch to Google Lens or a separate scanner app,
+# then come back and paste the number in. decode_barcode_photo() is the
+# core logic (zxing-cpp -- a self-contained prebuilt wheel, no system
+# library needed, unlike the first attempt with pyzbar+libzbar0 which broke
+# the live app twice via an unrelated broken apt repo on Streamlit Cloud's
+# build image, see the house-of-wax-barcode-scan-deploy-incident memory).
+# BARCODE_SCAN_AVAILABLE is True in this local test environment (zxing-cpp
+# installs cleanly with no system dependency), so unlike the pyzbar attempt,
+# the real st.camera_input widget IS exercised here, not just the
+# graceful-degrade path.
+
+def test_decode_barcode_photo_extracts_digits_from_a_zxingcpp_result(monkeypatch):
+    import app as hw_app
+
+    class _FakeBarcode:
+        text = "0123456789050"
+
+    monkeypatch.setattr(hw_app, "BARCODE_SCAN_AVAILABLE", True)
+    monkeypatch.setattr(hw_app.zxingcpp, "read_barcodes", lambda img: [_FakeBarcode()])
+    monkeypatch.setattr(hw_app.Image, "open", lambda buf: object())
+
+    decoded, error = hw_app.decode_barcode_photo(b"fake jpeg bytes")
+    assert decoded == "0123456789050"
+    assert error is None
+
+
+def test_decode_barcode_photo_prefers_a_real_length_barcode_over_stray_digits(monkeypatch):
+    # A photo can catch more than one code (e.g. a price sticker's own
+    # barcode next to the record's real UPC) -- prefer a result whose
+    # length actually matches a real barcode standard (8/12/13/14 digits)
+    # instead of just picking whichever is longest.
+    import app as hw_app
+
+    class _FakeBarcode:
+        def __init__(self, text):
+            self.text = text
+
+    monkeypatch.setattr(hw_app, "BARCODE_SCAN_AVAILABLE", True)
+    monkeypatch.setattr(hw_app.zxingcpp, "read_barcodes", lambda img: [_FakeBarcode("12345678901234567"), _FakeBarcode("0123456789050")])
+    monkeypatch.setattr(hw_app.Image, "open", lambda buf: object())
+
+    decoded, error = hw_app.decode_barcode_photo(b"fake jpeg bytes")
+    assert decoded == "0123456789050"
+    assert error is None
+
+
+def test_decode_barcode_photo_gives_a_friendly_message_when_nothing_found(monkeypatch):
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "BARCODE_SCAN_AVAILABLE", True)
+    monkeypatch.setattr(hw_app.zxingcpp, "read_barcodes", lambda img: [])
+    monkeypatch.setattr(hw_app.Image, "open", lambda buf: object())
+
+    decoded, error = hw_app.decode_barcode_photo(b"fake jpeg bytes")
+    assert decoded is None
+    assert "no barcode found" in error.lower()
+
+
+def test_decode_barcode_photo_handles_a_corrupt_photo_without_crashing(monkeypatch):
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "BARCODE_SCAN_AVAILABLE", True)
+    def _boom(buf):
+        raise ValueError("not a valid image")
+    monkeypatch.setattr(hw_app.Image, "open", _boom)
+
+    decoded, error = hw_app.decode_barcode_photo(b"garbage")
+    assert decoded is None
+    assert error is not None
+
+
+def test_decode_barcode_photo_says_unavailable_when_scan_library_missing(monkeypatch):
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "BARCODE_SCAN_AVAILABLE", False)
+    decoded, error = hw_app.decode_barcode_photo(b"irrelevant bytes")
+    assert decoded is None
+    assert "not available" in error.lower()
+
+
+def test_decode_barcode_photo_on_a_real_generated_barcode_image():
+    # End-to-end sanity check against the real zxingcpp decoder (no
+    # monkeypatching) using an actual generated EAN-13 image, not just
+    # mocked results -- proves the library really is wired up correctly,
+    # not just that the function's own branching logic is right.
+    import app as hw_app
+    if not hw_app.BARCODE_SCAN_AVAILABLE:
+        pytest.skip("zxing-cpp not installed in this environment")
+    import barcode as _pybarcode
+    from barcode.writer import ImageWriter
+    import io as _io
+    code = _pybarcode.get('ean13', '012345678905', writer=ImageWriter())
+    buf = _io.BytesIO()
+    code.write(buf, options={'module_height': 25.0, 'quiet_zone': 8.0})
+    decoded, error = hw_app.decode_barcode_photo(buf.getvalue())
+    assert decoded == "0123456789050", f"Expected the real encoded digits back, got decoded={decoded!r} error={error!r}"
+    assert error is None
+
+
+def test_add_inventory_shows_camera_scan_option_when_available():
+    # The camera scan expander should replace the old "switch to Google
+    # Lens" instructions as the primary way to scan -- that backup
+    # instructional text should still exist, just as a secondary fallback
+    # inside the same section, not the main path.
+    import app as hw_app
+    assert hw_app.BARCODE_SCAN_AVAILABLE, "This test assumes zxing-cpp is installed (it has no system dependency)"
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section").set_value("Add Inventory").run()
+    assert not at.exception, at.exception
+
+    expander_labels = [e.label for e in at.get("expander")]
+    assert any("Scan barcode with your camera" in l for l in expander_labels), (
+        f"Expected the camera scan expander, got expanders={expander_labels}"
+    )
+    assert any("backup way" in l.lower() for l in expander_labels), (
+        f"Expected the Google Lens/scanner-app backup instructions to still exist, got expanders={expander_labels}"
+    )
+
+    # AppTest treats camera_input as an UnknownElement whose .key isn't
+    # parsed out (always None) -- .type is reliable though, and there's
+    # only one camera_input on this page, so checking by type is enough.
+    camera_widgets = [c for c in at.get("camera_input") if c.type == "camera_input"]
+    assert camera_widgets, "Expected a real camera_input widget when scanning is available"
+
+
+def test_add_inventory_barcode_field_still_reachable_manually():
+    # Regardless of camera scanning, typing the barcode in by hand must
+    # still work exactly as before.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section").set_value("Add Inventory").run()
+    assert not at.exception, at.exception
+
+    text_input_keys = [t.key for t in at.text_input]
+    assert "v24_lookup_barcode_primary_add_inventory" in text_input_keys
+

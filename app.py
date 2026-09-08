@@ -3,6 +3,7 @@
 import sqlite3
 import re
 import os
+import io
 import html
 import hashlib
 import math
@@ -17,9 +18,23 @@ import requests
 import anthropic
 import streamlit as st
 import streamlit.components.v1 as components
+from PIL import Image
+
+# Camera-based barcode scanning (Add Inventory Step 1): pyzbar wraps the
+# ZBar C library, which needs the system package libzbar0 -- present on
+# Streamlit Cloud via packages.txt, but not guaranteed on every local dev
+# machine. Import defensively so a missing system library degrades to
+# "scanning isn't available right now, type the barcode instead" rather
+# than crashing the entire app on startup.
+try:
+    from pyzbar.pyzbar import decode as _zbar_decode
+    BARCODE_SCAN_AVAILABLE=True
+except Exception:
+    _zbar_decode=None
+    BARCODE_SCAN_AVAILABLE=False
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.175 FIX: CART/ORDER DELETE-UPDATE FAILURES (RLS SILENT ZERO-ROW MATCH) NOW SURFACE A REAL ERROR INSTEAD OF SILENTLY DOING NOTHING'
+APP_VERSION='V25.43.176 ADD: CAMERA BARCODE SCANNING IN ADD INVENTORY (PYZBAR/LIBZBAR0), NO SEPARATE SCANNER APP NEEDED'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -1652,8 +1667,9 @@ def setup():
     old_v25_43_172_announcement='V25.43.172'+' Add: listings now need a vinyl and cover condition grade before they can go Live active'
     old_v25_43_173_announcement='V25.43.173'+' Fix: buyer pages no longer crash on a listing with missing data active'
     old_v25_43_174_announcement='V25.43.174'+' Fix: Search Music was slow/hanging; Add: remove cart items before paying, PayPal required to publish active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement,old_v25_43_170_announcement,old_v25_43_171_announcement,old_v25_43_172_announcement,old_v25_43_173_announcement,old_v25_43_174_announcement]:
-        set_setting('announcement','V25.43.175 Fix: cart Remove now tells you if it actually failed instead of silently doing nothing active')
+    old_v25_43_175_announcement='V25.43.175'+' Fix: cart Remove now tells you if it actually failed instead of silently doing nothing active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement,old_v25_43_170_announcement,old_v25_43_171_announcement,old_v25_43_172_announcement,old_v25_43_173_announcement,old_v25_43_174_announcement,old_v25_43_175_announcement]:
+        set_setting('announcement','V25.43.176 Add: scan a barcode with your camera in Add Inventory, no separate app needed active')
 setup()
 recovery_token_bridge()
 
@@ -4993,6 +5009,32 @@ def is_music_category(category):
 def normalize_barcode(code):
     return re.sub(r'[^0-9]', '', safe(code))
 
+# Founder: "can I scan barcode in to house of wax" -- the barcode box
+# previously just told a seller to switch to Google Lens or a separate app,
+# scan there, then come back and paste the number in by hand. This decodes
+# a photo taken with st.camera_input() directly, so scanning happens inside
+# House Of Wax itself. Returns (digits, error_message) -- exactly one is
+# truthy. A real EAN/UPC digit string is preferred if multiple codes are
+# found in one photo (e.g. a shelf tag also in frame); the longest numeric
+# result is kept as the best guess otherwise.
+def decode_barcode_photo(image_bytes):
+    if not BARCODE_SCAN_AVAILABLE:
+        return None, 'Barcode scanning is not available in this environment right now -- type the barcode below instead.'
+    try:
+        img=Image.open(io.BytesIO(image_bytes))
+        results=_zbar_decode(img)
+    except Exception as e:
+        return None, f'Could not read that photo ({safe(e)}). Try again with better lighting.'
+    if not results:
+        return None, 'No barcode found in that photo. Make sure the barcode fills most of the frame, hold the phone steady, and try again with good lighting.'
+    candidates=[normalize_barcode(r.data.decode('utf-8','ignore')) for r in results]
+    candidates=[c for c in candidates if c]
+    if not candidates:
+        return None, 'Found a code in that photo, but it was not a numeric barcode. Try again, or type the barcode in manually.'
+    numeric_length_ok=[c for c in candidates if len(c) in (8,12,13,14)]
+    best=max(numeric_length_ok or candidates, key=len)
+    return best, None
+
 # ---------- Shared release photo library ----------
 # Every barcode/Discogs/MusicBrainz lookup during Add Inventory already finds
 # cover art, and sellers can optionally upload their own photo -- this table
@@ -6739,14 +6781,44 @@ def render_barcode_lookup_widget(key_prefix='main'):
     st.markdown('#### Step 1: Search by barcode (optional but recommended)')
     st.write('For records, CDs, and cassettes, scan or type the barcode. House Of Wax checks its own release database first, then outside sources for release information and cover art. For shirts, dolls, memorabilia, merch, and accessories, sellers should use a photo of the exact item or an official product image.')
     st.caption('Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches. This is the only barcode box you need here -- the one further down under "Confirm item details" just shows what it found, in case you want to fix a typo.')
-    with st.expander('Scanning with your phone? Here\'s the fastest way',expanded=False):
-        st.write("On Android, point Google Lens (already on your phone) at the barcode and copy the number it reads.")
-        st.write("On iPhone, search your App Store for a free barcode or UPC scanner app, scan the item, then copy the number it shows.")
-        st.write("Either way, switch back to House Of Wax and paste the number into the field below.")
+    barcode_field_key=f'v24_lookup_barcode_{key_prefix}'
+    camera_key=f'v24_barcode_camera_{key_prefix}'
+    auto_trigger_key=f'v24_barcode_scan_auto_trigger_{key_prefix}'
+    # Founder: "can I scan barcode in to house of wax" -- this used to just
+    # tell the seller to switch to Google Lens or a separate scanner app,
+    # then come back and paste the number in by hand. Scanning now happens
+    # inside House Of Wax itself: take a photo of the barcode, it's decoded
+    # right here, and the search below runs automatically.
+    with st.expander('📷 Scan barcode with your camera',expanded=BARCODE_SCAN_AVAILABLE):
+        if not BARCODE_SCAN_AVAILABLE:
+            st.info("Barcode scanning isn't set up in this environment right now -- type the barcode below instead.")
+        else:
+            st.write('Point your camera at the barcode so it fills most of the frame, hold steady, then take the photo.')
+            photo=st.camera_input('Take a photo of the barcode',key=camera_key,label_visibility='collapsed')
+            if photo is not None:
+                photo_bytes=photo.getvalue()
+                photo_hash=hashlib.md5(photo_bytes).hexdigest()
+                # camera_input keeps returning the same captured photo on
+                # every rerun until it's retaken -- only decode once per
+                # distinct photo, or every unrelated click elsewhere on the
+                # page would re-trigger a fresh search.
+                if st.session_state.get(f'{camera_key}_processed_hash')!=photo_hash:
+                    st.session_state[f'{camera_key}_processed_hash']=photo_hash
+                    decoded,scan_error=decode_barcode_photo(photo_bytes)
+                    if decoded:
+                        st.session_state[barcode_field_key]=decoded
+                        st.session_state[auto_trigger_key]=True
+                        st.success(f'Scanned barcode: {decoded} -- searching now.')
+                    elif scan_error:
+                        st.warning(scan_error)
+        with st.expander("Scanning not working? Here's a backup way",expanded=False):
+            st.write("On Android, point Google Lens (already on your phone) at the barcode and copy the number it reads.")
+            st.write("On iPhone, search your App Store for a free barcode or UPC scanner app, scan the item, then copy the number it shows.")
+            st.write("Either way, switch back to House Of Wax and paste the number into the field below.")
     render_source_health_panel(key_prefix)
     c1,c2=st.columns([2,1])
-    barcode=c1.text_input('Scan or enter barcode / UPC',key=f'v24_lookup_barcode_{key_prefix}',placeholder='Click here, scan, or type at least 5-6 digits',help='Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches.')
-    lookup_clicked=c2.button('Search',key=f'v24_lookup_button_{key_prefix}')
+    barcode=c1.text_input('Scan or enter barcode / UPC',key=barcode_field_key,placeholder='Click here, scan, or type at least 5-6 digits',help='Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches.')
+    lookup_clicked=c2.button('Search',key=f'v24_lookup_button_{key_prefix}') or st.session_state.pop(auto_trigger_key,False)
 
     with st.expander('No barcode match? Broad search by artist and album title'):
         a1,a2=st.columns(2)

@@ -4325,3 +4325,146 @@ def test_barcode_flow_is_a_single_unified_search_no_duplicate_ui():
     # A match was found, so backup links still should not render.
     assert "Backup source links" not in markdown_text
 
+
+# ---------- Camera barcode scanning ----------
+# Founder: "can I scan barcode in to house of wax" -- previously the barcode
+# box just told sellers to switch to Google Lens or a separate scanner app,
+# then come back and paste the number in. decode_barcode_photo() is the
+# core logic (zxing-cpp -- a self-contained prebuilt wheel, no system
+# library needed, unlike the first attempt with pyzbar+libzbar0 which broke
+# the live app twice via an unrelated broken apt repo on Streamlit Cloud's
+# build image, see the house-of-wax-barcode-scan-deploy-incident memory).
+# BARCODE_SCAN_AVAILABLE is True in this local test environment (zxing-cpp
+# installs cleanly with no system dependency), so unlike the pyzbar attempt,
+# the real st.camera_input widget IS exercised here, not just the
+# graceful-degrade path.
+
+def test_decode_barcode_photo_extracts_digits_from_a_zxingcpp_result(monkeypatch):
+    import app as hw_app
+
+    class _FakeBarcode:
+        text = "0123456789050"
+
+    monkeypatch.setattr(hw_app, "BARCODE_SCAN_AVAILABLE", True)
+    monkeypatch.setattr(hw_app.zxingcpp, "read_barcodes", lambda img: [_FakeBarcode()])
+    monkeypatch.setattr(hw_app.Image, "open", lambda buf: object())
+
+    decoded, error = hw_app.decode_barcode_photo(b"fake jpeg bytes")
+    assert decoded == "0123456789050"
+    assert error is None
+
+
+def test_decode_barcode_photo_prefers_a_real_length_barcode_over_stray_digits(monkeypatch):
+    # A photo can catch more than one code (e.g. a price sticker's own
+    # barcode next to the record's real UPC) -- prefer a result whose
+    # length actually matches a real barcode standard (8/12/13/14 digits)
+    # instead of just picking whichever is longest.
+    import app as hw_app
+
+    class _FakeBarcode:
+        def __init__(self, text):
+            self.text = text
+
+    monkeypatch.setattr(hw_app, "BARCODE_SCAN_AVAILABLE", True)
+    monkeypatch.setattr(hw_app.zxingcpp, "read_barcodes", lambda img: [_FakeBarcode("12345678901234567"), _FakeBarcode("0123456789050")])
+    monkeypatch.setattr(hw_app.Image, "open", lambda buf: object())
+
+    decoded, error = hw_app.decode_barcode_photo(b"fake jpeg bytes")
+    assert decoded == "0123456789050"
+    assert error is None
+
+
+def test_decode_barcode_photo_gives_a_friendly_message_when_nothing_found(monkeypatch):
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "BARCODE_SCAN_AVAILABLE", True)
+    monkeypatch.setattr(hw_app.zxingcpp, "read_barcodes", lambda img: [])
+    monkeypatch.setattr(hw_app.Image, "open", lambda buf: object())
+
+    decoded, error = hw_app.decode_barcode_photo(b"fake jpeg bytes")
+    assert decoded is None
+    assert "no barcode found" in error.lower()
+
+
+def test_decode_barcode_photo_handles_a_corrupt_photo_without_crashing(monkeypatch):
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "BARCODE_SCAN_AVAILABLE", True)
+    def _boom(buf):
+        raise ValueError("not a valid image")
+    monkeypatch.setattr(hw_app.Image, "open", _boom)
+
+    decoded, error = hw_app.decode_barcode_photo(b"garbage")
+    assert decoded is None
+    assert error is not None
+
+
+def test_decode_barcode_photo_says_unavailable_when_scan_library_missing(monkeypatch):
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "BARCODE_SCAN_AVAILABLE", False)
+    decoded, error = hw_app.decode_barcode_photo(b"irrelevant bytes")
+    assert decoded is None
+    assert "not available" in error.lower()
+
+
+def test_decode_barcode_photo_on_a_real_generated_barcode_image():
+    # End-to-end sanity check against the real zxingcpp decoder (no
+    # monkeypatching) using an actual generated EAN-13 image, not just
+    # mocked results -- proves the library really is wired up correctly,
+    # not just that the function's own branching logic is right.
+    import app as hw_app
+    if not hw_app.BARCODE_SCAN_AVAILABLE:
+        pytest.skip("zxing-cpp not installed in this environment")
+    import barcode as _pybarcode
+    from barcode.writer import ImageWriter
+    import io as _io
+    code = _pybarcode.get('ean13', '012345678905', writer=ImageWriter())
+    buf = _io.BytesIO()
+    code.write(buf, options={'module_height': 25.0, 'quiet_zone': 8.0})
+    decoded, error = hw_app.decode_barcode_photo(buf.getvalue())
+    assert decoded == "0123456789050", f"Expected the real encoded digits back, got decoded={decoded!r} error={error!r}"
+    assert error is None
+
+
+def test_add_inventory_shows_camera_scan_option_when_available():
+    # The camera scan expander should replace the old "switch to Google
+    # Lens" instructions as the primary way to scan -- that backup
+    # instructional text should still exist, just as a secondary fallback
+    # inside the same section, not the main path.
+    import app as hw_app
+    assert hw_app.BARCODE_SCAN_AVAILABLE, "This test assumes zxing-cpp is installed (it has no system dependency)"
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section").set_value("Add Inventory").run()
+    assert not at.exception, at.exception
+
+    expander_labels = [e.label for e in at.get("expander")]
+    assert any("Scan barcode with your camera" in l for l in expander_labels), (
+        f"Expected the camera scan expander, got expanders={expander_labels}"
+    )
+    assert any("backup way" in l.lower() for l in expander_labels), (
+        f"Expected the Google Lens/scanner-app backup instructions to still exist, got expanders={expander_labels}"
+    )
+
+    # AppTest treats camera_input as an UnknownElement whose .key isn't
+    # parsed out (always None) -- .type is reliable though, and there's
+    # only one camera_input on this page, so checking by type is enough.
+    camera_widgets = [c for c in at.get("camera_input") if c.type == "camera_input"]
+    assert camera_widgets, "Expected a real camera_input widget when scanning is available"
+
+
+def test_add_inventory_barcode_field_still_reachable_manually():
+    # Regardless of camera scanning, typing the barcode in by hand must
+    # still work exactly as before.
+    import app as hw_app
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    goto(at, "Seller Dashboard")
+    at.radio(key="seller_tools_primary_section").set_value("Add Inventory").run()
+    assert not at.exception, at.exception
+
+    text_input_keys = [t.key for t in at.text_input]
+    assert "v24_lookup_barcode_primary_add_inventory" in text_input_keys
+

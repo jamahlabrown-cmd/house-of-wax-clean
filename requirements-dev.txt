@@ -1,3 +1,7 @@
 # Dev-only dependencies -- not needed for deployment (see requirements.txt).
 -r requirements.txt
 pytest
+# Only used to generate a real barcode image in
+# test_decode_barcode_photo_on_a_real_generated_barcode_image -- not needed
+# by the app itself.
+python-barcode

@@ -3,8 +3,10 @@
 import sqlite3
 import re
 import os
+import io
 import html
 import hashlib
+import math
 import secrets
 import time
 from uuid import uuid4
@@ -16,9 +18,30 @@ import requests
 import anthropic
 import streamlit as st
 import streamlit.components.v1 as components
+from PIL import Image
+
+# Camera-based barcode scanning (Add Inventory Step 1). First tried pyzbar
+# (wraps the system ZBar library via a new packages.txt libzbar0 apt
+# package) -- that broke the live app twice on deploy, and the real
+# Streamlit Cloud build log (2026-09-08) showed why: an unrelated, already-
+# broken apt source in Streamlit's own build image (an expired Release
+# file for debian-security/bullseye-security) makes ANY packages.txt apt
+# install fail outright right now, nothing specific to libzbar0. zxing-cpp
+# is a full replacement with the same read-a-photo, get-a-barcode job, but
+# ships as a self-contained prebuilt wheel -- no system library, no
+# packages.txt, so it sidesteps that broken apt layer entirely. Still
+# imported defensively in case the wheel ever fails to install for some
+# other reason (wrong Python version, etc.) -- degrade to "scanning isn't
+# available" rather than crash the whole app.
+try:
+    import zxingcpp
+    BARCODE_SCAN_AVAILABLE=True
+except Exception:
+    zxingcpp=None
+    BARCODE_SCAN_AVAILABLE=False
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.163 FIX: PUBLISHING A LISTING NOW USES THAT LISTINGS OWN STATUS, NOT A LEFTOVER SELECTION'
+APP_VERSION='V25.43.175 FIX: CART/ORDER DELETE-UPDATE FAILURES (RLS SILENT ZERO-ROW MATCH) NOW SURFACE A REAL ERROR INSTEAD OF SILENTLY DOING NOTHING'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -35,6 +58,21 @@ def safe(v,d=''):
     except Exception: pass
     s=str(v)
     return d if s.lower() in ['nan','none'] else s
+def int_or(v,default=0):
+    # A NULL DB column comes back through pandas as a genuine float NaN,
+    # and NaN is truthy in Python -- "int(x.get(col) or default)" does NOT
+    # catch it, so it crashes with "cannot convert float NaN to integer"
+    # the moment any row actually has a null in that column (real incident:
+    # buyer_activity_tables() crashed for every page that touches it for a
+    # buyer with a listing_inquiries row whose product_id was null). Route
+    # every nullable-column int conversion through this instead of a bare
+    # int(... or default).
+    if v is None: return default
+    try:
+        if pd.isna(v): return default
+    except Exception: pass
+    try: return int(v)
+    except Exception: return default
 def money(v):
     try: return f'${float(v):,.2f}'
     except Exception: return '$0.00'
@@ -87,6 +125,25 @@ def map_discogs_condition(value):
     # 'Generic'/'No Cover'/blank aren't real condition grades -- never guess
     # one that isn't there.
     return DISCOGS_CONDITION_MAP.get(safe(value).strip().lower(),'')
+# Sleeve-only special states -- distinct from both a real condition grade
+# and from "not graded yet". A record sold without any cover (a lot of 7"
+# singles and promos) has nothing to grade; a generic/unbranded sleeve is a
+# real physical object the seller can still grade later, but "Generic" on
+# Discogs describes the sleeve TYPE, not a condition, so it's never treated
+# as if it were one. Both count as a real answer for the publish-gate check
+# (there's a real answer on file), unlike blank/"Not graded yet".
+NO_SLEEVE_VALUE='No sleeve/cover'
+GENERIC_SLEEVE_VALUE='Generic sleeve (ungraded)'
+def map_discogs_sleeve_condition(value):
+    real_grade=map_discogs_condition(value)
+    if real_grade:
+        return real_grade
+    v=safe(value).strip().lower()
+    if v=='no cover':
+        return NO_SLEEVE_VALUE
+    if v=='generic':
+        return GENERIC_SLEEVE_VALUE
+    return ''
 DISCOGS_GRADE_ALIASES={'Mint':'Mint (M)','Near Mint':'Near Mint (NM or M-)','VG+':'Very Good Plus (VG+)','VG':'Very Good (VG)','Good+':'Good Plus (G+)','Good':'Good (G)','Fair':'Fair (F)','Poor':'Poor (P)'}
 def grade_price_multiplier(media_grade, sleeve_grade=None):
     # Media condition drives resale value more than sleeve condition, so
@@ -218,9 +275,16 @@ PRODUCTS_ANON_SAFE_SELECT=('id,seller_id,sku,barcode,catalog_number,matrix_runou
 # sellers.paypal_link is how a buyer actually pays -- a real spam/phishing
 # target if exposed to anyone via the public REST API, not just genuine
 # buyers mid-transaction. Same anon-safe-select pattern as products above.
+# disputes/strikes/access_code are deliberately excluded too (moderation-only
+# and a never-populated planned-but-unfinished feature, respectively) -- this
+# constant used to include them by mistake, contradicting this exact comment,
+# until a real security audit (2026-08-19) confirmed the mismatch by directly
+# querying the anon-key REST API and found all three genuinely readable. Fixed
+# at the database grant level (REVOKE SELECT ... GRANT SELECT (safe columns)
+# in Supabase) and here, so app code and the actual DB permissions agree.
 SELLERS_ANON_SAFE_SELECT=('id,store_name,owner_name,email,phone,city,state,website,instagram,store_bio,'
-    'seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,disputes,'
-    'strikes,auction_override,access_code,rules_accepted,rules_accepted_at,created_at')
+    'seller_story,specialties,logo_url,banner_url,status,seller_level,rating,completed_sales,'
+    'auction_override,rules_accepted,rules_accepted_at,created_at')
 def hosted_select(table_name, filters=None, order=None, limit=None, in_filters=None, select=None):
     if not hosted_enabled():
         return pd.DataFrame()
@@ -283,14 +347,40 @@ def hosted_update(table_name, data, filters, quiet=False):
     # error for a background strike-tracking write they had no part in.
     if not quiet:
         show_hosted_error('update',table_name,detail)
-    return bool(detail.get('ok'))
+    if not detail.get('ok'):
+        return False
+    # Same silent-failure shape fixed in hosted_delete() just above: RLS
+    # filtering the row out of the WHERE match returns 200 "success" with
+    # an empty representation, not an HTTP error -- so `ok` alone can't
+    # tell a real update from one that touched nothing. This caller uses
+    # the default prefer='return=representation', so an empty payload here
+    # really does mean zero rows were actually updated.
+    if not payload:
+        SUPABASE_STATUS['last_error']=f"{table_name}: update matched no rows (RLS or filter mismatch) for {filters}"
+        return False
+    return True
 def hosted_delete(table_name, filters):
     if not hosted_enabled():
         return False
     params={k:f'eq.{v}' for k,v in filters.items()}
-    payload,detail=hosted_request('delete',table_name,params=params,prefer='')
+    # Founder: "people can't delete items from their cart." RLS blocking a
+    # DELETE doesn't come back as an HTTP error the way it does for
+    # update/insert -- PostgREST just filters the matched row out of the
+    # affected set and still returns 200/204 "success" with nothing
+    # deleted, the exact same silent-failure shape as the Buy Now
+    # reservation bug (V25.43.112) and the buyer-strike sweep bug
+    # (V25.43.113), just one layer sneakier since there's no bad status
+    # code to catch at all. return=representation makes PostgREST hand
+    # back the row(s) it actually deleted -- an empty list means nothing
+    # was deleted even though the request itself "succeeded".
+    payload,detail=hosted_request('delete',table_name,params=params,prefer='return=representation')
     show_hosted_error('delete',table_name,detail)
-    return bool(detail.get('ok'))
+    if not detail.get('ok'):
+        return False
+    if not payload:
+        SUPABASE_STATUS['last_error']=f"{table_name}: delete matched no rows (RLS or filter mismatch) for {filters}"
+        return False
+    return True
 def core_table(table_name, order=None):
     if hosted_enabled() and table_name in CORE_HOSTED_TABLES:
         return hosted_select(table_name,order=order)
@@ -461,9 +551,32 @@ def apply_share_deep_link():
     elif shared_article.isdigit():
         st.session_state['selected_knowledge_id']=int(shared_article)
         request_marketplace_navigation('Knowledge Hub')
+def apply_image_click_navigation():
+    # Founder: "I would like for the pic on the file to be clickable...
+    # The view button can go away because it's not needed." Listing
+    # thumbnails (product_card, in both the main Search Music grid and a
+    # seller's own Public inventory grid) render as a real <a
+    # href="?open_product={id}"> via st.image's link= param.
+    #
+    # An <a href> is a REAL browser navigation, not a Streamlit rerun --
+    # unlike the old st.button-based View (an in-app state change on the
+    # SAME session), clicking this drops the WebSocket connection and
+    # starts a brand new Streamlit session. session_state (including
+    # marketplace_navigation) doesn't carry over, so without forcing a
+    # nav target here, the fresh session's own default logic sends a
+    # visitor to Home -- which never checks product_id at all -- and the
+    # click silently does nothing. Same reasoning as
+    # apply_share_deep_link()'s forced jump to Search Music for an
+    # incoming ?view_product= share link; this needs the same fix for the
+    # exact same underlying reason (a fresh page load, not a rerun).
+    target=safe(st.query_params.get('open_product')).strip()
+    if target.isdigit():
+        st.session_state['product_id']=int(target)
+        request_marketplace_navigation('Search Music')
+        del st.query_params['open_product']
 def set_pending_action(action_type, product=None):
-    product_id=int(product.get('id') or 0) if product is not None else int(st.session_state.get('product_id') or 0)
-    seller_id=int(product.get('seller_id') or 0) if product is not None else 0
+    product_id=int_or(product.get('id')) if product is not None else int(st.session_state.get('product_id') or 0)
+    seller_id=int_or(product.get('seller_id')) if product is not None else 0
     st.session_state['pending_action']={'action_type':safe(action_type),'product_id':product_id,'seller_id':seller_id,'return_page':'Search Music'}
     if product_id:
         st.session_state['product_id']=product_id
@@ -886,7 +999,7 @@ def public_terms_of_service():
     st.markdown('### Buying and selling')
     st.write(f'Checking out reserves an item and starts a payment window; Add to Cart and Make an Offer do not commit you to anything until checkout. House Of Wax connects buyers and sellers but never holds funds -- buyers pay sellers directly, and separately pay House Of Wax a {commission_percent():g}% platform fee, both through PayPal. Sellers and buyers are expected to communicate honestly and follow through on agreed transactions. If a buyer does not pay within {PAYMENT_WINDOW_DAYS} days of reserving an item at checkout, the reservation is released back to the seller and the buyer\'s account is flagged; repeated non-payment may result in account restrictions.')
     st.markdown('### If something goes wrong')
-    st.write(f"House Of Wax follows the same model most marketplaces that don't hold funds use (Discogs included): if an item you paid for doesn't arrive, contact the seller first through the site to work it out. Because you pay through PayPal directly, PayPal's own dispute process is how you recover your money if the seller doesn't resolve it. Separately, report it to House Of Wax using Report Listing / Report Seller within {NON_DELIVERY_REPORT_WINDOW_DAYS} days of paying -- House Of Wax reviews these reports and they can affect a seller's standing on the platform, the same way buyer non-payment affects a buyer's standing.")
+    st.write(f"House Of Wax follows the same model most marketplaces that don't hold funds use (Discogs included): if an item you paid for doesn't arrive, contact the seller first through the site to work it out. Because you pay through PayPal directly, PayPal's own dispute process is how you recover your money if the seller doesn't resolve it. Separately, report it to House Of Wax Support (or use Report Seller on that seller's profile) within {NON_DELIVERY_REPORT_WINDOW_DAYS} days of paying -- House Of Wax reviews these reports and they can affect a seller's standing on the platform, the same way buyer non-payment affects a buyer's standing.")
     st.markdown('### Prohibited listings')
     st.write('Counterfeit, stolen, unsafe, illegal, misleading, or hateful items are not allowed. This list is general and non-exhaustive. House Of Wax may investigate reports and may hide, restrict, or remove listings or accounts that violate these terms.')
     st.markdown('### Content you post')
@@ -905,7 +1018,7 @@ def public_support_page():
     dead_end_screen_recovery_link('support_back')
     st.header('Contact House Of Wax Support')
     st.write("Have a question, ran into a problem, or something's not working right? Tell us what's going on and we'll get back to you.")
-    st.caption('Reporting a specific listing or seller for a rules violation instead? Use the Report Listing / Report Seller link on that item -- it goes straight to moderation and gets reviewed faster than a general message.')
+    st.caption("Reporting a specific listing? Use this form and mention the listing (title, artist, or a link). Reporting a seller for a rules violation instead? Use the Report Seller link on that seller's profile -- it goes straight to moderation.")
     with st.form('support_request_form'):
         name=st.text_input('Your name - optional')
         email=st.text_input('Your email - required so House Of Wax can reply')
@@ -922,6 +1035,7 @@ def public_support_page():
             new_id=core_insert('support_requests',data,'''INSERT INTO support_requests(name,email,category,message,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)''',tuple(data[k] for k in ['name','email','category','message','status','created_at','updated_at']))
             if new_id or not hosted_enabled():
                 st.success('Message sent. House Of Wax will reply to the email you provided.')
+                notify_admins_new_support_request(name, email, category, message)
             else:
                 st.error('Message could not be sent. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
     st.caption('You can also reach us directly at hello@shophouseofwax.com.')
@@ -983,7 +1097,7 @@ def save_files(uploads,folder):
     if not uploads: return []
     if not isinstance(uploads,list): uploads=[uploads]
     return [p for p in [save_file(up,folder) for up in uploads] if p]
-def safe_image(image_value, caption=None, width='stretch', fallback_text=None):
+def safe_image(image_value, caption=None, width='stretch', fallback_text=None, link=None):
     value=safe(image_value)
     if image_value is None or (isinstance(image_value,str) and not value):
         if fallback_text:
@@ -1005,7 +1119,7 @@ def safe_image(image_value, caption=None, width='stretch', fallback_text=None):
                 st.caption(fallback_text or 'Image unavailable.')
                 return False
     try:
-        st.image(image_to_render,caption=caption,width=width)
+        st.image(image_to_render,caption=caption,width=width,link=link)
         return True
     except Exception:
         st.caption(fallback_text or 'Image unavailable.')
@@ -1025,7 +1139,7 @@ SELLER_STATUSES=['Pending Seller Approval','Approved Seller','Suspended Seller']
 LISTING_STATUSES=['Draft','Live','Hidden','Sold','Reported','Under Review','Removed by House Of Wax']
 PUBLIC_LISTING_STATUSES=['Live','Active','Approved','Public']
 INQUIRY_STATUSES=['New','Seller Responded','Closed']
-PURCHASE_REQUEST_STATUSES=['New','Offer Pending','Seller Countered','Seller Accepted','Seller Declined','Pending Pickup/Payment','Sold','Buyer Did Not Pay','Closed']
+PURCHASE_REQUEST_STATUSES=['New','Offer Pending','Seller Countered','Seller Accepted','Seller Declined','Pending Pickup/Payment','Sold','Buyer Did Not Pay','Buyer Cancelled','Closed']
 UNAVAILABLE_LISTING_STATUSES=['Pending Pickup/Payment','Pending','Sold']
 ACCOUNT_ROLES=['Buyer','Seller','Admin']
 KEY_DATA_TABLES=['app_users','products','sellers','listing_inquiries','purchase_requests','product_gallery','tester_feedback','listing_reports']
@@ -1548,8 +1662,20 @@ def setup():
     old_v25_43_160_announcement='V25.43.160'+' Fix: Discogs enrichment no longer crashes on the live site (missing select=*) active'
     old_v25_43_161_announcement='V25.43.161'+' Fix: real admins no longer see Testing mode language in the admin sidebar active'
     old_v25_43_162_announcement='V25.43.162'+' Cleanup: full sweep -- stale prototype/testing language removed from admin and user-facing screens active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement]:
-        set_setting('announcement','V25.43.163 Fix: publishing a listing now uses that listing\'s own status, not a leftover selection active')
+    old_v25_43_163_announcement='V25.43.163'+' Fix: publishing a listing now uses that listing\'s own status, not a leftover selection active'
+    old_v25_43_164_announcement='V25.43.164'+' Fix: listings cannot publish Live without at least one photo active'
+    old_v25_43_165_announcement='V25.43.165'+' Add: My Inventory shows a price range and lets sellers update price directly active'
+    old_v25_43_166_announcement='V25.43.166'+' Fix: price suggestions are whole dollars, only show before a price is set, and My Inventory shows cover photos active'
+    old_v25_43_167_announcement='V25.43.167'+' Fix: My Inventory loads fast for large stores (batched photo lookup instead of one query per listing) active'
+    old_v25_43_168_announcement='V25.43.168'+' Add: support requests email every admin instead of sitting unseen until someone checks active'
+    old_v25_43_169_announcement='V25.43.169'+' Add: sellers can delete Sold listings too (unless a real platform sale is on record) active'
+    old_v25_43_170_announcement='V25.43.170'+' Add: bulk publish lets sellers publish many ready drafts Live at once active'
+    old_v25_43_171_announcement='V25.43.171'+' Update: Report Listing removed (use Support), even button widths, clickable photo + simpler listing page active'
+    old_v25_43_172_announcement='V25.43.172'+' Add: listings now need a vinyl and cover condition grade before they can go Live active'
+    old_v25_43_173_announcement='V25.43.173'+' Fix: buyer pages no longer crash on a listing with missing data active'
+    old_v25_43_174_announcement='V25.43.174'+' Fix: Search Music was slow/hanging; Add: remove cart items before paying, PayPal required to publish active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement,old_v25_43_170_announcement,old_v25_43_171_announcement,old_v25_43_172_announcement,old_v25_43_173_announcement,old_v25_43_174_announcement]:
+        set_setting('announcement','V25.43.175 Fix: cart Remove now tells you if it actually failed instead of silently doing nothing active')
 setup()
 recovery_token_bridge()
 
@@ -2186,6 +2312,27 @@ def get_seller(i):
     else:
         r=df('SELECT * FROM sellers WHERE id=?',(int(i),))
     return None if r.empty else r.iloc[0]
+def bulk_get_sellers(seller_ids):
+    # Batch equivalent of get_seller() for many ids at once -- grid views
+    # (Search Music, a seller's public storefront) that render one
+    # product_card() per listing used to call get_seller() fresh inside
+    # every single card, one Supabase round-trip per listing even though
+    # most listings in a store share the same handful of sellers. Real
+    # incident: a page with 800+ live listings took minutes to render
+    # because of exactly this pattern, compounded with the gallery N+1
+    # below. Returns {seller_id: seller_row}.
+    ids=list({int(i) for i in seller_ids if safe(i)!=''})
+    if not ids:
+        return {}
+    if hosted_enabled():
+        frames=[]
+        for i in range(0,len(ids),200):
+            frames.append(hosted_select('sellers',{},in_filters={'id':ids[i:i+200]}))
+        rows=pd.concat(frames,ignore_index=True) if frames else pd.DataFrame()
+    else:
+        placeholders=','.join('?' for _ in ids)
+        rows=df(f'SELECT * FROM sellers WHERE id IN ({placeholders})',tuple(ids))
+    return {int(r['id']):r for _,r in rows.iterrows()} if not rows.empty else {}
 def get_seller_full(i):
     # Includes paypal_link -- only for the seller viewing their own profile,
     # or a buyer who needs it to pay a seller they're already transacting
@@ -2523,7 +2670,7 @@ def account_page():
                 st.write('**Seller application status:** '+seller_status)
                 if seller is not None:
                     st.write(f"**Store:** {safe(seller.get('store_name'))} | {safe(seller.get('email'))}")
-                    seller_strikes=int(seller.get('strikes') or 0)
+                    seller_strikes=int_or(seller.get('strikes'))
                     if seller_strikes:
                         st.warning(f"{seller_strikes} strike{'s' if seller_strikes!=1 else ''} on your account for confirmed non-delivery. {auth_trouble_hint()}")
                 if seller_status=='Approved Seller':
@@ -2685,9 +2832,7 @@ def listing_gallery_images(pid):
     except Exception:
         return pd.DataFrame()
 
-def listing_primary_image(p):
-    pid=int(p.get('id') or 0)
-    gallery=listing_gallery_images(pid) if pid else pd.DataFrame()
+def _primary_image_from_gallery(p, gallery):
     if not gallery.empty:
         main=gallery[gallery['caption'].fillna('').str.lower().str.contains('main listing photo',na=False)]
         local=gallery[gallery['image_url'].fillna('').apply(is_local_uploaded_image)]
@@ -2703,9 +2848,70 @@ def listing_primary_image(p):
         return safe(gallery.iloc[0]['image_url'])
     return ''
 
-def has_listing_photos(pid):
-    gallery=listing_gallery_images(pid)
+def _has_photos_from_gallery(gallery):
     return not gallery.empty and gallery['image_url'].fillna('').apply(is_local_uploaded_image).any()
+
+def listing_primary_image(p):
+    pid=int(p.get('id') or 0)
+    gallery=listing_gallery_images(pid) if pid else pd.DataFrame()
+    return _primary_image_from_gallery(p,gallery)
+
+def has_listing_photos(pid):
+    return _has_photos_from_gallery(listing_gallery_images(pid))
+
+def bulk_listing_galleries(product_ids):
+    # One batched product_gallery fetch split by product_id, instead of
+    # listing_gallery_images() being called fresh per item -- used by grid
+    # views (Search Music, a seller's public storefront) that render one
+    # product_card() per listing. Real incident: with 800+ live listings,
+    # every card independently round-tripping Supabase for its own gallery
+    # (via both listing_primary_image() AND has_listing_photos() -- two
+    # separate fetches of the same rows) made the page take minutes to
+    # load. Returns {product_id: gallery_dataframe}, always including every
+    # requested id (empty DataFrame if that listing has no gallery rows).
+    ids=[int(i) for i in product_ids if safe(i)!='']
+    if not ids:
+        return {}
+    if hosted_enabled():
+        frames=[]
+        for i in range(0,len(ids),200):
+            frames.append(hosted_select('product_gallery',{},in_filters={'product_id':ids[i:i+200]},order='id.asc'))
+        gallery=pd.concat(frames,ignore_index=True) if frames else pd.DataFrame()
+    else:
+        placeholders=','.join('?' for _ in ids)
+        gallery=df(f'SELECT * FROM product_gallery WHERE product_id IN ({placeholders}) ORDER BY id ASC',tuple(ids))
+    out={i:pd.DataFrame() for i in ids}
+    if not gallery.empty and 'product_id' in gallery.columns:
+        for pid,group in gallery.groupby('product_id'):
+            out[int(pid)]=group
+    return out
+
+def has_listing_photos_bulk(product_ids):
+    # Batch equivalent of has_listing_photos() for a whole list of products
+    # at once -- seller_listings_manager (My Inventory) used to call
+    # has_listing_photos() once per row via .apply(), which is one
+    # product_gallery network round-trip per listing. Founder felt this
+    # live: a large store took 30-45+ seconds to load/rerun, purely from
+    # that N+1 pattern. This does the same "has a real seller-uploaded
+    # photo" check with a handful of batched queries (chunked to keep each
+    # request's URL a sane size) instead of one per item. Returns the set
+    # of product ids that have at least one real (non-reference) photo.
+    ids=[int(i) for i in product_ids if safe(i)!='']
+    if not ids:
+        return set()
+    if hosted_enabled():
+        frames=[]
+        for i in range(0,len(ids),200):
+            chunk=ids[i:i+200]
+            frames.append(hosted_select('product_gallery',{},in_filters={'product_id':chunk}))
+        gallery=pd.concat(frames,ignore_index=True) if frames else pd.DataFrame()
+    else:
+        placeholders=','.join('?' for _ in ids)
+        gallery=df(f'SELECT * FROM product_gallery WHERE product_id IN ({placeholders})',tuple(ids))
+    if gallery.empty or 'image_url' not in gallery.columns or 'product_id' not in gallery.columns:
+        return set()
+    real=gallery[gallery['image_url'].fillna('').apply(is_local_uploaded_image)]
+    return set(real['product_id'].astype(int).tolist())
 
 def enrich_activity_rows(records):
     if records.empty:
@@ -2714,8 +2920,8 @@ def enrich_activity_rows(records):
     product_cache={}
     seller_cache={}
     for idx,row in out.iterrows():
-        pid=int(row.get('product_id') or 0)
-        sid=int(row.get('seller_id') or 0)
+        pid=int_or(row.get('product_id'))
+        sid=int_or(row.get('seller_id'))
         if pid and pid not in product_cache:
             product_cache[pid]=hosted_select('products',{'id':pid},limit=1).iloc[0].to_dict() if hosted_enabled() and not hosted_select('products',{'id':pid},limit=1).empty else {}
         if sid and sid not in seller_cache:
@@ -2919,11 +3125,25 @@ def seller_ready_to_pay_groups(bid):
 def render_seller_payment_group(group, key_prefix):
     with st.container(border=True):
         st.write(f"**{group['store_name']}** — {len(group['line_items'])} item(s)")
+        # Founder, live: "I need to have a way to be able to take something
+        # out of my cart if I change my mind prior to placing an order."
+        # Once checkout happens the item isn't cart_items anymore, it's a
+        # real purchase_requests row -- there was never a way to back out
+        # of one short of waiting out the whole payment window. This is a
+        # real, immediate cancel: reopens the listing (same revert-to-Live
+        # logic as a seller declining) and does NOT count as a missed-
+        # payment strike, since it's the buyer backing out before ever
+        # committing to pay, not failing to follow through.
         for li in group['line_items']:
+            item_col,cancel_col=st.columns([5,1])
             label=f"- {li['artist']} — {li['title']}: {money(li['amount'])}"
             if li['due']:
                 label+=f" (pay by {datetime.fromisoformat(li['due']).strftime('%B %d, %Y')})"
-            st.write(label)
+            item_col.write(label)
+            if cancel_col.button('Remove',key=f'{key_prefix}_cancel_{li["id"]}'):
+                update_purchase_request_status(li['id'],'Buyer Cancelled',seller_id=group['seller_id'])
+                st.success(f"Removed {li['artist']} — {li['title']}. The listing is available again.")
+                st.rerun()
         if group['total']<=0:
             st.warning('These listings have no price set -- ask the seller through House Of Wax before paying.')
             return
@@ -2952,14 +3172,25 @@ def buyer_request_history(bid):
             st.dataframe(purchases[cols],width='stretch')
 
 def enrich_listing_with_seller_columns(products):
+    # This runs on EVERY live listing on EVERY Search Music load, before
+    # any pagination/filtering happens -- it used to call get_seller() once
+    # per row here too, on top of the per-card N+1 in product_card(). This
+    # was the real reason the page was still slow even after fixing that
+    # one: 800+ individual seller lookups happening upstream, unaffected by
+    # pagination since it runs before the results are even sliced. Batched
+    # via bulk_get_sellers() the same way, so it's a small, flat number of
+    # queries regardless of how many listings exist.
     if products.empty:
         return products
     out=products.copy()
     for col in ['store_name','seller_status','seller_level','seller_city','seller_state']:
         if col not in out.columns:
             out[col]=''
+    seller_ids=out['seller_id'].dropna().tolist() if 'seller_id' in out.columns else []
+    seller_cache=bulk_get_sellers(seller_ids)
     for idx,row in out.iterrows():
-        seller=get_seller(int(row.get('seller_id') or 0)) if safe(row.get('seller_id')) else None
+        sid=int(row.get('seller_id') or 0) if safe(row.get('seller_id')) else 0
+        seller=seller_cache.get(sid) if sid else None
         if seller is not None:
             out.at[idx,'store_name']=safe(seller.get('store_name'))
             out.at[idx,'seller_status']=normalize_seller_status(seller.get('status'))
@@ -3042,18 +3273,36 @@ def filter_global_marketplace_listings(prods, keyword='', category='All', fmt='A
         shown=shown.sort_values('created_at',ascending=False,na_position='last') if 'created_at' in shown.columns else shown
     return shown
 
-def product_card(p, buyer_id=None):
+def product_card(p, buyer_id=None, seller_cache=None, gallery_cache=None):
     # Compact layout: a small thumbnail next to the details instead of a
     # full-width image, one merged caption line instead of three, and the
     # buyer actions in a single button row instead of stacked full-width --
     # founder feedback that cards were far too large to scale once a store
     # has real inventory ("it should be a quarter of the size").
+    #
+    # seller_cache/gallery_cache: optional pre-fetched lookups (see
+    # bulk_get_sellers()/bulk_listing_galleries()) so a grid of many cards
+    # can share a handful of batched queries instead of every card doing
+    # its own get_seller()/gallery fetch. Real incident: an 800+-listing
+    # page took minutes to load from exactly that N+1 pattern. Callers that
+    # render just one or a few cards can omit these and get the old
+    # per-card-lookup behavior.
     with st.container(border=True):
-        seller=get_seller(int(p['seller_id'])) if safe(p.get('seller_id')) else None
-        image=listing_primary_image(p)
+        sid=int(p['seller_id']) if safe(p.get('seller_id')) else 0
+        seller=(seller_cache.get(sid) if seller_cache is not None else (get_seller(sid) if sid else None))
+        pid=int(p['id'])
+        gallery=gallery_cache.get(pid,pd.DataFrame()) if gallery_cache is not None else listing_gallery_images(pid)
+        image=_primary_image_from_gallery(p,gallery)
         img_col,info_col=st.columns([1,2])
         with img_col:
-            if image: safe_image(image,width=90,fallback_text='No image')
+            # Founder: "I would like for the pic on the file to be
+            # clickable. When you click on the pic then I would like to
+            # see the buy buttons and everything else. The view but[ton]
+            # can go away because it's not needed." st.image's link=
+            # renders the thumbnail as a real <a href>, reusing the same
+            # ?open_product= deep-link handler the old View button's
+            # session_state-set-and-rerun did.
+            if image: safe_image(image,width=90,fallback_text='No image',link=f"?open_product={int(p['id'])}")
             else: st.caption('No image yet')
         with info_col:
             st.write(f"**{safe(p.get('title'),'Untitled listing')}**")
@@ -3077,28 +3326,31 @@ def product_card(p, buyer_id=None):
                 status_badge(status_label,'danger')
             elif status_label!='Available':
                 listing_status_badge(status_label)
-        if has_listing_photos(int(p['id'])):
+        if _has_photos_from_gallery(gallery):
             st.caption('📷 Seller photos included')
         if is_available_listing(p):
+            # Founder: "The view button can go away because it's not
+            # needed" -- the thumbnail above is now the click-through to
+            # the full listing page (product_detail, with buy buttons and
+            # everything else), so this row only needs the actions that
+            # don't already exist elsewhere on the card.
             with st.container(key=f"card_actions_{int(p['id'])}"):
-                b1,b2,b3,b4=st.columns(4)
-                if b1.button('View',key=f"item_{int(p['id'])}",width='stretch'):
-                    st.session_state['product_id']=int(p['id']); st.rerun()
-                if b2.button('Ask',key=f"ask_item_{int(p['id'])}",width='stretch'):
+                b1,b2,b3=st.columns(3)
+                if b1.button('Ask',key=f"ask_item_{int(p['id'])}",width='stretch'):
                     set_pending_action('Ask Seller',p)
                     st.session_state['product_id']=int(p['id'])
                     st.session_state[f'open_inquiry_{int(p["id"])}']=True
                     if not is_authenticated():
                         request_marketplace_navigation('My Account')
                     st.rerun()
-                if b3.button('Offer',key=f"offer_item_{int(p['id'])}",width='stretch'):
+                if b2.button('Offer',key=f"offer_item_{int(p['id'])}",width='stretch'):
                     set_pending_action('Make Offer',p)
                     st.session_state['product_id']=int(p['id'])
                     st.session_state[f'open_offer_{int(p["id"])}']=True
                     if not is_authenticated():
                         request_marketplace_navigation('My Account')
                     st.rerun()
-                with b4:
+                with b3:
                     if buyer_id and is_in_cart(buyer_id,int(p['id'])):
                         status_badge('In Cart','success')
                     elif st.button('Cart',key=f"cart_add_item_{int(p['id'])}",width='stretch'):
@@ -3112,11 +3364,7 @@ def product_card(p, buyer_id=None):
                         else:
                             st.warning('Complete your buyer profile in My Account to use your cart.')
         else:
-            if st.button('View',key=f"item_{int(p['id'])}",width='stretch'):
-                st.session_state['product_id']=int(p['id']); st.rerun()
-            st.caption('Buyer actions are hidden unless the listing is live/public and available.')
-        with st.expander('Report Listing',expanded=False):
-            report_listing_form(p,seller,f'card_listing_{int(p["id"])}')
+            st.caption('Buyer actions are hidden unless the listing is live/public and available. Click the photo to see full details.')
 def seller_profile(sid):
     s=get_seller(sid)
     if s is None: st.error('Seller not found.'); return
@@ -3197,7 +3445,7 @@ def seller_profile(sid):
         st.metric('Average rating',f"{summary['average']} / 5",help=f"Based on {summary['count']} review(s)")
         for _,rv in reviews.iterrows():
             with st.container(border=True):
-                st.write('⭐ '*int(rv.get('rating') or 0)+f" ({int(rv.get('rating') or 0)}/5)")
+                st.write('⭐ '*int_or(rv.get('rating'))+f" ({int_or(rv.get('rating'))}/5)")
                 st.caption(f"{safe(rv.get('buyer_display_name'),'A House Of Wax buyer')} • {safe(rv.get('created_at'))}")
                 if safe(rv.get('review_text')):
                     st.write(safe(rv.get('review_text')))
@@ -3206,9 +3454,38 @@ def seller_profile(sid):
     if prods.empty: st.info('No public inventory yet. Draft, Hidden, Under Review, and Removed listings stay private or unavailable inside Seller Tools.')
     else:
         cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
+        # Same pagination reasoning as marketplace()'s Search Music grid --
+        # a store this size (800+ items) is real, non-network Streamlit
+        # render overhead even after the seller/gallery lookups are
+        # batched, so cap any single render to a fixed page size.
+        STORE_PAGE_SIZE=24
+        total_pages=max(1,(len(prods)+STORE_PAGE_SIZE-1)//STORE_PAGE_SIZE)
+        store_page_key=f'seller_store_page_{int(sid)}'
+        page=int(st.session_state.get(store_page_key,1))
+        if page<1 or page>total_pages:
+            page=1
+        st.session_state[store_page_key]=page
+        start=(page-1)*STORE_PAGE_SIZE
+        page_prods=prods.iloc[start:start+STORE_PAGE_SIZE]
+        # Every listing here belongs to this one seller already loaded
+        # above (s) -- no per-card seller lookup needed at all. The gallery
+        # fetch still gets batched once for the page instead of once per
+        # card (see bulk_listing_galleries()).
+        seller_cache={int(sid):s}
+        gallery_cache=bulk_listing_galleries(page_prods['id'].tolist())
         cols=st.columns(4)
-        for i,(_,p) in enumerate(prods.iterrows()):
-            with cols[i%4]: product_card(p,buyer_id=cart_bid)
+        for i,(_,p) in enumerate(page_prods.iterrows()):
+            with cols[i%4]: product_card(p,buyer_id=cart_bid,seller_cache=seller_cache,gallery_cache=gallery_cache)
+        if total_pages>1:
+            st.divider()
+            pc1,pc2,pc3=st.columns([1,2,1])
+            if pc1.button('← Previous',key=f'{store_page_key}_prev',width='stretch',disabled=(page<=1)):
+                st.session_state[store_page_key]=page-1
+                st.rerun()
+            pc2.write(f"Page {page} of {total_pages}")
+            if pc3.button('Next →',key=f'{store_page_key}_next',width='stretch',disabled=(page>=total_pages)):
+                st.session_state[store_page_key]=page+1
+                st.rerun()
 def record_listing_view(pid, seller_id):
     # Seller-facing feedback loop: sellers previously had no idea whether a
     # listing was getting looked at at all. Skip the seller's own views of
@@ -3241,10 +3518,19 @@ def product_detail(pid):
     is_public=is_public_listing(p)
     is_available=is_available_listing(p)
     if st.button('← Back to marketplace'): st.session_state.pop('product_id',None); st.rerun()
+    # Founder: "there are some redundancies. The buy button is very low on
+    # the screen and is hard to find. and the pic could be about half the
+    # size of what it is now." The old layout had Ask/Offer as quick
+    # buttons up top that only pre-expanded the SAME forms rendered again,
+    # full-width, after Description/Video/a "Buyer actions" header further
+    # down -- Add to Cart lived only down there, so buying meant scrolling
+    # past two duplicate Ask/Offer entry points to find it. Buyer actions
+    # (Cart first, then Ask/Offer) now live once, right under the price --
+    # no duplicate buttons, no separate section to scroll to.
     l,rcol=st.columns([1.2,1])
     with l:
         primary_image=listing_primary_image(p)
-        if primary_image: safe_image(primary_image,width='stretch',fallback_text='Listing image unavailable.')
+        if primary_image: safe_image(primary_image,width=260,fallback_text='Listing image unavailable.')
         else: st.markdown('## 🎵')
         if has_listing_photos(int(pid)):
             status_badge('📷 Seller photos included','success')
@@ -3252,6 +3538,36 @@ def product_detail(pid):
         render_listing_photo_gallery(pid,primary_image,'public')
     with rcol:
         st.title(f"{safe(p['artist'])} — {safe(p['title'])}"); st.write('**Price:** '+money(p['price'])); st.write('**Shipping:** '+money(p['shipping_price']))
+        status_label=listing_availability_label(p)
+        if status_label!='Available':
+            st.warning(status_label)
+        if not is_public:
+            st.info('Buyer actions appear only for public marketplace listings.')
+        elif is_available:
+            cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
+            if cart_bid and is_in_cart(cart_bid,pid):
+                status_badge('In Cart','success')
+                st.caption('Already in your cart. Go to Cart to check out.')
+            else:
+                if st.button('Add to Cart',key=f'cart_add_detail_{pid}',width='stretch',type='primary'):
+                    if not is_authenticated():
+                        set_pending_action('Add to Cart',p)
+                        request_marketplace_navigation('My Account')
+                        st.rerun()
+                    elif cart_bid:
+                        add_to_cart(cart_bid,p)
+                        st.rerun()
+                    else:
+                        st.warning('Complete your buyer profile in My Account to use your cart.')
+                st.caption('Check out from your cart any time -- one combined payment per seller.')
+            inquiry_expanded=bool(st.session_state.pop(f'open_inquiry_{pid}',False))
+            with st.expander('Ask About This Item / Contact Seller',expanded=inquiry_expanded):
+                render_buyer_inquiry_form(p,s,f'product_{pid}')
+            offer_expanded=bool(st.session_state.pop(f'open_offer_{pid}',False))
+            with st.expander('Make an Offer',expanded=offer_expanded):
+                render_offer_form(p,f'product_{pid}')
+        else:
+            st.info(f"This listing is {listing_availability_label(p).lower()}, so public buyer actions are turned off.")
         sold_comps=sold_price_history(p['artist'],exclude_product_id=int(pid))
         if not sold_comps.empty:
             comp_prices=sold_comps['price'].dropna().astype(float)
@@ -3267,27 +3583,9 @@ def product_detail(pid):
                         st.write(f"**{safe(comp.get('title'))}** • {safe(comp.get('media_grade'),'Condition not listed')} • {money(comp.get('price'))} • {safe(comp.get('updated_at'))[:10]}")
         if is_public:
             share_block('product',int(pid),f"{safe(p['artist'])} — {safe(p['title'])}")
-        status_label=listing_availability_label(p)
-        if status_label!='Available':
-            st.warning(status_label)
         for label,col in [('Category','category'),('Format','format'),('Label','label'),('Release year','release_year'),('Barcode / UPC / EAN','barcode'),('Catalog #','catalog_number'),('Matrix / runout','matrix_runout'),('Condition','media_grade')]: st.write(f"**{label}:** {safe(p[col],'Not listed')}")
         if s is not None:
             st.write('**Seller:** '+safe(s.get('store_name')))
-            if is_available:
-                st.caption('Questions before buying? Contact the seller through House Of Wax.')
-                if st.button('Contact Seller / Ask About This Item',key=f'detail_ask_top_{pid}',width='stretch'):
-                    set_pending_action('Ask Seller',p)
-                    st.session_state[f'open_inquiry_{pid}']=True
-                    if not is_authenticated():
-                        request_marketplace_navigation('My Account')
-                    st.rerun()
-                if st.button('Make an Offer',key=f'detail_offer_top_{pid}',width='stretch'):
-                    set_pending_action('Make Offer',p)
-                    st.session_state[f'open_offer_{pid}']=True
-                    if not is_authenticated():
-                        request_marketplace_navigation('My Account')
-                    st.rerun()
-                st.caption('Add to Cart below reserves nothing on its own -- check out when you\'re ready for one combined payment per seller.')
             if st.button('View seller public profile'): st.session_state['seller_id']=int(s['id']); st.session_state.pop('product_id',None); st.rerun()
     st.subheader('Description'); st.write(safe(p['description'],'No description.'))
     if safe(p.get('video_url')):
@@ -3296,38 +3594,7 @@ def product_detail(pid):
             st.video(safe(p.get('video_url')))
         except Exception:
             st.caption('Video could not be loaded from the link the seller provided.')
-    st.info('This listing was published by the seller. Report concerns to House Of Wax.')
-    with st.expander('Report Listing',expanded=False):
-        report_listing_form(p,s,f'listing_{pid}')
-    st.divider(); st.subheader('Buyer actions')
-    if not is_public:
-        st.info('Buyer actions appear only for public marketplace listings.')
-        return
-    if is_available:
-        inquiry_expanded=bool(st.session_state.pop(f'open_inquiry_{pid}',False))
-        with st.expander('Ask About This Item / Contact Seller',expanded=inquiry_expanded):
-            render_buyer_inquiry_form(p,s,f'product_{pid}')
-        offer_expanded=bool(st.session_state.pop(f'open_offer_{pid}',False))
-        with st.expander('Make an Offer',expanded=offer_expanded):
-            render_offer_form(p,f'product_{pid}')
-        cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
-        if cart_bid and is_in_cart(cart_bid,pid):
-            status_badge('In Cart','success')
-            st.caption('Already in your cart. Go to Cart to check out.')
-        else:
-            if st.button('Add to Cart',key=f'cart_add_detail_{pid}',width='stretch',type='primary'):
-                if not is_authenticated():
-                    set_pending_action('Add to Cart',p)
-                    request_marketplace_navigation('My Account')
-                    st.rerun()
-                elif cart_bid:
-                    add_to_cart(cart_bid,p)
-                    st.rerun()
-                else:
-                    st.warning('Complete your buyer profile in My Account to use your cart.')
-            st.caption('Check out from your cart any time -- one combined payment per seller.')
-    else:
-        st.info(f"This listing is {listing_availability_label(p).lower()}, so public buyer actions are turned off.")
+    st.info('This listing was published by the seller. Report concerns to House Of Wax Support.')
 
 # ---------- Pages ----------
 
@@ -4227,9 +4494,26 @@ def home():
         with st.expander('Tester Start Here',expanded=False):
             tester_start_here('home')
     st.info("Looking for something specific? Open Search Music and type an artist or album — we'll do the digging.")
+
+    section_header("How it works","Getting started takes a few minutes, whether you're buying one record or working through a longer list.")
+    how1,how2,how3=st.columns(3)
+    with how1:
+        with st.container(border=True):
+            st.markdown('**01 · Browse listings**')
+            st.write("Search by artist or genre, or look through what's new. Listings include real photos and condition notes, not stock images.")
+    with how2:
+        with st.container(border=True):
+            st.markdown('**02 · Message the seller**')
+            st.write("Ask about condition, pressing details, or anything else you'd like to know before you buy. You're talking to the person who owns it.")
+    with how3:
+        with st.container(border=True):
+            st.markdown('**03 · Pay securely, get your order**')
+            st.write("Payment goes directly to the seller through PayPal — House Of Wax doesn't hold or process funds. Your order ships from there.")
+    groove_divider()
+
     with st.container(border=True):
-        st.subheader('Selling? House Of Wax wants your crates.')
-        st.write(f"List records, merch, and music collectibles, and get paid directly by the buyer through PayPal — House Of Wax never holds your money. We take a {commission_percent():g}% platform fee on top of your price, nothing more.")
+        st.subheader('Have records to sell?')
+        st.write(f"List records, merch, and music collectibles, and get paid directly by the buyer through PayPal — House Of Wax never holds your money. We take a {commission_percent():g}% platform fee on top of your price.")
         if st.button('Become a Seller',key='home_become_seller_cta',width='stretch'):
             request_marketplace_navigation('My Account'); st.rerun()
     merch=home_block('merch_shop')
@@ -4405,9 +4689,43 @@ def marketplace():
         st.info('No matching live listings found. Try a different artist, title, barcode, or seller name.')
         return
     cart_bid=ensure_linked_buyer_profile() if is_authenticated() else 0
+    # Even after batching away the N+1 network calls above, rendering 800+
+    # individual widget-heavy cards in one script run is still real,
+    # non-network Streamlit overhead -- confirmed live, this alone still
+    # took ~80 seconds with an unfiltered default view (down from 5+
+    # minutes/never finishing before the batching fix, but still not
+    # fast). Paginating keeps any single render to a fixed, small number of
+    # cards regardless of how large the catalog grows.
+    MARKETPLACE_PAGE_SIZE=24
+    total_results=len(prods)
+    total_pages=max(1,(total_results+MARKETPLACE_PAGE_SIZE-1)//MARKETPLACE_PAGE_SIZE)
+    page=int(st.session_state.get('marketplace_page',1))
+    if page<1 or page>total_pages:
+        page=1
+    st.session_state['marketplace_page']=page
+    start=(page-1)*MARKETPLACE_PAGE_SIZE
+    page_prods=prods.iloc[start:start+MARKETPLACE_PAGE_SIZE]
+    # Batch the two lookups every card used to do individually -- with the
+    # full marketplace unfiltered, this used to be 800+ cards each
+    # independently round-tripping Supabase for its seller and its photo
+    # gallery. That N+1 pattern is what actually made this page take
+    # minutes to load (founder, live: "it's taken at least five minutes to
+    # get to the search bar"), not app sleep/cold-start as first suspected.
+    seller_cache=bulk_get_sellers(page_prods['seller_id'].dropna().tolist()) if 'seller_id' in page_prods.columns else {}
+    gallery_cache=bulk_listing_galleries(page_prods['id'].tolist())
     cols=st.columns(4)
-    for i,(_,p) in enumerate(prods.iterrows()):
-        with cols[i%4]: product_card(p,buyer_id=cart_bid)
+    for i,(_,p) in enumerate(page_prods.iterrows()):
+        with cols[i%4]: product_card(p,buyer_id=cart_bid,seller_cache=seller_cache,gallery_cache=gallery_cache)
+    if total_pages>1:
+        st.divider()
+        pc1,pc2,pc3=st.columns([1,2,1])
+        if pc1.button('← Previous',key='marketplace_prev_page',width='stretch',disabled=(page<=1)):
+            st.session_state['marketplace_page']=page-1
+            st.rerun()
+        pc2.write(f"Page {page} of {total_pages}")
+        if pc3.button('Next →',key='marketplace_next_page',width='stretch',disabled=(page>=total_pages)):
+            st.session_state['marketplace_page']=page+1
+            st.rerun()
 def cart_page():
     header(); marketplace_context('House Of Wax Marketplace -> Cart'); st.header('My Cart')
     if not is_authenticated():
@@ -4468,16 +4786,28 @@ def render_seller_cart_group(bid, seller_id, group):
             subtotal+=price
             c2.write(money(price))
             if c3.button('Remove',key=f'cart_remove_{cart_id}'):
-                remove_from_cart(cart_id)
-                st.rerun()
+                # Founder: "people can't delete items from their cart."
+                # remove_from_cart() used to be trusted blindly -- if the
+                # delete was silently blocked (RLS matched zero rows, same
+                # failure shape as the Buy Now reservation bug), the button
+                # click did nothing but the page still reran as if it had
+                # worked, and the item was right back on the next load with
+                # no explanation at all. Check the result instead of
+                # assuming success.
+                if remove_from_cart(cart_id):
+                    st.rerun()
+                else:
+                    st.error("Could not remove that item -- please try again, or contact Support if it keeps happening.")
         for _,row in unavailable_rows.iterrows():
             cart_id=int(row['id'])
             reason=listing_availability_label(row) if safe(row.get('listing_status')) else 'Listing no longer exists'
             c1,c2=st.columns([4,1])
             c1.warning(f"{safe(row.get('artist')) or 'This item'} — {safe(row.get('title'))}: no longer available ({reason}).")
             if c2.button('Remove',key=f'cart_remove_{cart_id}'):
-                remove_from_cart(cart_id)
-                st.rerun()
+                if remove_from_cart(cart_id):
+                    st.rerun()
+                else:
+                    st.error("Could not remove that item -- please try again, or contact Support if it keeps happening.")
         if available_rows.empty:
             st.caption('Nothing available to check out in this group -- remove the unavailable item(s) above.')
             return
@@ -4531,7 +4861,7 @@ def buyer_workspace_tabs(bid):
         # sat above this same form's own upload field. The upload field
         # below is the single place to add or change a photo.
         render_trust_tier(buyer_completed_purchases_count(bid),buyer_review_summary(bid),'buyer')
-        buyer_strikes=int(b.get('strikes') or 0)
+        buyer_strikes=int_or(b.get('strikes'))
         if buyer_strikes:
             st.warning(f"{buyer_strikes} strike{'s' if buyer_strikes!=1 else ''} on your account for not paying within the {PAYMENT_WINDOW_DAYS}-day window after checkout. Sellers can see this.")
         with st.form('bp_auth'):
@@ -4684,6 +5014,33 @@ def is_music_category(category):
 
 def normalize_barcode(code):
     return re.sub(r'[^0-9]', '', safe(code))
+
+# Founder: "can I scan barcode in to house of wax" -- the barcode box
+# previously just told a seller to switch to Google Lens or a separate app,
+# scan there, then come back and paste the number in by hand. This decodes
+# a photo taken with st.camera_input() directly (via zxing-cpp), so
+# scanning happens inside House Of Wax itself. Returns (digits,
+# error_message) -- exactly one is truthy. A real EAN/UPC digit string is
+# preferred if multiple codes are found in one photo (e.g. a shelf tag
+# also in frame); the longest numeric result is kept as the best guess
+# otherwise.
+def decode_barcode_photo(image_bytes):
+    if not BARCODE_SCAN_AVAILABLE:
+        return None, 'Barcode scanning is not available in this environment right now -- type the barcode below instead.'
+    try:
+        img=Image.open(io.BytesIO(image_bytes))
+        results=zxingcpp.read_barcodes(img)
+    except Exception as e:
+        return None, f'Could not read that photo ({safe(e)}). Try again with better lighting.'
+    if not results:
+        return None, 'No barcode found in that photo. Make sure the barcode fills most of the frame, hold the phone steady, and try again with good lighting.'
+    candidates=[normalize_barcode(r.text) for r in results]
+    candidates=[c for c in candidates if c]
+    if not candidates:
+        return None, 'Found a code in that photo, but it was not a numeric barcode. Try again, or type the barcode in manually.'
+    numeric_length_ok=[c for c in candidates if len(c) in (8,12,13,14)]
+    best=max(numeric_length_ok or candidates, key=len)
+    return best, None
 
 # ---------- Shared release photo library ----------
 # Every barcode/Discogs/MusicBrainz lookup during Add Inventory already finds
@@ -5001,7 +5358,7 @@ def add_to_cart(buyer_id, product):
     product_id=int(product.get('id') or 0)
     if not product_id or is_in_cart(buyer_id,product_id):
         return 0
-    data={'buyer_id':int(buyer_id),'product_id':product_id,'seller_id':int(product.get('seller_id') or 0),'added_price':float(product.get('price') or 0),'created_at':now(),'updated_at':now()}
+    data={'buyer_id':int(buyer_id),'product_id':product_id,'seller_id':int_or(product.get('seller_id')),'added_price':float(product.get('price') or 0),'created_at':now(),'updated_at':now()}
     return core_insert('cart_items',data,"""INSERT INTO cart_items(buyer_id,product_id,seller_id,added_price,created_at,updated_at) VALUES(?,?,?,?,?,?)""",(data['buyer_id'],data['product_id'],data['seller_id'],data['added_price'],data['created_at'],data['updated_at']))
 
 def buyer_cart_items(buyer_id):
@@ -5031,12 +5388,12 @@ def enrich_cart_rows(cart_df):
     product_cache={}
     seller_cache={}
     for idx,row in out.iterrows():
-        pid=int(row.get('product_id') or 0)
+        pid=int_or(row.get('product_id'))
         if pid not in product_cache:
             prow=hosted_select('products',{'id':pid},limit=1) if hosted_enabled() else df('SELECT * FROM products WHERE id=?',(pid,))
             product_cache[pid]=prow.iloc[0].to_dict() if not prow.empty else {}
         product=product_cache.get(pid,{})
-        sid=int(product.get('seller_id') or row.get('seller_id') or 0)
+        sid=int_or(product.get('seller_id')) or int_or(row.get('seller_id'))
         if sid and sid not in seller_cache:
             seller_cache[sid]=get_seller(sid)
         seller=seller_cache.get(sid)
@@ -5152,6 +5509,28 @@ def send_email(to_email, subject, html_body):
         return r.status_code in (200,201)
     except Exception:
         return False
+
+def notify_admins_new_support_request(name, email, category, message):
+    # A new support request previously only ever showed up if an admin
+    # remembered to open the admin panel and check "Support Requests" --
+    # no alert anywhere else, even though the form itself told the person
+    # "House Of Wax will reply to the email you provided." Emails every
+    # address in ADMIN_EMAILS (the same allowlist admin login already
+    # uses -- no new secret needed) so a real request doesn't sit unseen.
+    admins=admin_email_allowlist()
+    if not admins:
+        return
+    subject=f"New House Of Wax support request: {safe(category,'General')}"
+    safe_message=html.escape(safe(message)).replace('\n','<br>')
+    body=(
+        f"<p><strong>From:</strong> {html.escape(safe(name,'(no name given)'))} "
+        f"({html.escape(safe(email))})</p>"
+        f"<p><strong>Category:</strong> {html.escape(safe(category,'General'))}</p>"
+        f"<p><strong>Message:</strong><br>{safe_message}</p>"
+        f"<p>Reply directly to {html.escape(safe(email))}, or review it in the admin panel under Support Requests.</p>"
+    )
+    for admin_email in admins:
+        send_email(admin_email, subject, body)
 
 def instagram_configured():
     try:
@@ -5476,21 +5855,25 @@ def enrich_next_discogs_batch(sid, batch_size=25):
         details=fetch_discogs_release_details(release_id)
         update={'updated_at':now()}
         image_found=details and safe(details.get('image_url'))
-        price_found=details and details.get('lowest_price') is not None
         if image_found:
             update['image_url']=details['image_url']
-        if price_found:
-            update['price']=float(details['lowest_price'])
-        if not details:
-            update['reviewer_notes']='Discogs: no cover art or price found automatically -- add your own photo and set a price manually.'
-        elif not image_found:
-            update['reviewer_notes']='Discogs: no cover art found automatically (a price suggestion was applied) -- add your own photo.'
+        # Deliberately does NOT auto-fill price from Discogs' lowest_price
+        # anymore, even though fetch_discogs_release_details still returns
+        # it. Founder: "I only want price suggestion to show when the item
+        # is being inputted into the system. At that point the seller
+        # chooses how much they want to list the item for." Auto-writing a
+        # real dollar figure here meant a seller could publish a price they
+        # never actually chose. The same lowest_price signal still reaches
+        # the seller -- as the rounded "Suggested price range" caption in
+        # My Inventory, shown only while price is still unset (0).
+        if not image_found:
+            update['reviewer_notes']='Discogs: no cover art found automatically -- add your own photo and set a price using the suggested range.'
         # Every row in the batch gets marked as attempted (reviewer_notes or
         # a found field), even when Discogs has nothing -- that's what makes
         # this batch shrink the pending count for good, not just this run.
         set_clause=','.join(f'{k}=?' for k in update)
         core_update('products',update,{'id':int(row['id'])},f"UPDATE products SET {set_clause} WHERE id=?",tuple(update.values())+(int(row['id']),))
-        if image_found or price_found:
+        if image_found:
             enriched+=1
         time.sleep(1.1)
     remaining=int(len(pending))-len(batch)
@@ -5541,6 +5924,23 @@ def suggest_price_range_from_how_history(artist, media_grade=None, sleeve_grade=
     except Exception:
         return None
 
+def round_price_range_up(result):
+    # Founder: "make sure we are maximizing this part" -- raw prices from
+    # Discogs/sales history come back in odd cents (e.g. $7.94-$11.47),
+    # which reads as fussy rather than intentional. Round both ends up to
+    # the nearest whole dollar (never down) so the suggestion is a clean
+    # number and never nudges a seller toward less than the real estimate.
+    if not result:
+        return result
+    result=dict(result)
+    if result.get('low') is not None:
+        result['low']=float(math.ceil(float(result['low'])))
+    if result.get('high') is not None:
+        result['high']=float(math.ceil(float(result['high'])))
+        if result.get('low') is not None and result['high']<result['low']:
+            result['high']=result['low']
+    return result
+
 def suggest_seller_price_range(artist, discogs_release_id=None, media_grade=None, sleeve_grade=None, title=None):
     if not discogs_release_id and discogs_token_status() and (safe(artist) or safe(title)):
         # The match that filled in this listing draft may have come from
@@ -5559,8 +5959,8 @@ def suggest_seller_price_range(artist, discogs_release_id=None, media_grade=None
     if discogs_release_id:
         result=suggest_price_range_from_discogs(discogs_release_id,media_grade,sleeve_grade)
         if result:
-            return result
-    return suggest_price_range_from_how_history(artist,media_grade,sleeve_grade)
+            return round_price_range_up(result)
+    return round_price_range_up(suggest_price_range_from_how_history(artist,media_grade,sleeve_grade))
 
 def barcode_length_status(barcode):
     code=normalize_barcode(barcode)
@@ -6388,14 +6788,44 @@ def render_barcode_lookup_widget(key_prefix='main'):
     st.markdown('#### Step 1: Search by barcode (optional but recommended)')
     st.write('For records, CDs, and cassettes, scan or type the barcode. House Of Wax checks its own release database first, then outside sources for release information and cover art. For shirts, dolls, memorabilia, merch, and accessories, sellers should use a photo of the exact item or an official product image.')
     st.caption('Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches. This is the only barcode box you need here -- the one further down under "Confirm item details" just shows what it found, in case you want to fix a typo.')
-    with st.expander('Scanning with your phone? Here\'s the fastest way',expanded=False):
-        st.write("On Android, point Google Lens (already on your phone) at the barcode and copy the number it reads.")
-        st.write("On iPhone, search your App Store for a free barcode or UPC scanner app, scan the item, then copy the number it shows.")
-        st.write("Either way, switch back to House Of Wax and paste the number into the field below.")
+    barcode_field_key=f'v24_lookup_barcode_{key_prefix}'
+    camera_key=f'v24_barcode_camera_{key_prefix}'
+    auto_trigger_key=f'v24_barcode_scan_auto_trigger_{key_prefix}'
+    # Founder: "can I scan barcode in to house of wax" -- this used to just
+    # tell the seller to switch to Google Lens or a separate scanner app,
+    # then come back and paste the number in by hand. Scanning now happens
+    # inside House Of Wax itself: take a photo of the barcode, it's decoded
+    # right here, and the search below runs automatically.
+    with st.expander('📷 Scan barcode with your camera',expanded=BARCODE_SCAN_AVAILABLE):
+        if not BARCODE_SCAN_AVAILABLE:
+            st.info("Barcode scanning isn't set up in this environment right now -- type the barcode below instead.")
+        else:
+            st.write('Point your camera at the barcode so it fills most of the frame, hold steady, then take the photo.')
+            photo=st.camera_input('Take a photo of the barcode',key=camera_key,label_visibility='collapsed')
+            if photo is not None:
+                photo_bytes=photo.getvalue()
+                photo_hash=hashlib.md5(photo_bytes).hexdigest()
+                # camera_input keeps returning the same captured photo on
+                # every rerun until it's retaken -- only decode once per
+                # distinct photo, or every unrelated click elsewhere on the
+                # page would re-trigger a fresh search.
+                if st.session_state.get(f'{camera_key}_processed_hash')!=photo_hash:
+                    st.session_state[f'{camera_key}_processed_hash']=photo_hash
+                    decoded,scan_error=decode_barcode_photo(photo_bytes)
+                    if decoded:
+                        st.session_state[barcode_field_key]=decoded
+                        st.session_state[auto_trigger_key]=True
+                        st.success(f'Scanned barcode: {decoded} -- searching now.')
+                    elif scan_error:
+                        st.warning(scan_error)
+        with st.expander("Scanning not working? Here's a backup way",expanded=False):
+            st.write("On Android, point Google Lens (already on your phone) at the barcode and copy the number it reads.")
+            st.write("On iPhone, search your App Store for a free barcode or UPC scanner app, scan the item, then copy the number it shows.")
+            st.write("Either way, switch back to House Of Wax and paste the number into the field below.")
     render_source_health_panel(key_prefix)
     c1,c2=st.columns([2,1])
-    barcode=c1.text_input('Scan or enter barcode / UPC',key=f'v24_lookup_barcode_{key_prefix}',placeholder='Click here, scan, or type at least 5-6 digits',help='Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches.')
-    lookup_clicked=c2.button('Search',key=f'v24_lookup_button_{key_prefix}')
+    barcode=c1.text_input('Scan or enter barcode / UPC',key=barcode_field_key,placeholder='Click here, scan, or type at least 5-6 digits',help='Enter the full barcode when available. You may also enter at least 5-6 digits to look for possible matches.')
+    lookup_clicked=c2.button('Search',key=f'v24_lookup_button_{key_prefix}') or st.session_state.pop(auto_trigger_key,False)
 
     with st.expander('No barcode match? Broad search by artist and album title'):
         a1,a2=st.columns(2)
@@ -6848,6 +7278,14 @@ def upload_product(sid,key):
         if publish_listing and not rules_ok:
             st.error('Accept seller rules before publishing.')
             return
+        # Founder: every live listing must show a real picture of the LP/record
+        # -- either the auto-filled reference art (House Of Wax's stock photo
+        # for that release) or the seller's own photo. A Draft can still be
+        # saved with neither, so a seller can start a listing and finish it
+        # later, but Publish is where this gets enforced.
+        if publish_listing and not (safe(refimgurl) or main_img is not None):
+            st.error('Add a photo before publishing -- the auto-filled reference image works fine, or upload your own in Step 5. Every live listing needs at least one photo.')
+            return
         existing_seller_listings=hosted_select('products',{'seller_id':int(sid)},select='*') if hosted_enabled() else df('SELECT * FROM products WHERE seller_id=?',(sid,))
         possible_duplicates=pd.DataFrame()
         if not existing_seller_listings.empty:
@@ -7021,7 +7459,7 @@ def reserve_listing_for_payment(request_id, product_id):
     product_ok=core_update('products',{'listing_status':'Pending Pickup/Payment','updated_at':now()},{'id':int(product_id)},"UPDATE products SET listing_status='Pending Pickup/Payment',updated_at=? WHERE id=?",(now(),int(product_id)))
     core_update('purchase_requests',{'payment_due_at':due},{'id':int(request_id)},'UPDATE purchase_requests SET payment_due_at=? WHERE id=?',(due,int(request_id)))
     if not product_ok and hosted_enabled():
-        st.error("This order was recorded, but House Of Wax could not reserve the listing itself -- it may still show as available to others. This is a platform error, not something you did wrong. Message House Of Wax through Report Seller / Report Listing so it can be fixed by hand.")
+        st.error("This order was recorded, but House Of Wax could not reserve the listing itself -- it may still show as available to others. This is a platform error, not something you did wrong. Contact House Of Wax Support so it can be fixed by hand.")
     return due
 
 def checkout_seller_cart_group(buyer_id, seller_id, cart_rows):
@@ -7072,7 +7510,7 @@ def update_purchase_request_status(request_id, status, seller_id=None, quiet=Fal
             core_update('products',{'listing_status':'Pending Pickup/Payment','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Pending Pickup/Payment',updated_at=? WHERE id=?",(now(),pid),quiet=quiet)
         elif status=='Sold':
             core_update('products',{'listing_status':'Sold','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Sold',updated_at=? WHERE id=?",(now(),pid),quiet=quiet)
-        elif status in ('Seller Declined','Closed','Buyer Did Not Pay'):
+        elif status in ('Seller Declined','Closed','Buyer Did Not Pay','Buyer Cancelled'):
             # A deal that fell through used to leave the listing stuck at
             # Pending Pickup/Payment forever, permanently hiding it from
             # buyers even though nothing was ever sold. Return it to Live,
@@ -7124,7 +7562,7 @@ def expire_overdue_purchase_requests():
         if safe(buyer_id):
             buyer=get_buyer(int(buyer_id))
             if buyer is not None:
-                new_strikes=int(buyer.get('strikes') or 0)+1
+                new_strikes=int_or(buyer.get('strikes'))+1
                 ok=core_update('buyers',{'strikes':new_strikes},{'id':int(buyer_id)},'UPDATE buyers SET strikes=? WHERE id=?',(new_strikes,int(buyer_id)),quiet=True)
                 if not ok and hosted_enabled():
                     PAYMENT_EXPIRY_STATUS['last_error']=SUPABASE_STATUS.get('last_error') or 'Unknown error adding a buyer strike'
@@ -7151,7 +7589,7 @@ def seller_purchase_request_view(sid):
         st.write(f"**Listing:** {safe(row.get('artist'))} - {safe(row.get('title'))}")
         st.write(f"**Listing status:** {safe(row.get('listing_status'))}")
         buyer_record=get_buyer(int(row.get('buyer_id'))) if safe(row.get('buyer_id')) else None
-        buyer_strikes=int(buyer_record.get('strikes') or 0) if buyer_record is not None else 0
+        buyer_strikes=int_or(buyer_record.get('strikes')) if buyer_record is not None else 0
         strike_note=f" ⚠️ {buyer_strikes} unpaid strike{'s' if buyer_strikes!=1 else ''} on record" if buyer_strikes else ''
         st.write(f"**Buyer:** {safe(row.get('buyer_name'))}{strike_note}")
         if safe(row.get('buyer_id')):
@@ -7243,7 +7681,7 @@ def admin_purchase_request_view():
         st.write(f"**Listing:** {safe(row.get('artist'))} - {safe(row.get('title'))}")
         st.write(f"**Listing status:** {safe(row.get('listing_status'))}")
         buyer_record=get_buyer(int(row.get('buyer_id'))) if safe(row.get('buyer_id')) else None
-        buyer_strikes=int(buyer_record.get('strikes') or 0) if buyer_record is not None else 0
+        buyer_strikes=int_or(buyer_record.get('strikes')) if buyer_record is not None else 0
         strike_note=f" ⚠️ {buyer_strikes} unpaid strike{'s' if buyer_strikes!=1 else ''} on record" if buyer_strikes else ''
         st.write(f"**Buyer:** {safe(row.get('buyer_name'))} • {safe(row.get('buyer_contact'))}{strike_note}")
         st.write(f"**Pickup/shipping:** {safe(row.get('fulfillment_preference'))}")
@@ -7356,10 +7794,20 @@ def seller_store_profile_editor(sid, s, key_prefix='seller_profile'):
         st.write(badges(sid) or 'No badges yet.')
         st.dataframe(hosted_select('seller_badges',{'seller_id':sid}) if hosted_enabled() else df('SELECT * FROM seller_badges WHERE seller_id=?',(sid,)),width='stretch')
 
+def product_has_completed_platform_sale(pid):
+    # A Sold listing can mean two very different things: it actually sold
+    # through House Of Wax (a real purchase_requests row with status=Sold,
+    # the same signal seller/buyer trust tiers are computed from), or the
+    # seller just marked it Sold themselves because it sold somewhere else
+    # entirely. Only the first case has real history worth protecting from
+    # deletion.
+    rows=hosted_select('purchase_requests',{'product_id':int(pid),'status':'Sold'}) if hosted_enabled() else df("SELECT id FROM purchase_requests WHERE product_id=? AND status='Sold'",(int(pid),))
+    return not rows.empty
+
 def seller_listings_manager(sid, key_prefix='seller_listings'):
     st.subheader('My Inventory')
     st.caption('Everything you add for sale will appear here.')
-    seller=get_seller(int(sid))
+    seller=get_seller_full(int(sid))
     is_approved=seller_can_publish(seller)
     rules_ok=seller_rules_accepted(seller)
     can_publish=seller_can_publish_live(seller)
@@ -7379,12 +7827,59 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
         pending_mask=(prods['listing_status'].fillna('')=='Draft') & prods['external_release_url'].fillna('').str.startswith(discogs_prefix) & (prods['image_url'].fillna('')=='') & (prods['reviewer_notes'].fillna('')=='')
         pending_count=int(pending_mask.sum())
         if pending_count:
-            st.info(f"{pending_count} imported item{'s' if pending_count!=1 else ''} still need a cover photo/price suggestion from Discogs.")
-            if st.button('Fetch next batch from Discogs',key=f'{key_prefix}_discogs_enrich'):
+            st.info(f"{pending_count} imported item{'s' if pending_count!=1 else ''} still need a cover photo from Discogs.")
+            if st.button('Fetch next batch from Discogs',key=f'{key_prefix}_discogs_enrich',width='stretch'):
                 result=enrich_next_discogs_batch(int(sid))
                 st.success(f"Fetched {result['enriched']}. {result['remaining']} item(s) still pending -- click again to continue.")
                 st.rerun()
-    prods['Photos']=prods['id'].apply(lambda i: 'Yes' if has_listing_photos(int(i)) else 'No (auto image)')
+    # Founder: "I notice the grading is incomplete. There need to be
+    # grading for both the vinyl and the cover." Surfaces the real count
+    # so an item missing a grade isn't just silently unpublishable with no
+    # indication of how many need attention or where to find them.
+    ungraded_mask=(prods['media_grade'].fillna('').str.strip()=='') | (prods['sleeve_grade'].fillna('').str.strip()=='')
+    ungraded_live_count=int((ungraded_mask & (prods['listing_status'].fillna('')=='Live')).sum())
+    ungraded_total=int(ungraded_mask.sum())
+    if ungraded_total:
+        live_note=f" ({ungraded_live_count} already Live)" if ungraded_live_count else ''
+        st.info(f"{ungraded_total} listing{'s' if ungraded_total!=1 else ''} still {'need' if ungraded_total!=1 else 'needs'} a vinyl and/or cover condition grade{live_note}. Select a listing below to add it under Vinyl/media condition and Sleeve/cover condition.")
+    # Bulk publish: founder, live, after seeing only 8 of ~800 imported
+    # items were Live -- "why are my listings not live?" -- then asked for
+    # a faster way than reviewing all 800 one at a time. A Draft listing
+    # only needs a photo to go Live via the single-item flow (no price
+    # floor there), but publishing hundreds at once deserves a stricter
+    # bar: also require a real price and complete grading (both media AND
+    # sleeve -- founder: "the grading is incomplete. There need to be
+    # grading for both the vinyl and the cover"), so a batch action can't
+    # put free or under-graded listings in front of buyers.
+    # Founder: a listing went public with no way for a buyer to actually
+    # pay -- the seller had never filled in PayPal info at all. Every row
+    # in `prods` belongs to this one seller (queried by seller_id above),
+    # so there's no per-row lookup needed -- `seller`'s own paypal_link
+    # either exists or it doesn't, for all of their listings alike.
+    seller_has_paypal=bool(safe(seller.get('paypal_link') if seller is not None else ''))
+    if is_approved and rules_ok:
+        ready_mask=(prods['listing_status'].fillna('')=='Draft') & (prods['price'].fillna(0).astype(float)>0) & (prods['image_url'].fillna('')!='') & (prods['media_grade'].fillna('').str.strip()!='') & (prods['sleeve_grade'].fillna('').str.strip()!='') & seller_has_paypal
+        ready_ids=prods.loc[ready_mask,'id'].astype(int).tolist()
+        if not seller_has_paypal and int((prods['listing_status'].fillna('')=='Draft').sum()):
+            st.warning('Add your PayPal email or PayPal.me link in My Store Profile before you can publish listings -- buyers need a real way to pay you.')
+        if ready_ids:
+            with st.expander(f'Bulk publish -- {len(ready_ids)} Draft listing{"s" if len(ready_ids)!=1 else ""} ready to go Live (have a photo, a price, complete grading, and your PayPal info on file)'):
+                ready_prods=prods[ready_mask]
+                option_labels={int(r['id']):f"#{int(r['id'])} — {safe(r.get('title'),'Untitled')} — {safe(r.get('artist'),'No artist')} — {money(r.get('price'))}" for _,r in ready_prods.iterrows()}
+                selected_ids=st.multiselect('Listings to publish',options=ready_ids,default=ready_ids,format_func=lambda i:option_labels.get(i,f'#{i}'),key=f'{key_prefix}_bulk_publish_select')
+                if st.button(f'Publish {len(selected_ids)} selected listing{"s" if len(selected_ids)!=1 else ""} Live',key=f'{key_prefix}_bulk_publish_button',disabled=not selected_ids,width='stretch'):
+                    for publish_id in selected_ids:
+                        core_update('products',{'listing_status':'Live','updated_at':now()},{'id':int(publish_id),'seller_id':int(sid)},'UPDATE products SET listing_status=?,updated_at=? WHERE id=? AND seller_id=?',('Live',now(),int(publish_id),sid))
+                    st.success(f'{len(selected_ids)} listing(s) published Live.')
+                    st.rerun()
+    photo_ids=has_listing_photos_bulk(prods['id'].tolist())
+    prods['Photos']=prods['id'].apply(lambda i: 'Yes' if int(i) in photo_ids else 'No (auto image)')
+    # Founder: "I don't see photo of the album covers or any other pics."
+    # The table had a text Yes/No "Photos" indicator but never actually
+    # rendered the image -- reviewing hundreds of imported drafts with no
+    # visual meant scrolling a wall of artist/title text. image_url covers
+    # both a seller's own upload and the Discogs-fetched cover art.
+    prods['Cover']=prods['image_url'].fillna('')
     prods['Views']=prods['view_count'].fillna(0).astype(int) if 'view_count' in prods.columns else 0
     active_mask=~prods['listing_status'].fillna('').isin(['Sold','Removed by House Of Wax'])
     clean_barcodes=prods['barcode'].fillna('').apply(normalize_barcode)
@@ -7398,16 +7893,77 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
     if visible_prods.empty:
         st.info('All of your listings are sold or removed. Check "Show sold/removed listings" above to see them.')
         return
-    cols=[c for c in ['id','title','artist','price','quantity','listing_status','Views','Photos','Possible duplicate','created_at','reviewer_notes'] if c in visible_prods.columns]
-    st.dataframe(visible_prods[cols],width='stretch')
+    cols=[c for c in ['Cover','id','title','artist','price','quantity','listing_status','Views','Photos','Possible duplicate','created_at','reviewer_notes'] if c in visible_prods.columns]
+    st.dataframe(visible_prods[cols],width='stretch',column_config={'Cover':st.column_config.ImageColumn('Cover')})
     if (visible_prods['Possible duplicate']=='Yes').any():
         st.caption('Rows marked "Possible duplicate" share a barcode with another active listing in your inventory.')
     pid=st.selectbox('Listing ID',visible_prods['id'].tolist(),key=f'{key_prefix}_listing_id')
     row=visible_prods[visible_prods['id']==pid].iloc[0]
     st.write(f"**Selected item:** {safe(row.get('title'),'Untitled')} • {safe(row.get('artist'),'No artist/brand')} • {money(row.get('price'))}")
-    view_count=int(row.get('view_count') or 0)
+    if safe(row.get('image_url')):
+        st.image(safe(row.get('image_url')),width=180)
+    view_count=int_or(row.get('view_count'))
     watchers=find_want_list_matches_for_notify(row.get('artist'),row.get('title'))
     st.caption(f"👀 {view_count} view{'s' if view_count!=1 else ''} · {len(watchers)} buyer{'s' if len(watchers)!=1 else ''} watching for this")
+    # Reviewing/pricing an already-imported listing (e.g. from the Discogs
+    # bulk import) previously had no way to see a price range or change the
+    # price without leaving My Inventory and re-running the whole Add
+    # Inventory wizard, which doesn't support editing an existing row anyway.
+    # Founder: "make sure it is giving range of price suggestions for the
+    # music items." Reuses the same suggest_seller_price_range() the
+    # listing-creation form already uses, so it's the same real range (not
+    # a single number) whether you're creating a new listing or reviewing
+    # an imported one.
+    #
+    # Only shown while price is still 0 (never set) -- founder: "I only
+    # want price suggestion to show when the item is being inputted into
+    # the system. At that point the seller chooses how much they want to
+    # list the item for." Once a real price exists, the item has already
+    # been "input" and the suggestion would just be repeated noise on every
+    # future visit.
+    current_price=float(row.get('price') or 0)
+    if current_price<=0 and safe(row.get('artist')):
+        discogs_release_id=None
+        ext_url=safe(row.get('external_release_url'))
+        if ext_url.startswith('https://www.discogs.com/release/'):
+            discogs_release_id=ext_url[len('https://www.discogs.com/release/'):]
+        price_suggestion=suggest_seller_price_range(safe(row.get('artist')),discogs_release_id,safe(row.get('media_grade')),safe(row.get('sleeve_grade')),safe(row.get('title')))
+        if price_suggestion:
+            grade_note=f" for {price_suggestion['grade_used']} condition" if price_suggestion.get('grade_used') else ''
+            st.caption(f"Suggested price range{grade_note}: {money(price_suggestion['low'])}–{money(price_suggestion['high'])}, based on {price_suggestion['source']}. Set your price below -- this is a starting point, not the final price.")
+    new_price=st.number_input('Price ($)',min_value=0.0,step=1.0,value=float(row.get('price') or 0),key=f'{key_prefix}_price_{int(pid)}')
+    if st.button('Update price',key=f'{key_prefix}_price_update_{int(pid)}',width='stretch'):
+        core_update('products',{'price':float(new_price),'updated_at':now()},{'id':int(pid),'seller_id':int(sid)},'UPDATE products SET price=?,updated_at=? WHERE id=? AND seller_id=?',(float(new_price),now(),int(pid),sid))
+        st.success(f'Price updated to {money(new_price)}.')
+        st.rerun()
+    # Founder: "I notice the grading is incomplete. There need to be
+    # grading for both the vinyl and the cover." A large share of the
+    # Discogs collection import came through with no sleeve grade at all
+    # (that field is optional on Discogs and a lot of collectors skip it)
+    # and a smaller share with no media grade either -- and there was
+    # previously no way to add either one without leaving My Inventory and
+    # re-running the whole Add Inventory wizard, which doesn't support
+    # editing an existing row anyway. NOT_GRADED_OPTION is a real,
+    # distinct choice (not just blank) so it's visibly different from
+    # picking a real grade, both here and in the underlying stored value.
+    NOT_GRADED_OPTION='Not graded yet'
+    grade_options=[NOT_GRADED_OPTION]+GRADE_SCALE
+    # Sleeve gets two extra real answers beyond an actual condition grade:
+    # some records genuinely never had a cover (nothing to grade), others
+    # have a plain/generic sleeve that's a real object but not yet assessed.
+    # Both count as a real answer, not a "still needs grading" placeholder.
+    sleeve_grade_options=[NOT_GRADED_OPTION,NO_SLEEVE_VALUE,GENERIC_SLEEVE_VALUE]+GRADE_SCALE
+    current_media_grade=safe(row.get('media_grade'))
+    current_sleeve_grade=safe(row.get('sleeve_grade'))
+    gc1,gc2=st.columns(2)
+    new_media_grade=gc1.selectbox('Vinyl/media condition',grade_options,index=grade_options.index(current_media_grade) if current_media_grade in grade_options else 0,key=f'{key_prefix}_media_grade_{int(pid)}')
+    new_sleeve_grade=gc2.selectbox('Sleeve/cover condition',sleeve_grade_options,index=sleeve_grade_options.index(current_sleeve_grade) if current_sleeve_grade in sleeve_grade_options else 0,key=f'{key_prefix}_sleeve_grade_{int(pid)}')
+    if st.button('Update grading',key=f'{key_prefix}_grading_update_{int(pid)}',width='stretch'):
+        save_media=new_media_grade if new_media_grade!=NOT_GRADED_OPTION else ''
+        save_sleeve=new_sleeve_grade if new_sleeve_grade!=NOT_GRADED_OPTION else ''
+        core_update('products',{'media_grade':save_media,'sleeve_grade':save_sleeve,'updated_at':now()},{'id':int(pid),'seller_id':int(sid)},'UPDATE products SET media_grade=?,sleeve_grade=?,updated_at=? WHERE id=? AND seller_id=?',(save_media,save_sleeve,now(),int(pid),sid))
+        st.success('Grading updated.')
+        st.rerun()
     current_status=safe(row.get('listing_status'))
     st.write(f"**Current status:** {current_status}")
     listing_status_badge(current_status)
@@ -7425,12 +7981,33 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
     # move it to my store").
     default_index=actions.index(current_status) if current_status in actions else 0
     status=st.selectbox('Seller action',actions,index=default_index,key=f'{key_prefix}_seller_action_{int(pid)}',help='Draft stays private. Live publishes to your store. Hidden removes it from public view. Sold marks it no longer available.')
-    if st.button('Update listing status',key=f'{key_prefix}_update_{int(pid)}'):
+    if st.button('Update listing status',key=f'{key_prefix}_update_{int(pid)}',width='stretch'):
         if status=='Live' and not is_approved:
             st.error('Your seller account must be approved before you can publish listings.')
             return
         if status=='Live' and not rules_ok:
             st.error('Accept seller rules before publishing.')
+            return
+        if status=='Live' and not safe(row.get('image_url')):
+            st.error('This listing has no photo yet -- add one (or use the auto-filled reference image) before publishing. Every live listing needs at least one photo.')
+            return
+        # Founder: "I notice the grading is incomplete. There need to be
+        # grading for both the vinyl and the cover." A listing missing
+        # either grade was previously publishable with incomplete
+        # condition info -- both media (vinyl) and sleeve (cover) grade
+        # are now required before something can go Live.
+        if status=='Live' and not safe(row.get('media_grade')):
+            st.error('This listing has no vinyl/media condition grade yet -- set one before publishing.')
+            return
+        if status=='Live' and not safe(row.get('sleeve_grade')):
+            st.error('This listing has no sleeve/cover condition grade yet -- set one before publishing.')
+            return
+        # Founder, live: a listing went public with no way for a buyer to
+        # actually pay -- the seller had never filled in PayPal info at
+        # all. Same pattern as the photo/price/grading gates: required
+        # before a listing can go live, not just recommended.
+        if status=='Live' and not safe(seller.get('paypal_link') if seller is not None else ''):
+            st.error('Add your PayPal email or PayPal.me link in My Store Profile before publishing -- buyers need a real way to pay you.')
             return
         if status==current_status:
             st.info(f'Status is already {status} -- nothing to update.')
@@ -7441,7 +8018,7 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
         img=st.file_uploader('Photo',type=['png','jpg','jpeg','webp'],key=f'{key_prefix}_gallery_img_{int(pid)}')
         url=st.text_input('Or image URL',key=f'{key_prefix}_gallery_url_{int(pid)}')
         cap=st.text_input('Caption',key=f'{key_prefix}_gallery_cap_{int(pid)}')
-        if st.button('Add photo',key=f'{key_prefix}_gallery_add_{int(pid)}'):
+        if st.button('Add photo',key=f'{key_prefix}_gallery_add_{int(pid)}',width='stretch'):
             image=save_file(img,'product_gallery') or url
             if image:
                 gdata={'product_id':int(pid),'image_url':image,'caption':cap,'created_at':now()}
@@ -7453,16 +8030,32 @@ def seller_listings_manager(sid, key_prefix='seller_listings'):
             else:
                 st.warning('Add a photo file or an image URL first.')
         render_listing_photo_gallery(int(pid),safe(row.get('image_url')),context='seller')
-    if current_status in ['Draft','Hidden']:
+    # Founder: "I need for you to have a way for users to delete inventory
+    # when they want to. Some people may sell other ways and some items
+    # will sell and they can't delete it from their inventory." Deleting
+    # was previously locked to Draft/Hidden only -- a seller whose item
+    # sold (through House Of Wax or elsewhere) had no way to remove it at
+    # all without first flipping it to Hidden, and Sold listings couldn't
+    # be deleted no matter what. Sold is now deletable too. Live stays
+    # blocked -- a listing still buyable on the site shouldn't be
+    # removable in one click; mark it Hidden or Sold first. A Sold listing
+    # with a real completed House Of Wax transaction attached (not just
+    # self-marked Sold for an off-platform sale) blocks deletion instead,
+    # since that record is what seller/buyer trust tiers are built on.
+    if current_status in ['Draft','Hidden','Sold']:
         with st.expander('Delete this listing'):
-            st.warning('This permanently removes the listing. It cannot be undone. Only Draft and Hidden listings can be deleted -- mark a listing Hidden first if it is currently Live or Sold.')
-            confirm=st.checkbox('I understand this cannot be undone',key=f'{key_prefix}_delete_confirm_{int(pid)}')
-            if st.button('Delete listing permanently',key=f'{key_prefix}_delete_{int(pid)}') and confirm:
-                ok=hosted_delete('products',{'id':int(pid),'seller_id':int(sid)}) if hosted_enabled() else (run('DELETE FROM products WHERE id=? AND seller_id=?',(int(pid),int(sid))) or True)
-                if ok:
-                    st.success('Listing deleted.'); st.rerun()
-                else:
-                    st.error('Could not delete. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
+            has_real_sale=current_status=='Sold' and product_has_completed_platform_sale(int(pid))
+            if has_real_sale:
+                st.warning("This item has a completed House Of Wax sale on record, so it can't be deleted -- that history is part of your trust rating. If you just want it off your active list, it already is (Sold listings aren't shown to buyers).")
+            else:
+                st.warning('This permanently removes the listing. It cannot be undone. Only Draft, Hidden, and Sold listings can be deleted -- mark a listing Hidden or Sold first if it is currently Live.')
+                confirm=st.checkbox('I understand this cannot be undone',key=f'{key_prefix}_delete_confirm_{int(pid)}')
+                if st.button('Delete listing permanently',key=f'{key_prefix}_delete_{int(pid)}',width='stretch') and confirm:
+                    ok=hosted_delete('products',{'id':int(pid),'seller_id':int(sid)}) if hosted_enabled() else (run('DELETE FROM products WHERE id=? AND seller_id=?',(int(pid),int(sid))) or True)
+                    if ok:
+                        st.success('Listing deleted.'); st.rerun()
+                    else:
+                        st.error('Could not delete. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
 
 
 def seller_dashboard():
@@ -7608,7 +8201,7 @@ def parse_discogs_collection_csv(df, sid):
             'release_year':safe(r.get('Released')),
             'genre':'',
             'media_grade':map_discogs_condition(r.get('Collection Media Condition')),
-            'sleeve_grade':map_discogs_condition(r.get('Collection Sleeve Condition')),
+            'sleeve_grade':map_discogs_sleeve_condition(r.get('Collection Sleeve Condition')),
             'condition_notes':safe(r.get('Collection Notes')),
             'description':'',
             'price':0,
@@ -7704,8 +8297,8 @@ def listing_review_queue():
         return
     enriched=reports.copy()
     for idx,row in enriched.iterrows():
-        listing_id=int(row.get('listing_id') or 0)
-        seller_id=int(row.get('seller_id') or 0)
+        listing_id=int_or(row.get('listing_id'))
+        seller_id=int_or(row.get('seller_id'))
         listing=hosted_select('products',{'id':listing_id},limit=1) if hosted_enabled() and listing_id else (df('SELECT * FROM products WHERE id=?',(listing_id,)) if listing_id else pd.DataFrame())
         seller=get_seller(seller_id) if seller_id else None
         if not listing.empty:
@@ -7716,12 +8309,12 @@ def listing_review_queue():
             enriched.at[idx,'seller_status']=normalize_seller_status(seller.get('status'))
     cols=[c for c in ['id','listing_id','listing_title','seller_id','store_name','reason','details','status','listing_status','seller_status','created_at','updated_at'] if c in enriched.columns]
     st.dataframe(enriched[cols],width='stretch')
-    labels=[f"{int(r.get('id'))} | Listing {int(r.get('listing_id') or 0)} | Seller {int(r.get('seller_id') or 0)} | {safe(r.get('reason'))} | {safe(r.get('status'))}" for _,r in reports.iterrows()]
+    labels=[f"{int_or(r.get('id'))} | Listing {int_or(r.get('listing_id'))} | Seller {int_or(r.get('seller_id'))} | {safe(r.get('reason'))} | {safe(r.get('status'))}" for _,r in reports.iterrows()]
     pick=st.selectbox('Open report',labels,key='moderation_report_pick')
     rid=int(pick.split('|')[0].strip())
     report=reports[reports['id']==rid].iloc[0]
-    listing_id=int(report.get('listing_id') or 0)
-    seller_id=int(report.get('seller_id') or 0)
+    listing_id=int_or(report.get('listing_id'))
+    seller_id=int_or(report.get('seller_id'))
     listing=hosted_select('products',{'id':listing_id},limit=1) if hosted_enabled() and listing_id else (df('SELECT * FROM products WHERE id=?',(listing_id,)) if listing_id else pd.DataFrame())
     seller=get_seller(seller_id) if seller_id else None
     with st.container(border=True):
@@ -7734,7 +8327,7 @@ def listing_review_queue():
         st.write('**Listing operational status:**')
         listing_status_badge(safe(row.get('listing_status')))
         primary_image=listing_primary_image(row)
-        listing_preview_card(row.get('category'),row.get('artist'),row.get('title'),row.get('format'),row.get('label'),row.get('release_year'),row.get('genre'),row.get('media_grade'),row.get('sleeve_grade'),float(row.get('price') or 0),int(row.get('quantity') or 1),float(row.get('shipping_price') or 0),primary_image,row.get('description'),has_listing_photos(listing_id),'','admin')
+        listing_preview_card(row.get('category'),row.get('artist'),row.get('title'),row.get('format'),row.get('label'),row.get('release_year'),row.get('genre'),row.get('media_grade'),row.get('sleeve_grade'),float(row.get('price') or 0),int_or(row.get('quantity'),1),float(row.get('shipping_price') or 0),primary_image,row.get('description'),has_listing_photos(listing_id),'','admin')
     notes=st.text_area('Moderation notes',value=safe(report.get('details')),key='moderation_notes')
     c1,c2,c3,c4=st.columns(4)
     if c1.button('Mark Report Reviewed',key=f'report_reviewed_{rid}'):
@@ -7768,7 +8361,7 @@ def listing_review_queue():
         st.divider()
         st.caption('Use only after confirming the buyer actually paid and the seller did not deliver or resolve it -- this is a manual, human-reviewed action, not automatic (there is no shipping/tracking data to check automatically).')
         if st.button('Strike Seller (Non-Delivery)',key=f'strike_seller_non_delivery_{rid}'):
-            new_strikes=int(seller.get('strikes') or 0)+1
+            new_strikes=int_or(seller.get('strikes'))+1
             core_update('sellers',{'strikes':new_strikes},{'id':seller_id},'UPDATE sellers SET strikes=? WHERE id=?',(new_strikes,seller_id))
             core_update('listing_reports',{'status':'Resolved','updated_at':now()},{'id':rid},"UPDATE listing_reports SET status='Resolved',updated_at=? WHERE id=?",(now(),rid))
             st.error(f'Seller struck for non-delivery ({new_strikes} strike{"s" if new_strikes!=1 else ""} on record).')
@@ -8049,8 +8642,8 @@ def user_directory_dataframe():
     rows=[]
     if not users.empty:
         for _,u in users.iterrows():
-            bid=int(u.get('buyer_id') or 0)
-            sid=int(u.get('seller_id') or 0)
+            bid=int_or(u.get('buyer_id'))
+            sid=int_or(u.get('seller_id'))
             buyer=buyers[buyers['id']==bid].iloc[0].to_dict() if bid and not buyers.empty and 'id' in buyers.columns and not buyers[buyers['id']==bid].empty else {}
             seller=sellers[sellers['id']==sid].iloc[0].to_dict() if sid and not sellers.empty and 'id' in sellers.columns and not sellers[sellers['id']==sid].empty else {}
             seller_status=safe(u.get('seller_application_status')) or (normalize_seller_status(seller.get('status')) if seller else 'Not Applied')
@@ -8345,6 +8938,7 @@ if safe(st.query_params.get('support')):
     st.stop()
 testing_mode=app_mode()
 apply_share_deep_link()
+apply_image_click_navigation()
 area_options=['House Of Wax Marketplace']
 if is_admin_unlocked():
     area_options.append('House Of Wax Admin')

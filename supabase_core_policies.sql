@@ -604,6 +604,40 @@ on cart_items for all to authenticated
 using (is_admin_user())
 with check (is_admin_user());
 
+-- collection_items: a buyer's personal collection tracker, same ownership
+-- shape as cart_items/want_list above for the buyer's own read/write access.
+-- One real wrinkle this table has that those don't: add_to_collection_from_sale()
+-- (app.py) auto-inserts a row for the BUYER the moment a SELLER marks a
+-- purchase_request 'Sold' -- that write genuinely happens under the seller's
+-- own RLS session, not the buyer's. A naive "buyer manage own collection"
+-- policy alone would silently block it (same RLS-across-session-boundary
+-- gap already hit twice on this project -- see the Buy Now reservation and
+-- buyer-strike-sweep incidents), so there's a second, narrow policy below
+-- allowing a seller to insert a collection_items row ONLY when it's tied to
+-- a purchase_request that is genuinely theirs and genuinely already Sold.
+drop policy if exists "buyer manage own collection" on public."collection_items";
+create policy "buyer manage own collection"
+on collection_items for all to authenticated
+using (buyer_id in (select buyer_id from app_users where auth_user_id = auth.uid()))
+with check (buyer_id in (select buyer_id from app_users where auth_user_id = auth.uid()));
+
+drop policy if exists "seller record buyer collection item for own completed sale" on public."collection_items";
+create policy "seller record buyer collection item for own completed sale"
+on collection_items for insert to authenticated
+with check (
+  linked_purchase_request_id in (
+    select pr.id from purchase_requests pr
+    join app_users au on au.seller_id = pr.seller_id
+    where au.auth_user_id = auth.uid() and pr.status = 'Sold'
+  )
+);
+
+drop policy if exists "admin manage collection items" on public."collection_items";
+create policy "admin manage collection items"
+on collection_items for all to authenticated
+using (is_admin_user())
+with check (is_admin_user());
+
 -- Matching a new listing against every buyer's want_list needs to read
 -- across ALL buyers, not just the seller's own -- something RLS on
 -- want_list deliberately blocks above. app.py's find_want_list_matches_for_notify

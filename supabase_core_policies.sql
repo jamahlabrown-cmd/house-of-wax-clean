@@ -638,6 +638,62 @@ on collection_items for all to authenticated
 using (is_admin_user())
 with check (is_admin_user());
 
+-- barcode_lookup_cache / how_releases / how_release_sources /
+-- how_release_corrections: genuinely shared, crowdsourced data with no
+-- ownership column at all -- unlike every other table above, there is no
+-- buyer_id/seller_id to scope by, so the correct policy really is a blanket
+-- "any signed-in user can read and write" grant, same as how a real Discogs-
+-- style database works (anyone can contribute a release; nobody "owns" a
+-- barcode). The redundant admin policy is kept only for consistency with the
+-- rest of this file -- it grants nothing the blanket policy doesn't already.
+drop policy if exists "any signed-in user manages barcode cache" on public."barcode_lookup_cache";
+create policy "any signed-in user manages barcode cache"
+on barcode_lookup_cache for all to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "admin manage barcode cache" on public."barcode_lookup_cache";
+create policy "admin manage barcode cache"
+on barcode_lookup_cache for all to authenticated
+using (is_admin_user())
+with check (is_admin_user());
+
+drop policy if exists "any signed-in user manages how releases" on public."how_releases";
+create policy "any signed-in user manages how releases"
+on how_releases for all to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "admin manage how releases" on public."how_releases";
+create policy "admin manage how releases"
+on how_releases for all to authenticated
+using (is_admin_user())
+with check (is_admin_user());
+
+drop policy if exists "any signed-in user manages how release sources" on public."how_release_sources";
+create policy "any signed-in user manages how release sources"
+on how_release_sources for all to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "admin manage how release sources" on public."how_release_sources";
+create policy "admin manage how release sources"
+on how_release_sources for all to authenticated
+using (is_admin_user())
+with check (is_admin_user());
+
+drop policy if exists "any signed-in user manages how release corrections" on public."how_release_corrections";
+create policy "any signed-in user manages how release corrections"
+on how_release_corrections for all to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "admin manage how release corrections" on public."how_release_corrections";
+create policy "admin manage how release corrections"
+on how_release_corrections for all to authenticated
+using (is_admin_user())
+with check (is_admin_user());
+
 -- Matching a new listing against every buyer's want_list needs to read
 -- across ALL buyers, not just the seller's own -- something RLS on
 -- want_list deliberately blocks above. app.py's find_want_list_matches_for_notify

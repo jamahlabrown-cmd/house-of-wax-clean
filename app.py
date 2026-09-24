@@ -41,7 +41,7 @@ except Exception:
     BARCODE_SCAN_AVAILABLE=False
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.176 ADD: CAMERA BARCODE SCANNING IN ADD INVENTORY (ZXING-CPP, NO SYSTEM LIBRARY NEEDED)'
+APP_VERSION='V25.43.177 ADD: My Collection (buyer personal collection tracker) + FIX: release database (how_releases/sources/corrections + barcode cache) now actually persists in production, not just local SQLite'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -116,7 +116,7 @@ def supabase_config():
         url=url[:-8].rstrip('/')
     anon=safe(config_value('SUPABASE_ANON_KEY'))
     return url,anon
-CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies','want_list','seller_reviews','buyer_reviews','avatar_faq_videos','culture_posts','cart_items','release_photo_library','support_requests']
+CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery','listing_inquiries','purchase_requests','tester_feedback','listing_reports','knowledge_posts','glossary_terms','homepage_blocks','quick_tips','did_you_know','newsletter_signups','seller_followers','seller_badges','store_announcements','seller_events','seller_policies','want_list','seller_reviews','buyer_reviews','avatar_faq_videos','culture_posts','cart_items','release_photo_library','support_requests','collection_items','how_releases','how_release_sources','how_release_corrections','barcode_lookup_cache']
 GRADE_SCALE=['Mint','Near Mint','VG+','VG','Good+','Good','Fair','Poor']
 GRADE_INDEX={g:i for i,g in enumerate(GRADE_SCALE)}
 GRADE_PRICE_MULTIPLIERS={'Mint':1.35,'Near Mint':1.20,'VG+':1.00,'VG':0.80,'Good+':0.65,'Good':0.50,'Fair':0.35,'Poor':0.20}
@@ -1347,6 +1347,15 @@ def setup():
     cur.execute('''CREATE TABLE IF NOT EXISTS purchase_requests(id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER,seller_id INTEGER,buyer_id INTEGER,buyer_name TEXT,buyer_contact TEXT,preferred_contact_method TEXT,fulfillment_preference TEXT,offer_price REAL DEFAULT 0,buyer_message TEXT,status TEXT DEFAULT 'New',payment_due_at TEXT,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS want_list(id INTEGER PRIMARY KEY AUTOINCREMENT,buyer_id INTEGER,artist TEXT,title TEXT,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS cart_items(id INTEGER PRIMARY KEY AUTOINCREMENT,buyer_id INTEGER,product_id INTEGER,seller_id INTEGER,added_price REAL DEFAULT 0,created_at TEXT,updated_at TEXT)''')
+    # A buyer's personal collection -- everything they own, whether bought through House
+    # Of Wax or elsewhere. Founder: "are we employing [Discogs' collection tool] when we
+    # are building out this project" -- House Of Wax already mirrors Discogs' crowdsourced
+    # database (how_releases) and marketplace-tied-to-catalog model, but had no equivalent
+    # to Discogs letting a buyer catalog their own shelf and see its estimated value. A
+    # purchase completing (status='Sold') auto-adds a real entry here with the actual price
+    # paid as estimated_value (see add_to_collection_from_sale); a buyer can also add any
+    # item manually, whether or not it came from House Of Wax.
+    cur.execute('''CREATE TABLE IF NOT EXISTS collection_items(id INTEGER PRIMARY KEY AUTOINCREMENT,buyer_id INTEGER,artist TEXT,title TEXT,format TEXT,label TEXT,release_year TEXT,genre TEXT,barcode TEXT,catalog_number TEXT,media_grade TEXT,sleeve_grade TEXT,image_url TEXT,estimated_value REAL DEFAULT 0,source TEXT DEFAULT 'Added manually',linked_product_id INTEGER,linked_purchase_request_id INTEGER,notes TEXT,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS seller_reviews(id INTEGER PRIMARY KEY AUTOINCREMENT,seller_id INTEGER,buyer_id INTEGER,purchase_request_id INTEGER,product_id INTEGER,rating INTEGER,review_text TEXT,buyer_display_name TEXT,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS buyer_reviews(id INTEGER PRIMARY KEY AUTOINCREMENT,buyer_id INTEGER,seller_id INTEGER,purchase_request_id INTEGER,product_id INTEGER,rating INTEGER,review_text TEXT,seller_display_name TEXT,created_at TEXT,updated_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS avatar_faq_videos(id INTEGER PRIMARY KEY AUTOINCREMENT,question TEXT,video_url TEXT,display_order INTEGER DEFAULT 0,status TEXT DEFAULT 'Active',created_at TEXT,updated_at TEXT)''')
@@ -1675,8 +1684,9 @@ def setup():
     old_v25_43_173_announcement='V25.43.173'+' Fix: buyer pages no longer crash on a listing with missing data active'
     old_v25_43_174_announcement='V25.43.174'+' Fix: Search Music was slow/hanging; Add: remove cart items before paying, PayPal required to publish active'
     old_v25_43_175_announcement='V25.43.175'+' Fix: cart Remove now tells you if it actually failed instead of silently doing nothing active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement,old_v25_43_170_announcement,old_v25_43_171_announcement,old_v25_43_172_announcement,old_v25_43_173_announcement,old_v25_43_174_announcement,old_v25_43_175_announcement]:
-        set_setting('announcement','V25.43.176 Add: scan a barcode with your camera in Add Inventory, no separate app needed active')
+    old_v25_43_176_announcement='V25.43.176'+' Add: scan a barcode with your camera in Add Inventory, no separate app needed active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement,old_v25_43_170_announcement,old_v25_43_171_announcement,old_v25_43_172_announcement,old_v25_43_173_announcement,old_v25_43_174_announcement,old_v25_43_175_announcement,old_v25_43_176_announcement]:
+        set_setting('announcement','V25.43.177 Add: My Collection (catalog everything you own + see its value) active')
 setup()
 recovery_token_bridge()
 
@@ -4888,7 +4898,7 @@ def buyer_workspace_tabs(bid):
     if b is None:
         st.error('Linked buyer profile was not found.')
         return
-    tabs=st.tabs(['My Profile','My Questions','My Orders','My Want List'])
+    tabs=st.tabs(['My Profile','My Questions','My Orders','My Want List','My Collection'])
     with tabs[0]:
         # Founder: "two place in the buyer section to put profile photos
         # please delete one" -- a standalone preview of the saved avatar_url
@@ -4980,6 +4990,8 @@ def buyer_workspace_tabs(bid):
                                 st.error('Review could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
     with tabs[3]:
         want_list_manager(bid)
+    with tabs[4]:
+        render_my_collection(bid)
 
 def buyer_dashboard_admin_lookup():
     st.caption('Admin/testing buyer profile inspection is enabled.')
@@ -5144,12 +5156,19 @@ def seed_listing_media_policy():
             run("INSERT INTO listing_media_policy(category,default_image_source,seller_photo_recommended,notes) VALUES(?,?,?,?)",p)
 
 def cache_lookup_result(barcode, result):
-    run("""INSERT INTO barcode_lookup_cache(barcode,source,external_id,artist,title,format,label,release_year,country,genre,style,catalog_number,image_url,external_url,raw_summary,created_at)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (barcode, safe(result.get('source')), safe(result.get('external_id')), safe(result.get('artist')), safe(result.get('title')),
-         safe(result.get('format')), safe(result.get('label')), safe(result.get('release_year')), safe(result.get('country')),
-         safe(result.get('genre')), safe(result.get('style')), safe(result.get('catalog_number')), safe(result.get('image_url')),
-         safe(result.get('external_url')), safe(result.get('raw_summary')), now()))
+    # Founder: "how does our site learn and grow the database... how to make
+    # it grow faster" -- this (and every function below through
+    # submit_release_correction) used raw run()/df(), the LOCAL-SQLITE-ONLY
+    # primitives, for a table that's supposed to be House Of Wax's shared,
+    # persistent release database. Streamlit Cloud's local filesystem is
+    # wiped on every redeploy/restart/sleep -- in production (hosted mode),
+    # every barcode match this system ever "learned" was silently lost the
+    # next time the app redeployed. Fixed by routing through core_insert()/
+    # core_update()/hosted_select(), the same hosted-aware helpers every
+    # other real table in this app already uses.
+    data={'barcode':barcode,'source':safe(result.get('source')),'external_id':safe(result.get('external_id')),'artist':safe(result.get('artist')),'title':safe(result.get('title')),'format':safe(result.get('format')),'label':safe(result.get('label')),'release_year':safe(result.get('release_year')),'country':safe(result.get('country')),'genre':safe(result.get('genre')),'style':safe(result.get('style')),'catalog_number':safe(result.get('catalog_number')),'image_url':safe(result.get('image_url')),'external_url':safe(result.get('external_url')),'raw_summary':safe(result.get('raw_summary')),'created_at':now()}
+    cols=['barcode','source','external_id','artist','title','format','label','release_year','country','genre','style','catalog_number','image_url','external_url','raw_summary','created_at']
+    core_insert('barcode_lookup_cache',data,f"""INSERT INTO barcode_lookup_cache({','.join(cols)}) VALUES({','.join('?' for _ in cols)})""",tuple(data[c] for c in cols))
 
 def lookup_musicbrainz_barcode(barcode):
     barcode=normalize_barcode(barcode)
@@ -5380,6 +5399,89 @@ def want_list_manager(buyer_id):
                 remove_want(wid)
                 st.rerun()
 
+def render_my_collection(buyer_id):
+    st.subheader('My Collection')
+    st.caption("Catalog everything you own -- bought through House Of Wax or anywhere else -- and see what it's worth. Anything you buy through House Of Wax is added here automatically once the seller marks it Sold.")
+    items=buyer_collection_items(buyer_id)
+    # Plain text, not st.metric() -- My Account had big st.metric() banners
+    # at the top removed per direct founder feedback ("Buying selling
+    # banners at the top need to go"); a regression test guards against any
+    # st.metric() reappearing anywhere on this page.
+    st.write(f"**{len(items)}** item{'s' if len(items)!=1 else ''} in your collection · estimated total value **{money(collection_total_value(buyer_id))}**")
+    prefill_key=f'collection_prefill_{buyer_id}'
+    with st.expander('Add an item to your collection'):
+        st.write('Have a barcode? Look it up first to auto-fill the details, or just type them in below.')
+        lookup_barcode=st.text_input('Barcode / UPC - optional',key=f'collection_lookup_barcode_{buyer_id}')
+        if st.button('Look up barcode',key=f'collection_lookup_button_{buyer_id}'):
+            code=normalize_barcode(lookup_barcode)
+            if not code:
+                st.warning('Enter a barcode first, or skip straight to the form below.')
+            else:
+                with st.spinner('Searching House Of Wax and outside sources...'):
+                    best,_ranked,_diag=run_smart_best_match_search('','',code)
+                if best:
+                    best=ensure_release_has_image(best)
+                    st.session_state[prefill_key]=best
+                    st.success(f"Found: {safe(best.get('artist'))} — {safe(best.get('title'))}. Review and add below.")
+                else:
+                    st.warning('No match found -- fill in the details manually below.')
+        prefill=st.session_state.get(prefill_key,{})
+        with st.form(f'add_collection_form_{buyer_id}',clear_on_submit=True):
+            c_artist=st.text_input('Artist',value=safe(prefill.get('artist')))
+            c_title=st.text_input('Title',value=safe(prefill.get('title')))
+            fc1,fc2,fc3=st.columns(3)
+            c_format=fc1.text_input('Format',value=safe(prefill.get('format'),'Vinyl'))
+            c_label=fc2.text_input('Label',value=safe(prefill.get('label')))
+            c_year=fc3.text_input('Release year',value=safe(prefill.get('release_year')))
+            gc1,gc2=st.columns(2)
+            c_media_grade=gc1.selectbox('Vinyl/media condition - optional',['']+GRADE_SCALE)
+            c_sleeve_grade=gc2.selectbox('Sleeve/cover condition - optional',['']+GRADE_SCALE+[NO_SLEEVE_VALUE])
+            c_value=st.number_input('Your estimate of its value ($) - optional',min_value=0.0,step=1.0,value=0.0)
+            c_notes=st.text_area('Notes - optional')
+            add_submitted=st.form_submit_button('Add to my collection')
+        if add_submitted:
+            if not safe(c_artist).strip() or not safe(c_title).strip():
+                st.warning('Artist and title are required.')
+            else:
+                result=add_manual_collection_item(buyer_id,{'artist':c_artist,'title':c_title,'format':c_format,'label':c_label,'release_year':c_year,'barcode':safe(prefill.get('barcode')) or lookup_barcode,'catalog_number':safe(prefill.get('catalog_number')),'image_url':safe(prefill.get('image_url')),'media_grade':c_media_grade,'sleeve_grade':c_sleeve_grade,'estimated_value':c_value,'notes':c_notes})
+                if result or not hosted_enabled():
+                    st.session_state.pop(prefill_key,None)
+                    st.success(f'Added to your collection: {safe(c_artist)} — {safe(c_title)}.')
+                    st.rerun()
+                else:
+                    st.error('Could not add that item -- please try again. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error'))
+    if items.empty:
+        st.info("Nothing in your collection yet -- add something above, or it'll fill in automatically the next time you buy something on House Of Wax.")
+        return
+    st.markdown('#### Your items')
+    for _,item in items.iterrows():
+        iid=int(item['id'])
+        with st.container(border=True):
+            ic1,ic2=st.columns([1,3])
+            if safe(item.get('image_url')):
+                ic1.image(safe(item.get('image_url')),width='stretch')
+            with ic2:
+                st.write(f"**{safe(item.get('artist'))} — {safe(item.get('title'))}**")
+                details=' · '.join([d for d in [safe(item.get('format')),safe(item.get('label')),safe(item.get('release_year'))] if d])
+                if details:
+                    st.caption(details)
+                grades=' / '.join([g for g in [safe(item.get('media_grade')),safe(item.get('sleeve_grade'))] if g])
+                if grades:
+                    st.caption(f'Condition: {grades}')
+                st.write(f"Estimated value: {money(item.get('estimated_value'))}")
+                if safe(item.get('source'))=='Purchased on House Of Wax':
+                    st.caption('✅ Purchased on House Of Wax')
+                else:
+                    st.caption('Added manually')
+                if safe(item.get('notes')):
+                    st.caption(safe(item.get('notes')))
+            if st.button('Remove from collection',key=f'remove_collection_{iid}'):
+                if delete_collection_item(iid,buyer_id):
+                    st.success('Removed from your collection.')
+                    st.rerun()
+                else:
+                    st.error('Could not remove that item -- please try again.')
+
 def is_in_cart(buyer_id, product_id):
     if not buyer_id or not product_id:
         return False
@@ -5410,6 +5512,72 @@ def cart_count(buyer_id):
     if not buyer_id:
         return 0
     return len(buyer_cart_items(buyer_id))
+
+# ---------- My Collection (personal collection tracker, not seller inventory) ----------
+# Founder: "are we employing [Discogs' crowdsourced-database + marketplace] when we are
+# building out this project" -- House Of Wax already mirrors that (how_releases +
+# barcode-linked listings). The one real gap: Discogs also lets a buyer catalog everything
+# THEY personally own (bought here or not) and see its estimated value. This is that
+# feature -- entirely separate from purchase_requests/My Orders (the real transaction
+# record, untouched by anything here) and from products (seller inventory for sale). A
+# collection_items row is just a buyer's own private list; deleting one never affects a
+# real order or listing.
+COLLECTION_AUTO_ADD_STATUS={'last_error':''}
+
+def buyer_collection_items(buyer_id):
+    if not buyer_id:
+        return pd.DataFrame()
+    return hosted_select('collection_items',{'buyer_id':int(buyer_id)},order='created_at.desc') if hosted_enabled() else df('SELECT * FROM collection_items WHERE buyer_id=? ORDER BY created_at DESC',(int(buyer_id),))
+
+def collection_total_value(buyer_id):
+    items=buyer_collection_items(buyer_id)
+    if items.empty or 'estimated_value' not in items.columns:
+        return 0.0
+    return float(items['estimated_value'].fillna(0).astype(float).sum())
+
+def add_manual_collection_item(buyer_id, data):
+    row={'buyer_id':int(buyer_id),'artist':safe(data.get('artist')),'title':safe(data.get('title')),'format':safe(data.get('format')),'label':safe(data.get('label')),'release_year':safe(data.get('release_year')),'genre':safe(data.get('genre')),'barcode':normalize_barcode(data.get('barcode')),'catalog_number':safe(data.get('catalog_number')),'media_grade':safe(data.get('media_grade')),'sleeve_grade':safe(data.get('sleeve_grade')),'image_url':safe(data.get('image_url')),'estimated_value':float(data.get('estimated_value') or 0),'source':'Added manually','linked_product_id':None,'linked_purchase_request_id':None,'notes':safe(data.get('notes')),'created_at':now(),'updated_at':now()}
+    cols=['buyer_id','artist','title','format','label','release_year','genre','barcode','catalog_number','media_grade','sleeve_grade','image_url','estimated_value','source','linked_product_id','linked_purchase_request_id','notes','created_at','updated_at']
+    return core_insert('collection_items',row,f"""INSERT INTO collection_items({','.join(cols)}) VALUES({','.join('?' for _ in cols)})""",tuple(row[c] for c in cols))
+
+def update_collection_item(item_id, buyer_id, data):
+    # Scoped to buyer_id in the filter (not just id) so a buyer can never edit -- or, via the
+    # same pattern, discover the existence of -- another buyer's collection row.
+    row={'artist':safe(data.get('artist')),'title':safe(data.get('title')),'format':safe(data.get('format')),'label':safe(data.get('label')),'release_year':safe(data.get('release_year')),'genre':safe(data.get('genre')),'media_grade':safe(data.get('media_grade')),'sleeve_grade':safe(data.get('sleeve_grade')),'estimated_value':float(data.get('estimated_value') or 0),'notes':safe(data.get('notes')),'updated_at':now()}
+    return core_update('collection_items',row,{'id':int(item_id),'buyer_id':int(buyer_id)},'UPDATE collection_items SET artist=?,title=?,format=?,label=?,release_year=?,genre=?,media_grade=?,sleeve_grade=?,estimated_value=?,notes=?,updated_at=? WHERE id=? AND buyer_id=?',(row['artist'],row['title'],row['format'],row['label'],row['release_year'],row['genre'],row['media_grade'],row['sleeve_grade'],row['estimated_value'],row['notes'],row['updated_at'],int(item_id),int(buyer_id)))
+
+def delete_collection_item(item_id, buyer_id):
+    if hosted_enabled():
+        return hosted_delete('collection_items',{'id':int(item_id),'buyer_id':int(buyer_id)})
+    run('DELETE FROM collection_items WHERE id=? AND buyer_id=?',(int(item_id),int(buyer_id)))
+    return True
+
+def add_to_collection_from_sale(request_id, product_id, buyer_id):
+    # Called from update_purchase_request_status's 'Sold' branch. Idempotency guard: a
+    # request can only reach 'Sold' meaningfully once in normal flow, but this is cheap
+    # insurance against a duplicate collection entry if that ever changes.
+    if not buyer_id:
+        return
+    existing=hosted_select('collection_items',{'linked_purchase_request_id':int(request_id)},limit=1) if hosted_enabled() else df('SELECT id FROM collection_items WHERE linked_purchase_request_id=?',(int(request_id),))
+    if not existing.empty:
+        return
+    prod=hosted_select('products',{'id':int(product_id)},limit=1,select='*') if hosted_enabled() else df('SELECT * FROM products WHERE id=?',(int(product_id),))
+    if prod.empty:
+        return
+    p=prod.iloc[0]
+    row={'buyer_id':int(buyer_id),'artist':safe(p.get('artist')),'title':safe(p.get('title')),'format':safe(p.get('format')),'label':safe(p.get('label')),'release_year':safe(p.get('release_year')),'genre':safe(p.get('genre')),'barcode':normalize_barcode(p.get('barcode')),'catalog_number':safe(p.get('catalog_number')),'media_grade':safe(p.get('media_grade')),'sleeve_grade':safe(p.get('sleeve_grade')),'image_url':safe(p.get('image_url')),'estimated_value':float(p.get('price') or 0),'source':'Purchased on House Of Wax','linked_product_id':int(product_id),'linked_purchase_request_id':int(request_id),'notes':'','created_at':now(),'updated_at':now()}
+    cols=['buyer_id','artist','title','format','label','release_year','genre','barcode','catalog_number','media_grade','sleeve_grade','image_url','estimated_value','source','linked_product_id','linked_purchase_request_id','notes','created_at','updated_at']
+    result=core_insert('collection_items',row,f"""INSERT INTO collection_items({','.join(cols)}) VALUES({','.join('?' for _ in cols)})""",tuple(row[c] for c in cols))
+    # This write happens under the SELLER's own session (they're the one
+    # clicking "Mark Sold"), not the buyer's -- same class of RLS-across-
+    # session-boundary gap already hit twice on this project (Buy Now
+    # reservation, buyer-strike sweep). A failure here shouldn't interrupt
+    # the seller's own "mark sold" flow with an unrelated error banner, but
+    # it also shouldn't vanish silently -- record it the same way the
+    # payment-expiry sweep does, so it's at least visible to Database Status
+    # / diagnostics instead of just quietly not happening.
+    if not result and hosted_enabled():
+        COLLECTION_AUTO_ADD_STATUS['last_error']=f"request {request_id}: {safe(SUPABASE_STATUS.get('last_error'),'unknown error')}"
 
 def enrich_cart_rows(cart_df):
     # Same enrichment pattern as enrich_activity_rows(), plus an `available`
@@ -5907,6 +6075,20 @@ def enrich_next_discogs_batch(sid, batch_size=25):
         # this batch shrink the pending count for good, not just this run.
         set_clause=','.join(f'{k}=?' for k in update)
         core_update('products',update,{'id':int(row['id'])},f"UPDATE products SET {set_clause} WHERE id=?",tuple(update.values())+(int(row['id']),))
+        # Founder: "how does our site learn and grow the database... how to
+        # make it grow faster" -- this batch is the single highest-volume
+        # real Discogs data source in the whole app (hundreds of items per
+        # seller), and it never used to reach the shared how_releases
+        # database at all -- only that seller's own listing benefited. Real
+        # cover art confirmed by Discogs is exactly the kind of high-
+        # confidence contribution worth saving; gated on image_found so this
+        # only fires when Discogs actually confirmed something, not on a
+        # miss.
+        if image_found and normalize_barcode(row.get('barcode')):
+            try:
+                create_or_update_how_release(row.get('barcode'),{'source':'Discogs','external_id':release_id,'artist':safe(row.get('artist')),'title':safe(row.get('title')),'format':safe(row.get('format')),'label':safe(row.get('label')),'release_year':safe(row.get('release_year')),'catalog_number':safe(row.get('catalog_number')),'image_url':details['image_url'],'external_url':safe(row.get('external_release_url'))})
+            except Exception:
+                pass
         if image_found:
             enriched+=1
         time.sleep(1.1)
@@ -6739,7 +6921,7 @@ def lookup_barcode_with_diagnostics(barcode):
 
     # 2. Local barcode cache
     try:
-        cached=df("SELECT * FROM barcode_lookup_cache WHERE barcode=? ORDER BY id DESC LIMIT 10",(code,))
+        cached=hosted_select('barcode_lookup_cache',{'barcode':code},order='id.desc',limit=10) if hosted_enabled() else df("SELECT * FROM barcode_lookup_cache WHERE barcode=? ORDER BY id DESC LIMIT 10",(code,))
         if not cached.empty:
             results=[]
             for _,r in cached.iterrows():
@@ -6953,7 +7135,7 @@ def find_how_release_by_barcode(barcode):
     code=normalize_barcode(barcode)
     if not code:
         return pd.DataFrame()
-    return df("SELECT * FROM how_releases WHERE barcode=? ORDER BY source_confidence DESC, id DESC",(code,))
+    return hosted_select('how_releases',{'barcode':code},order='source_confidence.desc,id.desc') if hosted_enabled() else df("SELECT * FROM how_releases WHERE barcode=? ORDER BY source_confidence DESC, id DESC",(code,))
 
 def create_or_update_how_release(barcode, result, seller_note=''):
     code=normalize_barcode(barcode)
@@ -6970,26 +7152,48 @@ def create_or_update_how_release(barcode, result, seller_note=''):
         # Update only if current result has stronger confidence or fills empty fields.
         current=int(existing.iloc[0].get('source_confidence') or 0)
         if confidence >= current:
-            run("""UPDATE how_releases SET artist=?,title=?,format=?,label=?,release_year=?,country=?,genre=?,style=?,catalog_number=?,image_url=?,external_release_url=?,discogs_id=COALESCE(NULLIF(?,''),discogs_id),musicbrainz_id=COALESCE(NULLIF(?,''),musicbrainz_id),gs1_status=?,source_confidence=?,seller_correction_notes=?,updated_at=? WHERE id=?""",
-                (safe(result.get('artist')),safe(result.get('title')),safe(result.get('format')),safe(result.get('label')),safe(result.get('release_year')),safe(result.get('country')),safe(result.get('genre')),safe(result.get('style')),safe(result.get('catalog_number')),safe(result.get('image_url')),safe(result.get('external_url')),discogs_id,mb_id,gs1_basic_validation(code),confidence,seller_note,now(),rid))
+            # discogs_id/musicbrainz_id should only ever get filled in, never
+            # blanked out by a later, different-source result -- the local
+            # SQLite path used to express that with COALESCE(NULLIF(...))
+            # directly in SQL, but the hosted PATCH path has no equivalent
+            # per-field fallback, so it's computed here in Python instead,
+            # identically for both paths.
+            kept_discogs_id=discogs_id or safe(existing.iloc[0].get('discogs_id'))
+            kept_mb_id=mb_id or safe(existing.iloc[0].get('musicbrainz_id'))
+            row={'artist':safe(result.get('artist')),'title':safe(result.get('title')),'format':safe(result.get('format')),'label':safe(result.get('label')),'release_year':safe(result.get('release_year')),'country':safe(result.get('country')),'genre':safe(result.get('genre')),'style':safe(result.get('style')),'catalog_number':safe(result.get('catalog_number')),'image_url':safe(result.get('image_url')),'external_release_url':safe(result.get('external_url')),'discogs_id':kept_discogs_id,'musicbrainz_id':kept_mb_id,'gs1_status':gs1_basic_validation(code),'source_confidence':confidence,'seller_correction_notes':seller_note,'updated_at':now()}
+            core_update('how_releases',row,{'id':rid},'UPDATE how_releases SET artist=?,title=?,format=?,label=?,release_year=?,country=?,genre=?,style=?,catalog_number=?,image_url=?,external_release_url=?,discogs_id=?,musicbrainz_id=?,gs1_status=?,source_confidence=?,seller_correction_notes=?,updated_at=? WHERE id=?',(row['artist'],row['title'],row['format'],row['label'],row['release_year'],row['country'],row['genre'],row['style'],row['catalog_number'],row['image_url'],row['external_release_url'],row['discogs_id'],row['musicbrainz_id'],row['gs1_status'],row['source_confidence'],row['seller_correction_notes'],row['updated_at'],rid))
     else:
-        run("""INSERT INTO how_releases(barcode,artist,title,format,label,release_year,country,genre,style,catalog_number,image_url,external_release_url,discogs_id,musicbrainz_id,gs1_status,source_confidence,verification_status,admin_notes,seller_correction_notes,created_at,updated_at)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (code,safe(result.get('artist')),safe(result.get('title')),safe(result.get('format')),safe(result.get('label')),safe(result.get('release_year')),safe(result.get('country')),safe(result.get('genre')),safe(result.get('style')),safe(result.get('catalog_number')),safe(result.get('image_url')),safe(result.get('external_url')),discogs_id,mb_id,gs1_basic_validation(code),confidence,'Unverified','',seller_note,now(),now()))
-        rid=int(df("SELECT id FROM how_releases WHERE barcode=? ORDER BY id DESC LIMIT 1",(code,)).iloc[0]['id'])
+        row={'barcode':code,'artist':safe(result.get('artist')),'title':safe(result.get('title')),'format':safe(result.get('format')),'label':safe(result.get('label')),'release_year':safe(result.get('release_year')),'country':safe(result.get('country')),'genre':safe(result.get('genre')),'style':safe(result.get('style')),'catalog_number':safe(result.get('catalog_number')),'image_url':safe(result.get('image_url')),'external_release_url':safe(result.get('external_url')),'discogs_id':discogs_id,'musicbrainz_id':mb_id,'gs1_status':gs1_basic_validation(code),'source_confidence':confidence,'verification_status':'Unverified','admin_notes':'','seller_correction_notes':seller_note,'created_at':now(),'updated_at':now()}
+        cols=['barcode','artist','title','format','label','release_year','country','genre','style','catalog_number','image_url','external_release_url','discogs_id','musicbrainz_id','gs1_status','source_confidence','verification_status','admin_notes','seller_correction_notes','created_at','updated_at']
+        new_id=core_insert('how_releases',row,f"""INSERT INTO how_releases({','.join(cols)}) VALUES({','.join('?' for _ in cols)})""",tuple(row[c] for c in cols))
+        if not new_id:
+            return None
+        rid=int(new_id)
     # Add source row if not already present
     if source:
-        exists=df("SELECT id FROM how_release_sources WHERE release_id=? AND source_name=? AND source_external_id=?",(rid,source,ext_id))
+        exists=hosted_select('how_release_sources',{'release_id':rid,'source_name':source,'source_external_id':ext_id}) if hosted_enabled() else df("SELECT id FROM how_release_sources WHERE release_id=? AND source_name=? AND source_external_id=?",(rid,source,ext_id))
         if exists.empty:
-            run("""INSERT INTO how_release_sources(release_id,source_name,source_external_id,source_url,source_confidence,raw_summary,created_at) VALUES(?,?,?,?,?,?,?)""",
-                (rid,source,ext_id,safe(result.get('external_url')),confidence,safe(result.get('raw_summary')),now()))
+            src_row={'release_id':rid,'source_name':source,'source_external_id':ext_id,'source_url':safe(result.get('external_url')),'source_confidence':confidence,'raw_summary':safe(result.get('raw_summary')),'created_at':now()}
+            src_cols=['release_id','source_name','source_external_id','source_url','source_confidence','raw_summary','created_at']
+            core_insert('how_release_sources',src_row,f"""INSERT INTO how_release_sources({','.join(src_cols)}) VALUES({','.join('?' for _ in src_cols)})""",tuple(src_row[c] for c in src_cols))
     return rid
 
 def get_best_how_release(barcode):
     code=normalize_barcode(barcode)
     if not code:
         return None
-    r=df("SELECT * FROM how_releases WHERE barcode=? ORDER BY CASE verification_status WHEN 'Approved' THEN 1 WHEN 'Needs Review' THEN 2 ELSE 3 END, source_confidence DESC, id DESC LIMIT 1",(code,))
+    if hosted_enabled():
+        # PostgREST's `order` param can only sort by column, not an arbitrary
+        # CASE expression -- fetch every candidate for this barcode and apply
+        # the same "Approved > Needs Review > everything else" tiebreak here.
+        r=hosted_select('how_releases',{'barcode':code})
+        if r.empty:
+            return None
+        status_rank={'Approved':1,'Needs Review':2}
+        r=r.assign(_status_rank=r['verification_status'].map(lambda s: status_rank.get(s,3)))
+        r=r.sort_values(by=['_status_rank','source_confidence','id'],ascending=[True,False,False])
+    else:
+        r=df("SELECT * FROM how_releases WHERE barcode=? ORDER BY CASE verification_status WHEN 'Approved' THEN 1 WHEN 'Needs Review' THEN 2 ELSE 3 END, source_confidence DESC, id DESC LIMIT 1",(code,))
     if r.empty:
         return None
     return r.iloc[0].to_dict()
@@ -7024,10 +7228,15 @@ def find_partial_barcode_matches(fragment, limit=12):
         return []
     results=[]
     seen=set()
-    releases=df("""SELECT * FROM how_releases
-        WHERE barcode LIKE ?
-        ORDER BY source_confidence DESC, id DESC
-        LIMIT ?""",(f'%{code}%',int(limit)))
+    if hosted_enabled():
+        data,detail=hosted_request('get','how_releases',params={'select':'*','barcode':f'ilike.*{code}*','order':'source_confidence.desc,id.desc','limit':str(int(limit))},prefer='')
+        show_hosted_error('read','how_releases',detail)
+        releases=pd.DataFrame(data or [])
+    else:
+        releases=df("""SELECT * FROM how_releases
+            WHERE barcode LIKE ?
+            ORDER BY source_confidence DESC, id DESC
+            LIMIT ?""",(f'%{code}%',int(limit)))
     for _,release in releases.iterrows():
         res=how_release_to_autofill(release.to_dict())
         key=('how',normalize_barcode(res.get('barcode')),safe(res.get('artist')).lower(),safe(res.get('title')).lower())
@@ -7036,10 +7245,15 @@ def find_partial_barcode_matches(fragment, limit=12):
             results.append(res)
     remaining=max(int(limit)-len(results),0)
     if remaining:
-        cached=df("""SELECT * FROM barcode_lookup_cache
-            WHERE barcode LIKE ?
-            ORDER BY id DESC
-            LIMIT ?""",(f'%{code}%',remaining))
+        if hosted_enabled():
+            data,detail=hosted_request('get','barcode_lookup_cache',params={'select':'*','barcode':f'ilike.*{code}*','order':'id.desc','limit':str(remaining)},prefer='')
+            show_hosted_error('read','barcode_lookup_cache',detail)
+            cached=pd.DataFrame(data or [])
+        else:
+            cached=df("""SELECT * FROM barcode_lookup_cache
+                WHERE barcode LIKE ?
+                ORDER BY id DESC
+                LIMIT ?""",(f'%{code}%',remaining))
         for _,row in cached.iterrows():
             res=cache_row_to_autofill(row)
             key=('cache',normalize_barcode(res.get('barcode')),safe(res.get('source')).lower(),safe(res.get('external_id')).lower(),safe(res.get('artist')).lower(),safe(res.get('title')).lower())
@@ -7049,8 +7263,9 @@ def find_partial_barcode_matches(fragment, limit=12):
     return mark_barcode_results(results,'partial',code)
 
 def submit_release_correction(release_id, seller_id, field_name, old_value, suggested_value, note):
-    run("""INSERT INTO how_release_corrections(release_id,seller_id,field_name,old_value,suggested_value,correction_note,status,created_at) VALUES(?,?,?,?,?,?,?,?)""",
-        (release_id,seller_id,field_name,old_value,suggested_value,note,'Pending',now()))
+    row={'release_id':release_id,'seller_id':seller_id,'field_name':field_name,'old_value':old_value,'suggested_value':suggested_value,'correction_note':note,'status':'Pending','created_at':now()}
+    cols=['release_id','seller_id','field_name','old_value','suggested_value','correction_note','status','created_at']
+    return core_insert('how_release_corrections',row,f"""INSERT INTO how_release_corrections({','.join(cols)}) VALUES({','.join('?' for _ in cols)})""",tuple(row[c] for c in cols))
 
 def listing_quality_assessment(category='', artist='', title='', price=0, description='', mg='', sg='', image='', has_uploaded_photo=False, smart_confidence=''):
     try:
@@ -7347,6 +7562,23 @@ def upload_product(sid,key):
         if not pid and hosted_enabled():
             st.error('This listing could not be saved. Supabase error: '+safe(SUPABASE_STATUS.get('last_error'),'Unknown error')+' Nothing was published -- please try again.')
             return
+        # Founder: "how does our site learn and grow the database... how to
+        # make it grow faster" -- every barcode search result already feeds
+        # how_releases automatically, but a seller who types artist/title/etc
+        # in by hand (no search match, and without noticing the separate
+        # "still no match? seed the database yourself" fallback box) never
+        # contributed anything. This is the one place every single listing
+        # save passes through regardless of path, so it's the right spot to
+        # catch that. Same 'House Of Wax Manual' source/confidence as the
+        # existing manual-seed fallback -- the confidence-based merge in
+        # create_or_update_how_release already protects a genuinely
+        # Discogs/MusicBrainz-sourced entry from being downgraded by this
+        # (manual entry can't out-score a real external source match).
+        if normalize_barcode(barcode) and safe(artist) and safe(title):
+            try:
+                create_or_update_how_release(barcode,{'source':'House Of Wax Manual','external_id':'','artist':artist,'title':title,'format':fmt,'label':label,'release_year':year,'catalog_number':catalog,'image_url':image,'external_url':external_release_url})
+            except Exception:
+                pass
         if listing_status=='Live':
             notify_want_list_matches(product_data)
             if is_admin_unlocked() and WANT_LIST_NOTIFY_STATUS.get('last_error'):
@@ -7531,10 +7763,10 @@ def checkout_seller_cart_group(buyer_id, seller_id, cart_rows):
 
 def update_purchase_request_status(request_id, status, seller_id=None, quiet=False):
     if seller_id is None:
-        req=hosted_select('purchase_requests',{'id':int(request_id)},limit=1) if hosted_enabled() else df('SELECT product_id FROM purchase_requests WHERE id=?',(int(request_id),))
+        req=hosted_select('purchase_requests',{'id':int(request_id)},limit=1) if hosted_enabled() else df('SELECT product_id,buyer_id FROM purchase_requests WHERE id=?',(int(request_id),))
         core_update('purchase_requests',{'status':status,'updated_at':now()},{'id':int(request_id)},'UPDATE purchase_requests SET status=?,updated_at=? WHERE id=?',(status,now(),int(request_id)),quiet=quiet)
     else:
-        req=hosted_select('purchase_requests',{'id':int(request_id),'seller_id':int(seller_id)},limit=1) if hosted_enabled() else df('SELECT product_id FROM purchase_requests WHERE id=? AND seller_id=?',(int(request_id),int(seller_id)))
+        req=hosted_select('purchase_requests',{'id':int(request_id),'seller_id':int(seller_id)},limit=1) if hosted_enabled() else df('SELECT product_id,buyer_id FROM purchase_requests WHERE id=? AND seller_id=?',(int(request_id),int(seller_id)))
         core_update('purchase_requests',{'status':status,'updated_at':now()},{'id':int(request_id),'seller_id':int(seller_id)},'UPDATE purchase_requests SET status=?,updated_at=? WHERE id=? AND seller_id=?',(status,now(),int(request_id),int(seller_id)),quiet=quiet)
     if not req.empty:
         pid=int(req.iloc[0]['product_id'])
@@ -7544,6 +7776,7 @@ def update_purchase_request_status(request_id, status, seller_id=None, quiet=Fal
             core_update('products',{'listing_status':'Pending Pickup/Payment','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Pending Pickup/Payment',updated_at=? WHERE id=?",(now(),pid),quiet=quiet)
         elif status=='Sold':
             core_update('products',{'listing_status':'Sold','updated_at':now()},{'id':pid},"UPDATE products SET listing_status='Sold',updated_at=? WHERE id=?",(now(),pid),quiet=quiet)
+            add_to_collection_from_sale(request_id,pid,int_or(req.iloc[0].get('buyer_id')))
         elif status in ('Seller Declined','Closed','Buyer Did Not Pay','Buyer Cancelled'):
             # A deal that fell through used to leave the listing stuck at
             # Pending Pickup/Payment forever, permanently hiding it from
@@ -8648,6 +8881,78 @@ def admin_database_status():
     st.warning('Backup reminder: export important local data before any future migration. Production launch should use hosted database storage, real auth, cloud image storage, and tested permissions.')
     hosted_database_prep_section()
 
+def admin_release_database_stats():
+    # Founder: "how does our site learn and grow the database? I'm trying to
+    # get an idea of how to make it grow faster" -- there was previously no
+    # way to see any of this without querying the database directly. Read-only
+    # visibility into how_releases (the shared, Discogs-style release
+    # database), where its growth actually comes from, and any pending
+    # seller-suggested corrections.
+    admin_context('House Of Wax Admin → Release Database')
+    st.subheader('Release Database Growth')
+    st.caption('How the shared House Of Wax release database is growing, and where new releases are actually coming from.')
+    releases=table('how_releases')
+    sources=table('how_release_sources')
+    corrections=table('how_release_corrections')
+    cache=table('barcode_lookup_cache')
+
+    c1,c2,c3,c4=st.columns(4)
+    c1.metric('Releases in database',len(releases))
+    c2.metric('Source contributions logged',len(sources))
+    pending_count=int((corrections['status']=='Pending').sum()) if not corrections.empty and 'status' in corrections.columns else 0
+    c3.metric('Pending seller corrections',pending_count)
+    c4.metric('Cached barcode lookups',len(cache))
+
+    if releases.empty:
+        st.info('No releases in the database yet. Releases are added automatically whenever a Discogs/MusicBrainz barcode lookup finds a match, or a seller saves a listing with a barcode + artist + title filled in.')
+        return
+
+    st.divider()
+    st.markdown('### Where releases are coming from')
+    st.caption('Every match (Discogs, MusicBrainz, or a manual save) logs a source row here, even ones that lost a confidence tiebreak -- this is a full contribution count, not just current "winning" records.')
+    if not sources.empty and 'source_name' in sources.columns:
+        by_source=sources['source_name'].replace('','Unknown').fillna('Unknown').value_counts().rename_axis('Source').reset_index(name='Contributions')
+        st.dataframe(by_source,width='stretch')
+    else:
+        st.caption('No source contributions logged yet.')
+
+    st.markdown('### Verification status')
+    if 'verification_status' in releases.columns:
+        by_status=releases['verification_status'].replace('','Unverified').fillna('Unverified').value_counts().rename_axis('Status').reset_index(name='Releases')
+        st.dataframe(by_status,width='stretch')
+
+    st.divider()
+    st.markdown('### Growth over time')
+    if 'created_at' in releases.columns:
+        dated=releases.copy()
+        dated['date']=dated['created_at'].astype(str).str.slice(0,10)
+        daily=dated.groupby('date').size().sort_index()
+        today=datetime.now().date()
+        last_7=int(daily[daily.index>=str(today-timedelta(days=7))].sum())
+        last_30=int(daily[daily.index>=str(today-timedelta(days=30))].sum())
+        c5,c6,c7=st.columns(3)
+        c5.metric('Added in last 7 days',last_7)
+        c6.metric('Added in last 30 days',last_30)
+        c7.metric('All-time total',len(releases))
+        chart_data=daily.tail(30)
+        if not chart_data.empty:
+            st.bar_chart(chart_data)
+
+    st.divider()
+    st.markdown('### Most recent additions')
+    recent=releases.sort_values(by='id',ascending=False).head(20) if 'id' in releases.columns else releases.head(20)
+    show_cols=[c for c in ['barcode','artist','title','format','label','source_confidence','verification_status','discogs_id','musicbrainz_id','created_at'] if c in recent.columns]
+    st.dataframe(recent[show_cols],width='stretch')
+
+    if not corrections.empty and 'status' in corrections.columns:
+        pending=corrections[corrections['status']=='Pending']
+        if not pending.empty:
+            st.divider()
+            st.markdown('### Pending seller corrections')
+            st.caption('Sellers can suggest a fix to a release record from the barcode lookup screen. These have not been reviewed yet.')
+            show_cols=[c for c in ['release_id','seller_id','field_name','old_value','suggested_value','correction_note','created_at'] if c in pending.columns]
+            st.dataframe(pending[show_cols],width='stretch')
+
 def update_app_user_seller_status_for_seller(sid, status):
     seller=get_seller(int(sid))
     if seller is None:
@@ -8994,7 +9299,7 @@ else:
     pending_seller_apps=pending_seller_application_count()
     st.sidebar.markdown('### House Of Wax Admin'+(f' ⚠️ {pending_seller_apps} pending' if pending_seller_apps else ''))
     st.sidebar.caption('Platform management: seller approval, moderation, reports, tester feedback, database status, Supabase diagnostics, and testing.')
-    admin_menu=['Admin Dashboard','User Directory','Buyer Lookup','Seller Applications','Moderation Center','Content Admin','Homepage Editor','Support Requests','Tester Feedback','Database Status / Diagnostics','Test Setup']
+    admin_menu=['Admin Dashboard','User Directory','Buyer Lookup','Seller Applications','Moderation Center','Content Admin','Homepage Editor','Support Requests','Tester Feedback','Database Status / Diagnostics','Release Database','Test Setup']
     pending_admin_nav=st.session_state.pop('pending_admin_navigation',None)
     if pending_admin_nav in admin_menu:
         st.session_state['admin_navigation']=pending_admin_nav
@@ -9084,6 +9389,12 @@ try:
             header()
             if is_admin_unlocked():
                 admin_database_status()
+            else:
+                st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
+        elif menu=='Release Database':
+            header()
+            if is_admin_unlocked():
+                admin_release_database_stats()
             else:
                 st.error('House Of Wax Admin is locked. Switch to Admin role or turn on Testing mode.')
         elif menu=='Test Setup':

@@ -4468,3 +4468,517 @@ def test_add_inventory_barcode_field_still_reachable_manually():
     text_input_keys = [t.key for t in at.text_input]
     assert "v24_lookup_barcode_primary_add_inventory" in text_input_keys
 
+
+
+# ---------- My Collection (personal collection tracker) ----------
+# Founder: "are we employing [Discogs' crowdsourced-database + marketplace
+# model] when we are building out this project" -- House Of Wax already
+# mirrored Discogs' database+marketplace pattern (how_releases, barcode-
+# linked listings); the one real gap was Discogs also letting a buyer
+# catalog everything THEY own (bought here or not) with an estimated value.
+# collection_items is entirely separate from purchase_requests (the real
+# transaction record) and products (seller inventory) -- nothing here
+# touches either.
+
+def test_manual_collection_item_can_be_added_and_counted():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    buyer_id = _new_isolated_buyer(hw_app, "collection_manual_add_test_buyer")
+
+    result = hw_app.add_manual_collection_item(buyer_id, {
+        "artist": "Isolated Test Artist", "title": "A Record I Own", "format": "Vinyl",
+        "label": "Indie Label", "release_year": "1999", "media_grade": "VG+",
+        "sleeve_grade": "VG", "estimated_value": 25.0, "notes": "Bought at a flea market",
+    })
+    assert result, "Expected a truthy insert result"
+
+    items = hw_app.buyer_collection_items(buyer_id)
+    assert len(items) == 1
+    row = items.iloc[0]
+    assert row["artist"] == "Isolated Test Artist"
+    assert row["title"] == "A Record I Own"
+    assert row["source"] == "Added manually"
+    assert row["linked_product_id"] is None or int(row["linked_product_id"] or 0) == 0
+    assert float(row["estimated_value"]) == 25.0
+
+    assert hw_app.collection_total_value(buyer_id) == 25.0
+
+
+def test_collection_total_value_sums_across_multiple_items():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    buyer_id = _new_isolated_buyer(hw_app, "collection_total_value_test_buyer")
+
+    hw_app.add_manual_collection_item(buyer_id, {"artist": "A", "title": "One", "estimated_value": 10.0})
+    hw_app.add_manual_collection_item(buyer_id, {"artist": "B", "title": "Two", "estimated_value": 15.5})
+    hw_app.add_manual_collection_item(buyer_id, {"artist": "C", "title": "Three", "estimated_value": 0})
+
+    assert hw_app.collection_total_value(buyer_id) == 25.5
+    assert len(hw_app.buyer_collection_items(buyer_id)) == 3
+
+
+def test_collection_item_delete_is_scoped_to_the_owning_buyer():
+    # A buyer must never be able to delete -- or even affect -- another
+    # buyer's collection row, same ownership-scoping discipline as every
+    # other buyer-private table in this codebase.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    owner_id = _new_isolated_buyer(hw_app, "collection_delete_owner_buyer")
+    other_id = _new_isolated_buyer(hw_app, "collection_delete_other_buyer")
+    hw_app.add_manual_collection_item(owner_id, {"artist": "Owner Artist", "title": "Owner Title"})
+    item_id = int(hw_app.buyer_collection_items(owner_id).iloc[0]["id"])
+
+    wrong_owner_delete = hw_app.delete_collection_item(item_id, other_id)
+    assert len(hw_app.buyer_collection_items(owner_id)) == 1, "A different buyer must not be able to delete this item"
+
+    real_delete = hw_app.delete_collection_item(item_id, owner_id)
+    assert real_delete
+    assert hw_app.buyer_collection_items(owner_id).empty
+
+
+def test_completed_purchase_auto_adds_a_real_collection_item():
+    # The core of the feature: a buyer never has to manually enter anything
+    # they actually bought through House Of Wax -- it shows up the moment
+    # the seller marks the sale Sold, with the real price paid as the
+    # estimated value and a link back to the real product/purchase_request.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    buyer_id = _new_isolated_buyer(hw_app, "collection_auto_add_test_buyer")
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Collection Auto Add Test Album")
+    hw_app.run("UPDATE products SET listing_status='Pending Pickup/Payment', price=42.5 WHERE id=?", (product_id,))
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,status,payment_due_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (product_id, seller_id, buyer_id, "Auto Add Buyer", "autoadd@example.com", "Seller Accepted", hw_app.payment_due_at_string(), hw_app.now(), hw_app.now()),
+    )
+    pr_id = int(hw_app.df("SELECT id FROM purchase_requests WHERE product_id=? AND buyer_id=?", (product_id, buyer_id)).iloc[0]["id"])
+    assert hw_app.buyer_collection_items(buyer_id).empty, "Should have nothing in the collection before the sale completes"
+
+    hw_app.update_purchase_request_status(pr_id, "Sold", seller_id=seller_id)
+
+    items = hw_app.buyer_collection_items(buyer_id)
+    assert len(items) == 1, f"Expected exactly one auto-added collection item, got {len(items)}"
+    row = items.iloc[0]
+    assert row["artist"] == "Isolated Test Artist"
+    assert row["title"] == "Collection Auto Add Test Album"
+    assert row["source"] == "Purchased on House Of Wax"
+    assert int(row["linked_product_id"]) == product_id
+    assert int(row["linked_purchase_request_id"]) == pr_id
+    assert float(row["estimated_value"]) == 42.5
+
+
+def test_completed_purchase_auto_add_is_idempotent():
+    # Guards against a duplicate collection entry if update_purchase_request_status
+    # is ever called with status='Sold' more than once for the same request.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    buyer_id = _new_isolated_buyer(hw_app, "collection_idempotent_test_buyer")
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Collection Idempotent Test Album")
+    hw_app.run("UPDATE products SET listing_status='Pending Pickup/Payment' WHERE id=?", (product_id,))
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,status,payment_due_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (product_id, seller_id, buyer_id, "Idempotent Buyer", "idempotent@example.com", "Seller Accepted", hw_app.payment_due_at_string(), hw_app.now(), hw_app.now()),
+    )
+    pr_id = int(hw_app.df("SELECT id FROM purchase_requests WHERE product_id=? AND buyer_id=?", (product_id, buyer_id)).iloc[0]["id"])
+
+    hw_app.update_purchase_request_status(pr_id, "Sold", seller_id=seller_id)
+    hw_app.add_to_collection_from_sale(pr_id, product_id, buyer_id)  # direct second call, simulating a re-run
+
+    assert len(hw_app.buyer_collection_items(buyer_id)) == 1, "Should never create a duplicate collection item for the same purchase request"
+
+
+def test_a_buyer_cancelled_order_does_not_add_to_the_collection():
+    # Only a genuinely completed (Sold) sale should show up as something the
+    # buyer actually owns -- a cancelled order never became a real purchase.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    buyer_id = _new_isolated_buyer(hw_app, "collection_no_add_on_cancel_test_buyer")
+    seller_id = hw_app.ensure_seller()
+    product_id = _new_isolated_product(hw_app, seller_id, "Collection No Add On Cancel Album")
+    hw_app.run("UPDATE products SET listing_status='Pending Pickup/Payment' WHERE id=?", (product_id,))
+    hw_app.run(
+        "INSERT INTO purchase_requests(product_id,seller_id,buyer_id,buyer_name,buyer_contact,status,payment_due_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (product_id, seller_id, buyer_id, "No Add Buyer", "noadd@example.com", "Seller Accepted", hw_app.payment_due_at_string(), hw_app.now(), hw_app.now()),
+    )
+    pr_id = int(hw_app.df("SELECT id FROM purchase_requests WHERE product_id=? AND buyer_id=?", (product_id, buyer_id)).iloc[0]["id"])
+
+    hw_app.update_purchase_request_status(pr_id, "Buyer Cancelled", seller_id=seller_id)
+
+    assert hw_app.buyer_collection_items(buyer_id).empty
+
+
+def test_my_account_collection_tab_shows_items_and_no_metric_widgets():
+    # No st.metric() anywhere on My Account -- founder feedback, guarded by
+    # test_account_page_has_no_buying_selling_metric_banners already, but
+    # this confirms the new tab specifically doesn't reintroduce one while
+    # also checking real content actually renders.
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    buyer_id = _new_isolated_buyer(hw_app, "collection_tab_display_test_buyer")
+    hw_app.add_manual_collection_item(buyer_id, {"artist": "Display Test Artist", "title": "Display Test Title", "estimated_value": 30.0})
+    buyer_email = hw_app.get_buyer(buyer_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,buyer_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-buyer-uuid-{buyer_id}", buyer_email, "Real Buyer", "Buyer", buyer_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-buyer-uuid-{buyer_id}", "email": buyer_email, "access_token": "fake"}
+    at.run()
+    goto(at, "My Account", area_key="marketplace_navigation")
+    assert not at.exception, at.exception
+
+    metric_labels = [m.label for m in at.get("metric")]
+    assert metric_labels == [], f"Expected no metric banners anywhere on My Account, got {metric_labels}"
+
+    markdown_text = " ".join(m.value or "" for m in at.markdown)
+    write_text = " ".join(str(w.value) for w in at.get("text") if getattr(w, "value", None))
+    combined = markdown_text + " " + write_text
+    assert "Display Test Artist" in combined
+    assert "Display Test Title" in combined
+
+
+def test_buyer_can_manually_add_a_collection_item_through_the_ui():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    buyer_id = _new_isolated_buyer(hw_app, "collection_ui_add_test_buyer")
+    buyer_email = hw_app.get_buyer(buyer_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,buyer_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-buyer-uuid-{buyer_id}", buyer_email, "Real Buyer", "Buyer", buyer_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-buyer-uuid-{buyer_id}", "email": buyer_email, "access_token": "fake"}
+    at.run()
+    goto(at, "My Account", area_key="marketplace_navigation")
+    assert not at.exception, at.exception
+
+    # AppTest doesn't expose a form's own key (.key is always None for
+    # st.form) -- the My Collection add form is the only one on this page
+    # with exactly 5 text_inputs (artist/title/format/label/year), so find
+    # it by that shape instead of guessing at internal widget ids.
+    def _collection_form(at):
+        return next(f for f in at.get("form") if len(f.get("text_input")) == 5)
+
+    text_inputs = _collection_form(at).get("text_input")
+    text_inputs[0].set_value("UI Added Artist").run()
+    text_inputs = _collection_form(at).get("text_input")
+    text_inputs[1].set_value("UI Added Title").run()
+    # Form submit buttons show up as plain at.button entries, not a
+    # separate "form_submit_button" element type -- filter by label.
+    submit = next(b for b in at.button if b.label == "Add to my collection")
+    submit.click().run()
+    assert not at.exception, at.exception
+
+    items = hw_app.buyer_collection_items(buyer_id)
+    assert len(items) == 1
+    assert items.iloc[0]["artist"] == "UI Added Artist"
+    assert items.iloc[0]["title"] == "UI Added Title"
+    assert items.iloc[0]["source"] == "Added manually"
+
+
+def test_buyer_can_remove_a_collection_item_through_the_ui():
+    import app as hw_app
+    assert not hw_app.hosted_enabled(), "This test assumes local SQLite mode (no Supabase secrets)"
+    buyer_id = _new_isolated_buyer(hw_app, "collection_ui_remove_test_buyer")
+    hw_app.add_manual_collection_item(buyer_id, {"artist": "Remove Me Artist", "title": "Remove Me Title"})
+    item_id = int(hw_app.buyer_collection_items(buyer_id).iloc[0]["id"])
+    buyer_email = hw_app.get_buyer(buyer_id)["email"]
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.run()
+    hw_app.run(
+        "INSERT INTO app_users(auth_user_id,email,display_name,account_type,buyer_id,admin_access,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (f"real-buyer-uuid-{buyer_id}", buyer_email, "Real Buyer", "Buyer", buyer_id, "No", "Active", hw_app.now(), hw_app.now()),
+    )
+    at.session_state["auth_session"] = {"user_id": f"real-buyer-uuid-{buyer_id}", "email": buyer_email, "access_token": "fake"}
+    at.run()
+    goto(at, "My Account", area_key="marketplace_navigation")
+    assert not at.exception, at.exception
+
+    remove_buttons = [b for b in at.button if b.key == f"remove_collection_{item_id}"]
+    assert remove_buttons, "Expected a Remove from collection button for this item"
+    remove_buttons[0].click().run()
+    assert not at.exception, at.exception
+
+    assert hw_app.buyer_collection_items(buyer_id).empty
+
+
+def _manual_collection_add_failure_probe():
+    import app as hw_app
+    hw_app.render_my_collection(1)
+
+
+def test_manual_collection_add_failure_is_surfaced_not_silently_swallowed(monkeypatch):
+    # Same "surfaced not silently swallowed" discipline as the cart-remove
+    # fix -- add_manual_collection_item() can legitimately return a falsy
+    # result (an RLS-blocked insert in hosted mode), and the UI must say so
+    # instead of claiming success regardless.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "add_manual_collection_item", lambda buyer_id, data: 0)
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+
+    at = AppTest.from_function(_manual_collection_add_failure_probe, default_timeout=30)
+    at.run()
+    assert not at.exception, at.exception
+
+    # render_my_collection() run standalone has exactly one form on the page.
+    # Form submit buttons show up as plain at.button entries, not a
+    # separate "form_submit_button" element type.
+    text_inputs = at.get("form")[0].get("text_input")
+    text_inputs[0].set_value("Failure Probe Artist").run()
+    text_inputs = at.get("form")[0].get("text_input")
+    text_inputs[1].set_value("Failure Probe Title").run()
+    next(b for b in at.button if b.label == "Add to my collection").click().run()
+    assert not at.exception, at.exception
+
+    errors = [e.value for e in at.error]
+    assert any("could not add" in e.lower() for e in errors), f"Expected a could-not-add error to be surfaced, got errors={errors}"
+
+
+# --- House Of Wax release-database persistence fix -------------------------
+# how_releases/how_release_sources/how_release_corrections/barcode_lookup_cache
+# used raw run()/df() (local-SQLite-only) with no Supabase awareness at all,
+# and were absent from CORE_HOSTED_TABLES -- meaning every barcode scan match
+# and manual database contribution silently never persisted once the app ran
+# on Streamlit Cloud (its local filesystem is wiped on every redeploy/restart/
+# sleep). These tests give direct unit coverage of the fix, since the local-
+# SQLite test path can't tell hosted-aware code from raw run()/df() calls on
+# its own -- see house-of-wax-hosted-select-testing-gap.
+
+def test_core_hosted_tables_includes_release_database_tables():
+    import app as hw_app
+    for t in ("how_releases", "how_release_sources", "how_release_corrections", "barcode_lookup_cache"):
+        assert t in hw_app.CORE_HOSTED_TABLES, f"{t} must be hosted-aware or it will never persist in production"
+
+
+def test_cache_lookup_result_writes_through_hosted_insert_when_hosted_enabled(monkeypatch):
+    import app as hw_app
+    calls = []
+    def fake_hosted_request(method, table_name, **k):
+        calls.append((method, table_name, k))
+        return [{"id": 1}], {"ok": True, "status_code": 201, "message": ""}
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", fake_hosted_request)
+
+    hw_app.cache_lookup_result("012345678905", {"source": "Discogs", "external_id": "999", "artist": "Test Artist", "title": "Test Title"})
+
+    assert calls, "cache_lookup_result should call hosted_request when hosted_enabled() is True, not raw run()"
+    method, table_name, kwargs = calls[0]
+    assert method == "post"
+    assert table_name == "barcode_lookup_cache"
+    assert kwargs["data"]["barcode"] == "012345678905"
+    assert kwargs["data"]["artist"] == "Test Artist"
+
+
+def _fake_how_releases_hosted_request(existing_rows, calls):
+    def fake(method, table_name, **k):
+        calls.append((method, table_name, k))
+        if table_name == "how_releases" and method == "get":
+            return list(existing_rows), {"ok": True, "status_code": 200, "message": ""}
+        if table_name == "how_releases" and method == "post":
+            return [{"id": 101}], {"ok": True, "status_code": 201, "message": ""}
+        if table_name == "how_release_sources" and method == "get":
+            return [], {"ok": True, "status_code": 200, "message": ""}
+        if table_name == "how_release_sources" and method == "post":
+            return [{"id": 55}], {"ok": True, "status_code": 201, "message": ""}
+        raise AssertionError(f"Unexpected hosted_request call: {method} {table_name}")
+    return fake
+
+
+def test_create_or_update_how_release_inserts_new_release_via_hosted_when_hosted_enabled(monkeypatch):
+    import app as hw_app
+    calls = []
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", _fake_how_releases_hosted_request([], calls))
+
+    rid = hw_app.create_or_update_how_release("012345678905", {
+        "source": "Discogs", "external_id": "999", "artist": "Test Artist", "title": "Test Title",
+        "format": "Vinyl", "label": "Test Label",
+    })
+
+    assert rid == 101
+    insert_calls = [c for c in calls if c[0] == "post" and c[1] == "how_releases"]
+    assert insert_calls, "expected a hosted insert into how_releases, not a raw run()"
+    assert insert_calls[0][2]["data"]["barcode"] == "012345678905"
+    source_insert_calls = [c for c in calls if c[0] == "post" and c[1] == "how_release_sources"]
+    assert source_insert_calls, "expected a hosted insert into how_release_sources for the source audit row"
+
+
+def test_create_or_update_how_release_preserves_discogs_id_when_a_later_manual_update_has_none(monkeypatch):
+    # Regression guard for the specific rewrite risk: hosted_update's PATCH
+    # write has no SQL-level COALESCE(NULLIF(...)) fallback, so a later,
+    # different-source contribution (e.g. a bare-bones manual save, whose own
+    # confidence score is just as high) must not blank out a discogs_id a
+    # prior Discogs match already found. Computed in Python before calling
+    # core_update -- see release_confidence_from_result for why a
+    # non-Discogs/MusicBrainz source can only match, never exceed, a
+    # minimal-fields Discogs contribution's confidence.
+    import app as hw_app
+    calls = []
+    existing = [{
+        "id": 101, "barcode": "012345678905", "artist": "Old Artist", "title": "Old Title",
+        "source_confidence": 50, "discogs_id": "999", "musicbrainz_id": "",
+    }]
+    def fake(method, table_name, **k):
+        calls.append((method, table_name, k))
+        if table_name == "how_releases" and method == "get":
+            return list(existing), {"ok": True, "status_code": 200, "message": ""}
+        if table_name == "how_releases" and method == "patch":
+            return [{"id": 101}], {"ok": True, "status_code": 200, "message": ""}
+        if table_name == "how_release_sources" and method == "get":
+            return [], {"ok": True, "status_code": 200, "message": ""}
+        if table_name == "how_release_sources" and method == "post":
+            return [{"id": 56}], {"ok": True, "status_code": 201, "message": ""}
+        raise AssertionError(f"Unexpected hosted_request call: {method} {table_name}")
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", fake)
+
+    # A same-or-higher-confidence, source-less manual contribution with no
+    # discogs_id of its own -- must not blank out the existing one.
+    rid = hw_app.create_or_update_how_release("012345678905", {
+        "source": "House Of Wax Manual", "external_id": "", "artist": "New Artist", "title": "New Title",
+    })
+
+    assert rid == 101
+    patch_calls = [c for c in calls if c[0] == "patch" and c[1] == "how_releases"]
+    assert patch_calls, "expected a hosted update (PATCH) against how_releases"
+    assert patch_calls[0][2]["data"]["discogs_id"] == "999", "discogs_id must be preserved, not blanked, by a source with no discogs_id of its own"
+
+
+def test_find_how_release_by_barcode_uses_hosted_select_when_hosted_enabled(monkeypatch):
+    import app as hw_app
+    calls = []
+    def fake(method, table_name, **k):
+        calls.append((method, table_name, k))
+        return [{"id": 1, "barcode": "012345678905"}], {"ok": True, "status_code": 200, "message": ""}
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", fake)
+
+    result = hw_app.find_how_release_by_barcode("012345678905")
+
+    assert not result.empty
+    assert calls and calls[0][1] == "how_releases" and calls[0][0] == "get"
+
+
+def test_get_best_how_release_prefers_approved_status_over_higher_confidence_needs_review(monkeypatch):
+    # Regression guard for the CASE-expression-to-pandas-sort rewrite:
+    # PostgREST's `order` param can't express "Approved > Needs Review >
+    # everything else", so the hosted path fetches every candidate and
+    # applies the same tiebreak in pandas. A lower-confidence Approved row
+    # must still win over a higher-confidence Needs Review row.
+    import app as hw_app
+    rows = [
+        {"id": 1, "barcode": "012345678905", "verification_status": "Needs Review", "source_confidence": 95},
+        {"id": 2, "barcode": "012345678905", "verification_status": "Approved", "source_confidence": 60},
+        {"id": 3, "barcode": "012345678905", "verification_status": "Unverified", "source_confidence": 99},
+    ]
+    def fake(method, table_name, **k):
+        return list(rows), {"ok": True, "status_code": 200, "message": ""}
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", fake)
+
+    best = hw_app.get_best_how_release("012345678905")
+
+    assert best is not None
+    assert best["id"] == 2, "the Approved row should win even though other candidates have higher confidence"
+
+
+def test_find_partial_barcode_matches_uses_ilike_against_hosted_tables(monkeypatch):
+    import app as hw_app
+    calls = []
+    def fake(method, table_name, **k):
+        calls.append((method, table_name, k))
+        return [], {"ok": True, "status_code": 200, "message": ""}
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", fake)
+
+    hw_app.find_partial_barcode_matches("012345678", limit=5)
+
+    release_calls = [c for c in calls if c[1] == "how_releases"]
+    cache_calls = [c for c in calls if c[1] == "barcode_lookup_cache"]
+    assert release_calls and "ilike" in release_calls[0][2]["params"]["barcode"]
+    assert cache_calls and "ilike" in cache_calls[0][2]["params"]["barcode"]
+
+
+def test_submit_release_correction_writes_through_hosted_insert_when_hosted_enabled(monkeypatch):
+    import app as hw_app
+    calls = []
+    def fake(method, table_name, **k):
+        calls.append((method, table_name, k))
+        return [{"id": 9}], {"ok": True, "status_code": 201, "message": ""}
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", fake)
+
+    hw_app.submit_release_correction(101, 5, "artist", "Old Artist", "New Artist", "typo fix")
+
+    assert calls and calls[0][0] == "post" and calls[0][1] == "how_release_corrections"
+    assert calls[0][2]["data"]["suggested_value"] == "New Artist"
+
+
+def test_create_or_update_how_release_still_works_against_local_sqlite():
+    # Regression guard: hosted_enabled() is False in the default test
+    # environment (no Supabase secrets configured), so this exercises the
+    # unchanged local-SQLite fallback path after the rewrite.
+    import app as hw_app
+    code = f"{uuid.uuid4().int % 10**12:012d}"
+    rid = hw_app.create_or_update_how_release(code, {
+        "source": "Discogs", "external_id": "555", "artist": "Local Artist", "title": "Local Title",
+    })
+    assert rid
+    row = hw_app.find_how_release_by_barcode(code)
+    assert not row.empty
+    assert row.iloc[0]["artist"] == "Local Artist"
+
+
+# --- Fix 3: admin visibility into how_releases growth ----------------------
+# Founder: "How does our site learn and grow the database? I'm trying to get
+# an idea of how to make it grow faster" -- there was no admin-facing way to
+# see any of this without querying the database directly. admin_release_
+# database_stats() gives read-only visibility: total releases, where they
+# come from (Discogs/MusicBrainz/manual), growth over time, most recent
+# additions, and any pending seller-suggested corrections.
+
+def _admin_release_database_stats_probe():
+    import app as hw_app
+    hw_app.admin_release_database_stats()
+
+
+def test_admin_release_database_stats_shows_empty_state_message(monkeypatch):
+    # Isolated from whatever other tests have already written to the shared
+    # local SQLite file this session (see conftest.py) by monkeypatching
+    # table() itself, rather than asserting a real zero count.
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "table", lambda t: hw_app.pd.DataFrame())
+    at = AppTest.from_function(_admin_release_database_stats_probe, default_timeout=30)
+    at.run()
+    assert not at.exception, at.exception
+    infos = [i.value for i in at.info]
+    assert any("No releases in the database yet" in i for i in infos)
+
+
+def test_admin_release_database_stats_reachable_via_admin_nav_and_shows_real_data():
+    import app as hw_app
+    marker = f"StatsProbeArtist{uuid.uuid4().hex[:8]}"
+    code = f"{uuid.uuid4().int % 10**12:012d}"
+    hw_app.create_or_update_how_release(code, {
+        "source": "Discogs", "external_id": "777", "artist": marker, "title": "Stats Probe Title",
+    })
+    hw_app.submit_release_correction(1, 1, "artist", "Old", "New Suggested Value", "note")
+
+    at = AppTest.from_file("app.py", default_timeout=30)
+    at.session_state["testing_mode_enabled"] = True
+    at.run()
+    at.sidebar.radio(key="house_of_wax_area").set_value("House Of Wax Admin").run()
+    at.sidebar.radio(key="admin_navigation").set_value("Release Database").run()
+    assert not at.exception, at.exception
+
+    all_text = " ".join(m.value for m in at.markdown) + " " + " ".join(
+        str(cell) for df_el in at.dataframe for row in df_el.value.to_dict(orient="records") for cell in row.values()
+    )
+    assert marker in all_text, "Expected the just-added release to show up in the admin Release Database view"
+    assert "New Suggested Value" in all_text, "Expected the pending correction to show up in the admin Release Database view"

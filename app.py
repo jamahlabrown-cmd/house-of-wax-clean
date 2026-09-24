@@ -3962,6 +3962,32 @@ def anthropic_configured():
 def knowledge_hub_ai_enabled():
     return anthropic_configured() and setting('knowledge_hub_ai_enabled','true')=='true'
 
+AI_CHAT_RATE_LIMIT_PER_MINUTE=20  # org-wide cap across all visitors -- generous for real
+                                  # traffic, but stops a bug/bot/scraper from hammering an
+                                  # unauthenticated, uncapped endpoint that costs real money
+AI_CHAT_SESSION_COOLDOWN_SECONDS=5  # per-visitor: stop accidental double-submits
+
+def ai_chat_rate_limited():
+    # Global sliding-window counter stored via the existing settings table (same mechanism
+    # already used for feature toggles like knowledge_hub_ai_enabled) -- no new table needed,
+    # and it's a real org-wide circuit breaker rather than a per-session limit that a new
+    # browser tab/bot could just sidestep by starting a fresh session.
+    window_start=safe(setting('kh_ai_rate_window_start',''))
+    count=int(safe(setting('kh_ai_rate_window_count','0'),'0') or '0')
+    now_dt=datetime.now()
+    try:
+        start_dt=datetime.fromisoformat(window_start) if window_start else None
+    except Exception:
+        start_dt=None
+    if not start_dt or (now_dt-start_dt).total_seconds()>60:
+        set_setting('kh_ai_rate_window_start',now_dt.isoformat(timespec='seconds'))
+        set_setting('kh_ai_rate_window_count','1')
+        return False
+    if count>=AI_CHAT_RATE_LIMIT_PER_MINUTE:
+        return True
+    set_setting('kh_ai_rate_window_count',str(count+1))
+    return False
+
 def ask_house_of_wax_ai(question):
     # Deliberately not grounded in our own Knowledge Hub articles -- answer from
     # Claude's own broad knowledge, plus live web search for debatable "best of"
@@ -4052,13 +4078,20 @@ def render_knowledge_hub_ai_chat():
             question=st.text_input('Ask a question about House Of Wax or collecting...',key='kh_question_input',label_visibility='collapsed',placeholder='Ask a question about House Of Wax or collecting...')
             submitted=st.form_submit_button('Ask',width='content')
         if submitted and question.strip():
-            question=question.strip()[:500]
-            with st.spinner('Thinking...'):
-                answer,sources=ask_house_of_wax_ai(question)
-            st.session_state['kh_last_question']=question
-            st.session_state['kh_last_answer']=answer
-            st.session_state['kh_last_sources']=sources
-            st.rerun()
+            last_ask=st.session_state.get('kh_last_ask_ts',0)
+            if time.time()-last_ask<AI_CHAT_SESSION_COOLDOWN_SECONDS:
+                st.warning('Please wait a few seconds before asking another question.')
+            elif ai_chat_rate_limited():
+                st.warning("We're getting a lot of questions right now -- please try again in a minute.")
+            else:
+                st.session_state['kh_last_ask_ts']=time.time()
+                question=question.strip()[:500]
+                with st.spinner('Thinking...'):
+                    answer,sources=ask_house_of_wax_ai(question)
+                st.session_state['kh_last_question']=question
+                st.session_state['kh_last_answer']=answer
+                st.session_state['kh_last_sources']=sources
+                st.rerun()
 
 def knowledge_hub():
     seed_knowledge()

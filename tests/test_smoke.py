@@ -689,6 +689,348 @@ def test_parse_discogs_collection_csv_maps_fields_and_forces_draft():
     assert generic_mapped["sleeve_grade"] == hw_app.GENERIC_SLEEVE_VALUE
 
 
+DISCOGS_INVENTORY_COLUMNS = ["listing_id", "artist", "title", "label", "catno", "format", "release_id", "status", "price", "listed", "comments", "media_condition", "sleeve_condition", "accept_offer", "external_id", "weight", "format_quantity", "flat_shipping", "location"]
+
+
+def _inventory_row(**overrides):
+    row = {c: "" for c in DISCOGS_INVENTORY_COLUMNS}
+    row.update({
+        "listing_id": "2649791103",
+        "artist": "Commodores",
+        "title": "In The Pocket",
+        "label": "Motown",
+        "catno": "M8-955M1",
+        "format": "LP, Album",
+        "release_id": "1009001",
+        "status": "For Sale",
+        "price": "21.00",
+        "comments": "Light ring wear",
+        "media_condition": "Very Good Plus (VG+)",
+        "sleeve_condition": "Very Good (VG)",
+    })
+    row.update(overrides)
+    return row
+
+
+def test_is_discogs_inventory_export_detects_real_header():
+    import app as hw_app
+    inv_df = pd.DataFrame([{c: "" for c in DISCOGS_INVENTORY_COLUMNS}])
+    assert hw_app.is_discogs_inventory_export(inv_df) is True
+    assert hw_app.is_discogs_collection_export(inv_df) is False
+
+    collection_columns = ["Catalog#", "Artist", "Title", "Label", "Format", "Rating", "Released", "release_id", "CollectionFolder", "Date Added", "Collection Media Condition", "Collection Sleeve Condition", "Collection Notes"]
+    assert hw_app.is_discogs_inventory_export(pd.DataFrame([{c: "" for c in collection_columns}])) is False
+
+
+def test_parse_discogs_inventory_csv_keeps_price_and_grades_and_forces_draft():
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Discogs Inventory Import Test Seller")
+    hw_app.run("UPDATE sellers SET rules_accepted='Yes' WHERE id=?", (seller_id,))
+    assert hw_app.seller_can_publish_live(hw_app.get_seller(seller_id))
+
+    rows, stats = hw_app.parse_discogs_inventory_csv(pd.DataFrame([_inventory_row()]), seller_id)
+    assert len(rows) == 1
+    item = rows[0]
+    assert item["listing_status"] == "Draft", "Founder chose drafts first, even for a seller who can publish live"
+    assert item["price"] == 21.0
+    assert item["quantity"] == 1
+    assert item["artist"] == "Commodores"
+    assert item["title"] == "In The Pocket"
+    assert item["catalog_number"] == "M8-955M1"
+    assert item["label"] == "Motown"
+    assert item["media_grade"] == "VG+"
+    assert item["sleeve_grade"] == "VG"
+    assert item["condition_notes"] == "Light ring wear"
+    assert item["external_release_url"] == "https://www.discogs.com/release/1009001"
+    assert item["category"] == "Vinyl Records"
+    assert stats == {"imported": 1, "already_listed": 0, "not_for_sale": 0}
+
+
+def test_parse_discogs_inventory_csv_skips_sold_and_already_listed_copies():
+    import app as hw_app
+    seller_id = _new_isolated_seller(hw_app, "Discogs Inventory Dedupe Test Seller")
+    df_in = pd.DataFrame([
+        _inventory_row(listing_id="1", release_id="555"),
+        _inventory_row(listing_id="2", release_id="555"),
+        _inventory_row(listing_id="3", release_id="777"),
+        _inventory_row(listing_id="4", release_id="888", status="Sold"),
+        _inventory_row(listing_id="5", release_id="999", format="Cass, Album", sleeve_condition="Generic"),
+    ])
+    # The seller already has one copy of 555 and one of 777 on House Of Wax.
+    existing = {"555": 1, "777": 1}
+    rows, stats = hw_app.parse_discogs_inventory_csv(df_in, seller_id, existing)
+    urls = [r["external_release_url"] for r in rows]
+    assert urls == ["https://www.discogs.com/release/555", "https://www.discogs.com/release/999"], "Second copy of 555 is new; 777 is already listed; sold 888 is skipped"
+    assert stats == {"imported": 2, "already_listed": 2, "not_for_sale": 1}
+    assert rows[1]["category"] == "Cassettes"
+    assert rows[1]["sleeve_grade"] == hw_app.GENERIC_SLEEVE_VALUE
+    assert existing == {"555": 1, "777": 1}, "Caller's counts must not be changed in place"
+
+
+def test_existing_discogs_release_counts_reads_release_ids_from_listings():
+    import app as hw_app
+    listings = pd.DataFrame({"external_release_url": [
+        "https://www.discogs.com/release/555",
+        "https://www.discogs.com/release/555",
+        "https://www.discogs.com/release/777-Some-Slug",
+        "",
+        None,
+        float("nan"),
+        "https://example.com/other",
+    ]})
+    assert hw_app.existing_discogs_release_counts(listings) == {"555": 2, "777": 1}
+    assert hw_app.existing_discogs_release_counts(pd.DataFrame()) == {}
+
+
+def test_seller_discogs_release_counts_pages_past_supabase_row_cap(monkeypatch):
+    # Supabase hands back at most 1000 rows per read. A seller with more
+    # listings than that must still have every copy counted, or a second
+    # import would re-add copies past the cap as duplicates.
+    import app as hw_app
+    rows = [{"id": i, "external_release_url": f"https://www.discogs.com/release/{i % 1500}"} for i in range(2300)]
+    calls = []
+
+    def fake_request(method, table_name, params=None, data=None, prefer=""):
+        calls.append(dict(params))
+        assert table_name == "products"
+        assert params["seller_id"] == "eq.42"
+        start, size = int(params["offset"]), int(params["limit"])
+        return rows[start:start + min(size, 1000)], {"ok": True}
+
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", fake_request)
+    counts = hw_app.seller_discogs_release_counts(42)
+    assert sum(counts.values()) == 2300
+    assert counts["0"] == 2 and counts["1499"] == 1
+    assert len(calls) == 4, "Three full pages, then one empty read to confirm the end (safe even if the server cap is below page_size)"
+
+
+def test_seller_discogs_release_counts_returns_none_when_read_fails(monkeypatch):
+    import app as hw_app
+    monkeypatch.setattr(hw_app, "hosted_enabled", lambda: True)
+    monkeypatch.setattr(hw_app, "hosted_request", lambda *a, **k: (None, {"ok": False, "status_code": 500, "message": "boom"}))
+    monkeypatch.setattr(hw_app, "show_hosted_error", lambda *a, **k: None)
+    assert hw_app.seller_discogs_release_counts(42) is None
+
+
+def _dl(listing_id, release_id, price=10.0, media="Near Mint (NM or M-)", sleeve="Very Good Plus (VG+)", comments="", status="For Sale"):
+    return {"listing_id": str(listing_id), "release_id": str(release_id), "artist": "Artist", "title": f"Title {release_id}", "label": "Label", "catno": "CAT-1", "format": "LP, Album", "year": "1979", "price": price, "media_condition": media, "sleeve_condition": sleeve, "comments": comments, "status": status}
+
+
+def _hp(pid, release_id=None, discogs_listing_id="", status="Live", price=5.0, media="VG", sleeve="VG", notes=""):
+    return {"id": pid, "discogs_listing_id": discogs_listing_id, "external_release_url": f"https://www.discogs.com/release/{release_id}" if release_id else "", "listing_status": status, "price": price, "media_grade": media, "sleeve_grade": sleeve, "condition_notes": notes}
+
+
+def test_plan_discogs_mirror_adds_updates_and_takes_down():
+    import app as hw_app
+    discogs = [
+        _dl(1, 100, price=21.0),             # matches unlinked product 10 by release -> link + update
+        _dl(2, 200, price=7.14),             # already linked to product 20 -> update price
+        _dl(3, 300),                          # new -> add as Draft
+        _dl(4, 300),                          # second copy of 300 -> also added
+    ]
+    products = pd.DataFrame([
+        _hp(10, release_id=100, price=31.0),
+        _hp(20, release_id=200, discogs_listing_id="2", price=31.0, media="Near Mint", sleeve="VG+"),
+        _hp(30, release_id=999, discogs_listing_id="9"),           # linked, gone from Discogs -> take down
+        _hp(40, release_id=888),                                    # unlinked collection import, not on Discogs
+        _hp(50),                                                    # manual listing, no Discogs link -> never touched
+        _hp(60, release_id=777, discogs_listing_id="7", status="Pending Pickup/Payment"),  # buyer mid-purchase -> protected
+        _hp(70, release_id=666, discogs_listing_id="6", status="Draft"),                   # already down -> nothing to do
+    ])
+    plan = hw_app.plan_discogs_mirror(discogs, products, take_down_unlinked=False)
+    assert [r["discogs_listing_id"] for r in plan["add"]] == ["3", "4"]
+    assert all(r["listing_status"] == "Draft" for r in plan["add"])
+    assert plan["add"][0]["price"] == 10.0 and plan["add"][0]["release_year"] == "1979"
+    updates = {u["id"]: u["changes"] for u in plan["update"]}
+    assert updates[10] == {"discogs_listing_id": "1", "price": 21.0, "media_grade": "Near Mint", "sleeve_grade": "VG+"}
+    assert updates[20] == {"price": 7.14}
+    assert plan["take_down"] == [30]
+    assert [p["id"] for p in plan["protected"]] == [60]
+    assert plan["unlinked_left"] == [40]
+
+    plan2 = hw_app.plan_discogs_mirror(discogs, products, take_down_unlinked=True)
+    assert plan2["take_down"] == [30, 40], "Ticking the box also takes down unlinked Discogs-sourced listings, never manual ones (50)"
+    assert plan2["unlinked_left"] == []
+
+
+def test_plan_discogs_mirror_never_changes_listings_mid_purchase_or_sold():
+    # Second-reader finding 2026-11-25: a protected listing still on Discogs
+    # was getting its price rewritten under the buyer, and an unlinked Sold
+    # row could claim a still-for-sale Discogs copy so it was never added.
+    import app as hw_app
+    discogs = [_dl(1, 100, price=25.0), _dl(2, 200, price=9.0)]
+    products = pd.DataFrame([
+        _hp(10, release_id=100, discogs_listing_id="1", status="Pending Pickup/Payment", price=20.0),
+        _hp(20, release_id=200, status="Sold", price=4.0),
+        _hp(21, release_id=200, status="Draft", price=4.0),
+        _hp(22, release_id=200, status="Live", price=4.0),
+    ])
+    plan = hw_app.plan_discogs_mirror(discogs, products, take_down_unlinked=True)
+    assert [u["id"] for u in plan["update"]] == [22], "Only the Live unlinked copy links; protected rows are never updated"
+    assert plan["update"][0]["changes"]["discogs_listing_id"] == "2"
+    assert sorted(p["id"] for p in plan["protected"]) == [10]
+    assert plan["add"] == []
+    assert plan["take_down"] == []
+
+
+def test_plan_discogs_mirror_keeps_house_of_wax_notes_when_discogs_has_none():
+    import app as hw_app
+    products = pd.DataFrame([_hp(10, release_id=100, discogs_listing_id="1", price=10.0, media="Near Mint", sleeve="VG+", notes="Light ring wear")])
+    plan = hw_app.plan_discogs_mirror([_dl(1, 100, comments="")], products)
+    assert plan["update"] == []
+    plan = hw_app.plan_discogs_mirror([_dl(1, 100, comments="Seam split")], products)
+    assert plan["update"] == [{"id": 10, "changes": {"condition_notes": "Seam split"}}]
+
+
+def test_plan_discogs_mirror_refuses_empty_discogs_list():
+    import app as hw_app
+    products = pd.DataFrame([_hp(30, release_id=999, discogs_listing_id="9")])
+    try:
+        hw_app.plan_discogs_mirror([], products)
+    except ValueError:
+        return
+    raise AssertionError("An empty Discogs inventory must never take every listing down")
+
+
+class _FakeDiscogsResp:
+    def __init__(self, code, payload):
+        self.status_code = code
+        self._p = payload
+
+    def json(self):
+        return self._p
+
+
+def _fake_listing(lid):
+    return {"id": lid, "status": "For Sale", "condition": "Mint (M)", "sleeve_condition": "Generic", "comments": "", "price": {"value": 5.0}, "release": {"id": 100 + lid, "artist": "A", "title": "T", "label": "L", "catalog_number": "C", "format": "LP", "year": 1980}}
+
+
+def test_fetch_discogs_inventory_returns_none_if_any_page_fails(monkeypatch):
+    import app as hw_app
+    pages = {
+        1: _FakeDiscogsResp(200, {"pagination": {"pages": 2, "items": 2}, "listings": [_fake_listing(1)]}),
+        2: _FakeDiscogsResp(500, {}),
+    }
+    monkeypatch.setattr(hw_app.requests, "get", lambda url, params=None, headers=None, timeout=None: pages[params["page"]])
+    monkeypatch.setattr(hw_app.time, "sleep", lambda s: None)
+    assert hw_app.fetch_discogs_inventory("someone") is None
+
+    pages[2] = _FakeDiscogsResp(200, {"pagination": {"pages": 2, "items": 2}, "listings": [_fake_listing(2)]})
+    got = hw_app.fetch_discogs_inventory("someone")
+    assert [g["listing_id"] for g in got] == ["1", "2"]
+    assert got[0] == {"listing_id": "1", "release_id": "101", "artist": "A", "title": "T", "label": "L", "catno": "C", "format": "LP", "year": "1980", "price": 5.0, "media_condition": "Mint (M)", "sleeve_condition": "Generic", "comments": "", "status": "For Sale"}
+
+
+def test_fetch_discogs_inventory_rejects_pages_that_repeat_and_skip(monkeypatch):
+    # Real Discogs behavior seen 2026-11-25: with many listings sharing one
+    # listed time, paging repeated some listings and skipped others. A
+    # sort that still repeats must fall through to the next sort, and if
+    # none comes back complete, nothing is returned at all.
+    import app as hw_app
+    calls = []
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        calls.append(params["sort"])
+        listing = 1 if params["page"] == 1 else (1 if params["sort"] == "item" else 2)
+        return _FakeDiscogsResp(200, {"pagination": {"pages": 2, "items": 2}, "listings": [_fake_listing(listing)]})
+
+    monkeypatch.setattr(hw_app.requests, "get", fake_get)
+    monkeypatch.setattr(hw_app.time, "sleep", lambda s: None)
+    got = hw_app.fetch_discogs_inventory("someone")
+    assert [g["listing_id"] for g in got] == ["1", "2"], "item sort repeated listing 1, so the price sort is used"
+    assert calls == ["item", "item", "price", "price"]
+
+    monkeypatch.setattr(hw_app.requests, "get", lambda url, params=None, headers=None, timeout=None: _FakeDiscogsResp(200, {"pagination": {"pages": 2, "items": 2}, "listings": [_fake_listing(1)]}))
+    assert hw_app.fetch_discogs_inventory("someone") is None
+
+
+class _FakeStore:
+    def __init__(self, rows):
+        self.rows = {r["id"]: dict(r) for r in rows}
+        self.next_id = 1000
+        self.inserted = []
+    def read_products(self):
+        return pd.DataFrame(list(self.rows.values()))
+    def insert(self, rows):
+        for r in rows:
+            self.next_id += 1
+            self.rows[self.next_id] = dict(r, id=self.next_id)
+            self.inserted.append(self.next_id)
+        return len(rows)
+    def update(self, pid, changes):
+        self.rows[pid].update(changes)
+        return True
+    def set_status(self, ids, status):
+        for i in ids:
+            self.rows[i]["listing_status"] = status
+        return len(ids)
+
+
+def _mirror_env(monkeypatch, listings, images=None):
+    import discogs_mirror as dm
+    monkeypatch.setattr(dm, "fetch_discogs_inventory", lambda username, token="": listings)
+    monkeypatch.setattr(dm, "fetch_discogs_release_image", lambda rid, token: (images or {}).get(str(rid), ""))
+    monkeypatch.setattr(dm.time, "sleep", lambda s: None)
+    return dm
+
+
+def test_run_discogs_mirror_publishes_complete_new_records_and_waits_on_incomplete(monkeypatch):
+    dm = _mirror_env(monkeypatch, [_dl(1, 100, price=12.0), _dl(2, 200, price=0), _dl(3, 300, sleeve="Not Graded")], images={"100": "https://img/100.jpg", "200": "https://img/200.jpg", "300": "https://img/300.jpg"})
+    store = _FakeStore([])
+    report = dm.run_discogs_mirror(store, "someone", token="t")
+    rows = {r["discogs_listing_id"]: r for r in store.rows.values()}
+    assert rows["1"]["listing_status"] == "Live" and rows["1"]["image_url"] == "https://img/100.jpg"
+    assert rows["2"]["listing_status"] == "Draft", "No price on Discogs -> waits as Draft"
+    assert rows["3"]["listing_status"] == "Draft", "Discogs says Not Graded for the cover -> waits as Draft"
+    assert sorted(w["missing"][0] for w in report["waiting"]) == ["cover grade", "price"]
+    assert report["published"] == 1 and report["added"] == 3
+
+
+def test_run_discogs_mirror_photo_limit_and_seller_readiness(monkeypatch):
+    dm = _mirror_env(monkeypatch, [_dl(1, 100)], images={"100": "https://img/100.jpg"})
+    store = _FakeStore([])
+    dm.run_discogs_mirror(store, "someone", token="")
+    assert list(store.rows.values())[0]["listing_status"] == "Live", "Discogs gives cover photos without a token too, just more slowly"
+    store = _FakeStore([])
+    dm.run_discogs_mirror(store, "someone", token="t", max_image_lookups=0)
+    assert list(store.rows.values())[0]["listing_status"] == "Draft", "Past the per-run photo limit it waits for the next run"
+    store = _FakeStore([])
+    dm.run_discogs_mirror(store, "someone", token="t", seller_ok=False)
+    assert list(store.rows.values())[0]["listing_status"] == "Draft"
+
+
+def test_run_discogs_mirror_safety_brake_stops_mass_take_down(monkeypatch):
+    dm = _mirror_env(monkeypatch, [_dl(1, 100)])
+    rows = [_hp(i, release_id=5000 + i, discogs_listing_id=str(5000 + i), status="Live") for i in range(1, 41)]
+    store = _FakeStore(rows)
+    report = dm.run_discogs_mirror(store, "someone", token="")
+    assert "Safety brake" in report["aborted"]
+    assert all(r["listing_status"] == "Live" for r in store.rows.values()), "Nothing changes when the brake trips"
+    assert store.inserted == []
+    report = dm.run_discogs_mirror(store, "someone", token="", allow_big_changes=True)
+    assert report["taken_down"] == 40
+
+
+def test_run_discogs_mirror_publishes_existing_draft_once_photo_arrives_and_never_touches_hidden(monkeypatch):
+    dm = _mirror_env(monkeypatch, [_dl(1, 100, price=9.0), _dl(2, 200, price=9.0)], images={"100": "https://img/100.jpg"})
+    a = dict(_hp(10, release_id=100, discogs_listing_id="1", status="Draft", price=9.0, media="Near Mint", sleeve="VG+"), image_url="")
+    b = dict(_hp(20, release_id=200, discogs_listing_id="2", status="Hidden", price=9.0, media="Near Mint", sleeve="VG+"), image_url="https://img/200.jpg")
+    store = _FakeStore([a, b])
+    report = dm.run_discogs_mirror(store, "someone", token="t")
+    assert store.rows[10]["listing_status"] == "Live" and store.rows[10]["image_url"] == "https://img/100.jpg"
+    assert store.rows[20]["listing_status"] == "Hidden", "Moderation-hidden listings stay hidden"
+    assert report["photos_added"] == 1
+
+
+def test_run_discogs_mirror_dry_run_changes_nothing(monkeypatch):
+    dm = _mirror_env(monkeypatch, [_dl(1, 100)], images={"100": "https://img/100.jpg"})
+    store = _FakeStore([_hp(30, release_id=999, discogs_listing_id="9", status="Live")])
+    report = dm.run_discogs_mirror(store, "someone", token="t", dry_run=True)
+    assert len(report["plan"]["add"]) == 1 and report["plan"]["take_down"] == [30]
+    assert store.rows[30]["listing_status"] == "Live" and store.inserted == []
+
+
 def test_enrich_next_discogs_batch_updates_image_only_leaves_price_and_status_alone(monkeypatch):
     # Founder: "I only want price suggestion to show when the item is being
     # inputted into the system. At that point the seller chooses how much
@@ -2009,7 +2351,7 @@ def test_real_signed_in_seller_can_reach_bulk_import_tools():
     assert not at.exception
 
     tab_labels = [t.proto.label for t in at.tabs]
-    assert tab_labels == ["Bulk import", "Announcements", "Events/drops"], (
+    assert tab_labels == ["Discogs sync", "Bulk import", "Announcements", "Events/drops"], (
         f"Expected a real seller to reach the Bulk import/Announcements/Events tabs, got {tab_labels}"
     )
 
@@ -4982,3 +5324,85 @@ def test_admin_release_database_stats_reachable_via_admin_nav_and_shows_real_dat
     )
     assert marker in all_text, "Expected the just-added release to show up in the admin Release Database view"
     assert "New Suggested Value" in all_text, "Expected the pending correction to show up in the admin Release Database view"
+
+
+def _load_sync_script(monkeypatch):
+    import importlib.util
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
+    spec = importlib.util.spec_from_file_location("discogs_sync_script", "scripts/discogs_sync.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_discogs_sync_script_scopes_every_write_to_the_one_seller(monkeypatch):
+    mod = _load_sync_script(monkeypatch)
+    calls = []
+
+    def fake_rest(method, table, params=None, json=None, prefer=""):
+        calls.append((method, table, dict(params or {}), json))
+        if method == "patch":
+            return [{"id": 1}]
+        return []
+
+    monkeypatch.setattr(mod, "rest", fake_rest)
+    store = mod.ServiceStore(15)
+    store.update(7, {"price": 9.0})
+    store.set_status([7, 8], "Draft")
+    store.insert([{k: "" for k in mod.INSERT_COLS}])
+    for method, table, params, body in calls:
+        assert table == "products"
+        if method == "patch":
+            assert params["seller_id"] == "eq.15"
+        if method == "post":
+            assert all(row["seller_id"] == 15 for row in body)
+
+
+def test_discogs_sync_script_stops_when_store_name_is_not_unique(monkeypatch):
+    mod = _load_sync_script(monkeypatch)
+    monkeypatch.setenv("DISCOGS_SYNC_STORE_NAME", "Mojo's House Of Music")
+    monkeypatch.setenv("DISCOGS_USERNAME", "someone")
+    monkeypatch.setattr(mod, "rest", lambda *a, **k: [{"id": 1}, {"id": 2}])
+    monkeypatch.setattr(mod, "send_alert", lambda subject, body: None)
+    ran = []
+    monkeypatch.setattr(mod, "run_discogs_mirror", lambda *a, **k: ran.append(1))
+    assert mod.main() == 1
+    assert ran == [], "Never syncs when the store can't be identified exactly"
+
+
+def test_discogs_mirror_second_review_fixes():
+    # Second-reader findings 2026-11-25 on the unattended sync.
+    import discogs_mirror as dm
+    # 1. A missing/$0 Discogs price never overwrites a real price.
+    products = pd.DataFrame([_hp(10, release_id=100, discogs_listing_id="1", price=12.0, media="Near Mint", sleeve="VG+")])
+    assert dm.plan_discogs_mirror([_dl(1, 100, price=0)], products)["update"] == []
+    # 2. Unlinked listings with only a Discogs reference link are left alone
+    #    on normal runs; only the one-time clean-up takes them down.
+    products = pd.DataFrame([_hp(20, release_id=555, status="Live")])
+    plan = dm.plan_discogs_mirror([_dl(1, 100)], products)
+    assert plan["take_down"] == [] and plan["unlinked_left"] == [20]
+    # 3. Moderation states are never reset to Draft.
+    products = pd.DataFrame([_hp(30, release_id=999, discogs_listing_id="9", status="Hidden"), _hp(31, release_id=998, status="Under Review")])
+    plan = dm.plan_discogs_mirror([_dl(1, 100)], products, take_down_unlinked=True)
+    assert plan["take_down"] == []
+
+
+def test_fetch_discogs_inventory_keeps_only_for_sale(monkeypatch):
+    import app as hw_app
+    draft = dict(_fake_listing(2), status="Draft")
+    monkeypatch.setattr(hw_app.requests, "get", lambda url, params=None, headers=None, timeout=None: _FakeDiscogsResp(200, {"pagination": {"pages": 1, "items": 2}, "listings": [_fake_listing(1), draft]}))
+    monkeypatch.setattr(hw_app.time, "sleep", lambda s: None)
+    assert [g["listing_id"] for g in hw_app.fetch_discogs_inventory("someone")] == ["1"]
+
+
+def test_run_discogs_mirror_never_publishes_a_second_copy_of_one_discogs_listing(monkeypatch):
+    dm = _mirror_env(monkeypatch, [_dl(1, 100, price=9.0)], images={"100": "https://img/100.jpg"})
+    a = dict(_hp(10, release_id=100, discogs_listing_id="1", status="Live", price=9.0, media="Near Mint", sleeve="VG+"), image_url="https://img/100.jpg")
+    b = dict(_hp(11, release_id=100, discogs_listing_id="1", status="Live", price=9.0, media="Near Mint", sleeve="VG+"), image_url="https://img/100.jpg")
+    store = _FakeStore([a, b])
+    dm.run_discogs_mirror(store, "someone", token="t")
+    assert store.rows[10]["listing_status"] == "Live"
+    assert store.rows[11]["listing_status"] == "Draft", "The duplicate comes down and stays down"
+    dm.run_discogs_mirror(store, "someone", token="t")
+    assert store.rows[11]["listing_status"] == "Draft", "...on the next run too"

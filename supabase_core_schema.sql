@@ -703,3 +703,8 @@ alter table how_release_corrections add column if not exists created_at text;
 alter table how_release_corrections enable row level security;
 
 -- Apply V25.43 ownership policies from supabase_core_policies.sql after creating tables.
+
+-- V25.43.178: Discogs mirror. Which Discogs listing a product came from.
+alter table products add column if not exists discogs_listing_id text;
+-- One House Of Wax listing per Discogs listing, even if two syncs overlap.
+create unique index if not exists products_seller_discogs_listing_uniq on products(seller_id, discogs_listing_id) where discogs_listing_id is not null and discogs_listing_id <> '';

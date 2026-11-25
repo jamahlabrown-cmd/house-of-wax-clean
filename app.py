@@ -41,7 +41,7 @@ except Exception:
     BARCODE_SCAN_AVAILABLE=False
 
 st.set_page_config(page_title='House Of Wax', page_icon='🎧', layout='wide')
-APP_VERSION='V25.43.177 ADD: My Collection (buyer personal collection tracker) + FIX: release database (how_releases/sources/corrections + barcode cache) now actually persists in production, not just local SQLite'
+APP_VERSION='V25.43.178 ADD: Discogs sync (mirror a seller\'s Discogs store: add as Draft, match price/grades, move sold/removed to Draft) + Bulk import reads a Discogs seller inventory export'
 APP_DIR=Path(__file__).resolve().parent
 DB=Path(os.environ.get('HOUSE_OF_WAX_DB_PATH', APP_DIR/'house_of_wax.db')).expanduser()
 UPLOAD=Path(os.environ.get('HOUSE_OF_WAX_UPLOAD_DIR', APP_DIR/'house_of_wax_uploads')).expanduser(); UPLOAD.mkdir(exist_ok=True)
@@ -120,30 +120,9 @@ CORE_HOSTED_TABLES=['app_users','buyers','sellers','products','product_gallery',
 GRADE_SCALE=['Mint','Near Mint','VG+','VG','Good+','Good','Fair','Poor']
 GRADE_INDEX={g:i for i,g in enumerate(GRADE_SCALE)}
 GRADE_PRICE_MULTIPLIERS={'Mint':1.35,'Near Mint':1.20,'VG+':1.00,'VG':0.80,'Good+':0.65,'Good':0.50,'Fair':0.35,'Poor':0.20}
-DISCOGS_CONDITION_MAP={'mint (m)':'Mint','near mint (nm or m-)':'Near Mint','very good plus (vg+)':'VG+','very good (vg)':'VG','good plus (g+)':'Good+','good (g)':'Good','fair (f)':'Fair','poor (p)':'Poor'}
-def map_discogs_condition(value):
-    # 'Generic'/'No Cover'/blank aren't real condition grades -- never guess
-    # one that isn't there.
-    return DISCOGS_CONDITION_MAP.get(safe(value).strip().lower(),'')
-# Sleeve-only special states -- distinct from both a real condition grade
-# and from "not graded yet". A record sold without any cover (a lot of 7"
-# singles and promos) has nothing to grade; a generic/unbranded sleeve is a
-# real physical object the seller can still grade later, but "Generic" on
-# Discogs describes the sleeve TYPE, not a condition, so it's never treated
-# as if it were one. Both count as a real answer for the publish-gate check
-# (there's a real answer on file), unlike blank/"Not graded yet".
-NO_SLEEVE_VALUE='No sleeve/cover'
-GENERIC_SLEEVE_VALUE='Generic sleeve (ungraded)'
-def map_discogs_sleeve_condition(value):
-    real_grade=map_discogs_condition(value)
-    if real_grade:
-        return real_grade
-    v=safe(value).strip().lower()
-    if v=='no cover':
-        return NO_SLEEVE_VALUE
-    if v=='generic':
-        return GENERIC_SLEEVE_VALUE
-    return ''
+from discogs_mirror import (DISCOGS_CONDITION_MAP, map_discogs_condition, NO_SLEEVE_VALUE, GENERIC_SLEEVE_VALUE,
+    map_discogs_sleeve_condition, discogs_release_id_from_url, existing_discogs_release_counts, DISCOGS_SYNC_PROTECTED_STATUSES,
+    fetch_discogs_inventory, fetch_discogs_release_image, plan_discogs_mirror, publish_blockers, run_discogs_mirror)
 DISCOGS_GRADE_ALIASES={'Mint':'Mint (M)','Near Mint':'Near Mint (NM or M-)','VG+':'Very Good Plus (VG+)','VG':'Very Good (VG)','Good+':'Good Plus (G+)','Good':'Good (G)','Fair':'Fair (F)','Poor':'Poor (P)'}
 def grade_price_multiplier(media_grade, sleeve_grade=None):
     # Media condition drives resale value more than sleeve condition, so
@@ -1454,7 +1433,7 @@ def setup():
         created_at TEXT
     )""")
     c.commit(); c.close()
-    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','avatar_url':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT','paypal_link':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT','reference_image_url':'TEXT','view_count':'INTEGER DEFAULT 0'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'knowledge_posts':{'video_url':'TEXT','source_type':"TEXT DEFAULT 'Manual'",'sources':'TEXT','fact_check_notes':'TEXT'},'homepage_blocks':{'video_url':'TEXT'},'purchase_requests':{'counter_price':'REAL','counter_message':'TEXT','payment_due_at':'TEXT'},'newsletter_signups':{'interest':'TEXT','updated_at':'TEXT'},'culture_posts':{'seller_id':'INTEGER'}}
+    mig={'app_users':{'auth_user_id':'TEXT','email':'TEXT','display_name':'TEXT','account_type':'TEXT','buyer_id':'INTEGER','seller_id':'INTEGER','seller_application_status':'TEXT','admin_access':'TEXT','account_status':'TEXT','status':'TEXT','local_password_hash':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'buyers':{'state':'TEXT','bio':'TEXT','avatar_url':'TEXT','status':'TEXT','rating':'REAL','completed_purchases':'INTEGER','unpaid_orders':'INTEGER'},'sellers':{'state':'TEXT','website':'TEXT','instagram':'TEXT','seller_story':'TEXT','specialties':'TEXT','logo_url':'TEXT','banner_url':'TEXT','status':'TEXT','seller_level':'TEXT','rating':'REAL','completed_sales':'INTEGER','auction_override':'TEXT','access_code':'TEXT','contact_preference':'TEXT','rules_accepted':'TEXT','rules_accepted_at':'TEXT','paypal_link':'TEXT'},'products':{'sku':'TEXT','barcode':'TEXT','catalog_number':'TEXT','matrix_runout':'TEXT','label':'TEXT','release_year':'TEXT','video_url':'TEXT','audio_url':'TEXT','external_release_url':'TEXT','listing_status':'TEXT','listing_type':'TEXT','reviewer_notes':'TEXT','reference_image_url':'TEXT','view_count':'INTEGER DEFAULT 0','discogs_listing_id':'TEXT'},'feedback':{'public':'TEXT'},'listing_reports':{'listing_id':'INTEGER','seller_id':'INTEGER','reporter_name':'TEXT','reporter_contact':'TEXT','reason':'TEXT','details':'TEXT','status':'TEXT','created_at':'TEXT','updated_at':'TEXT'},'knowledge_posts':{'video_url':'TEXT','source_type':"TEXT DEFAULT 'Manual'",'sources':'TEXT','fact_check_notes':'TEXT'},'homepage_blocks':{'video_url':'TEXT'},'purchase_requests':{'counter_price':'REAL','counter_message':'TEXT','payment_due_at':'TEXT'},'newsletter_signups':{'interest':'TEXT','updated_at':'TEXT'},'culture_posts':{'seller_id':'INTEGER'}}
     for t,cols in mig.items():
         for col,typ in cols.items(): addcol(t,col,typ)
     try:
@@ -1685,8 +1664,9 @@ def setup():
     old_v25_43_174_announcement='V25.43.174'+' Fix: Search Music was slow/hanging; Add: remove cart items before paying, PayPal required to publish active'
     old_v25_43_175_announcement='V25.43.175'+' Fix: cart Remove now tells you if it actually failed instead of silently doing nothing active'
     old_v25_43_176_announcement='V25.43.176'+' Add: scan a barcode with your camera in Add Inventory, no separate app needed active'
-    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement,old_v25_43_170_announcement,old_v25_43_171_announcement,old_v25_43_172_announcement,old_v25_43_173_announcement,old_v25_43_174_announcement,old_v25_43_175_announcement,old_v25_43_176_announcement]:
-        set_setting('announcement','V25.43.177 Add: My Collection (catalog everything you own + see its value) active')
+    old_v25_43_177_announcement='V25.43.177 Add: My Collection (catalog everything you own + see its value) active'
+    if setting('announcement') in [old_announcement,old_v25_18_announcement,old_v25_23_announcement,old_v25_24_announcement,old_v25_25_announcement,old_v25_26_announcement,old_v25_27_announcement,old_v25_28_announcement,old_v25_29_announcement,old_v25_30_announcement,old_v25_31_announcement,old_v25_32_announcement,old_v25_33_announcement,old_v25_34_announcement,old_v25_34_wedge_announcement,old_v25_35_announcement,old_v25_36_announcement,old_v25_36_1_announcement,old_v25_36_2_announcement,old_v25_36_3_announcement,old_v25_37_1_announcement,old_v25_37_2_announcement,old_v25_37_3_announcement,old_v25_38_announcement,old_v25_39_announcement,old_v25_39_1_announcement,old_v25_39_2_announcement,old_v25_40_announcement,old_v25_40_1_announcement,old_v25_41_announcement,old_v25_42_announcement,old_v25_43_announcement,old_v25_43_1_announcement,old_v25_43_2_announcement,old_v25_43_3_announcement,old_v25_43_4_announcement,old_v25_43_5_announcement,old_v25_43_6_announcement,old_v25_43_7_announcement,old_v25_43_8_announcement,old_v25_43_9_announcement,old_v25_43_10_announcement,old_v25_43_11_announcement,old_v25_43_12_announcement,old_v25_43_13_announcement,old_v25_43_14_announcement,old_v25_43_15_announcement,old_v25_43_16_announcement,old_v25_43_17_announcement,old_v25_43_18_announcement,old_v25_43_19_announcement,old_v25_43_20_announcement,old_v25_43_21_announcement,old_v25_43_22_announcement,old_v25_43_23_announcement,old_v25_43_24_announcement,old_v25_43_25_announcement,old_v25_43_26_announcement,old_v25_43_27_announcement,old_v25_43_28_announcement,old_v25_43_29_announcement,old_v25_43_30_announcement,old_v25_43_31_announcement,old_v25_43_32_announcement,old_v25_43_33_announcement,old_v25_43_34_announcement,old_v25_43_35_announcement,old_v25_43_36_announcement,old_v25_43_37_announcement,old_v25_43_38_announcement,old_v25_43_39_announcement,old_v25_43_40_announcement,old_v25_43_41_announcement,old_v25_43_42_announcement,old_v25_43_43_announcement,old_v25_43_44_announcement,old_v25_43_45_announcement,old_v25_43_46_announcement,old_v25_43_47_announcement,old_v25_43_48_announcement,old_v25_43_49_announcement,old_v25_43_50_announcement,old_v25_43_51_announcement,old_v25_43_52_announcement,old_v25_43_53_announcement,old_v25_43_54_announcement,old_v25_43_55_announcement,old_v25_43_56_announcement,old_v25_43_57_announcement,old_v25_43_58_announcement,old_v25_43_59_announcement,old_v25_43_60_announcement,old_v25_43_61_announcement,old_v25_43_62_announcement,old_v25_43_63_announcement,old_v25_43_64_announcement,old_v25_43_65_announcement,old_v25_43_66_announcement,old_v25_43_67_announcement,old_v25_43_68_announcement,old_v25_43_69_announcement,old_v25_43_70_announcement,old_v25_43_71_announcement,old_v25_43_72_announcement,old_v25_43_73_announcement,old_v25_43_74_announcement,old_v25_43_75_announcement,old_v25_43_76_announcement,old_v25_43_77_announcement,old_v25_43_78_announcement,old_v25_43_79_announcement,old_v25_43_80_announcement,old_v25_43_81_announcement,old_v25_43_82_announcement,old_v25_43_83_announcement,old_v25_43_84_announcement,old_v25_43_85_announcement,old_v25_43_86_announcement,old_v25_43_87_announcement,old_v25_43_88_announcement,old_v25_43_89_announcement,old_v25_43_90_announcement,old_v25_43_91_announcement,old_v25_43_92_announcement,old_v25_43_93_announcement,old_v25_43_94_announcement,old_v25_43_95_announcement,old_v25_43_96_announcement,old_v25_43_97_announcement,old_v25_43_98_announcement,old_v25_43_99_announcement,old_v25_43_100_announcement,old_v25_43_101_announcement,old_v25_43_102_announcement,old_v25_43_103_announcement,old_v25_43_104_announcement,old_v25_43_105_announcement,old_v25_43_106_announcement,old_v25_43_107_announcement,old_v25_43_108_announcement,old_v25_43_109_announcement,old_v25_43_110_announcement,old_v25_43_111_announcement,old_v25_43_112_announcement,old_v25_43_113_announcement,old_v25_43_114_announcement,old_v25_43_115_announcement,old_v25_43_116_announcement,old_v25_43_117_announcement,old_v25_43_118_announcement,old_v25_43_119_announcement,old_v25_43_120_announcement,old_v25_43_121_announcement,old_v25_43_122_announcement,old_v25_43_123_announcement,old_v25_43_124_announcement,old_v25_43_125_announcement,old_v25_43_126_announcement,old_v25_43_127_announcement,old_v25_43_128_announcement,old_v25_43_129_announcement,old_v25_43_130_announcement,old_v25_43_131_announcement,old_v25_43_132_announcement,old_v25_43_133_announcement,old_v25_43_134_announcement,old_v25_43_135_announcement,old_v25_43_136_announcement,old_v25_43_137_announcement,old_v25_43_138_announcement,old_v25_43_139_announcement,old_v25_43_140_announcement,old_v25_43_141_announcement,old_v25_43_142_announcement,old_v25_43_143_announcement,old_v25_43_144_announcement,old_v25_43_145_announcement,old_v25_43_146_announcement,old_v25_43_147_announcement,old_v25_43_148_announcement,old_v25_43_149_announcement,old_v25_43_150_announcement,old_v25_43_151_announcement,old_v25_43_152_announcement,old_v25_43_153_announcement,old_v25_43_154_announcement,old_v25_43_155_announcement,old_v25_43_156_announcement,old_v25_43_157_announcement,old_v25_43_158_announcement,old_v25_43_159_announcement,old_v25_43_160_announcement,old_v25_43_161_announcement,old_v25_43_162_announcement,old_v25_43_163_announcement,old_v25_43_164_announcement,old_v25_43_165_announcement,old_v25_43_166_announcement,old_v25_43_167_announcement,old_v25_43_168_announcement,old_v25_43_169_announcement,old_v25_43_170_announcement,old_v25_43_171_announcement,old_v25_43_172_announcement,old_v25_43_173_announcement,old_v25_43_174_announcement,old_v25_43_175_announcement,old_v25_43_176_announcement,old_v25_43_177_announcement]:
+        set_setting('announcement','V25.43.178 Add: mirror your Discogs store (More Tools > Discogs sync) active')
 setup()
 recovery_token_bridge()
 
@@ -8485,14 +8465,216 @@ def parse_discogs_collection_csv(df, sid):
         })
     return rows
 
+# Discogs' Seller Inventory export (Marketplace -> Inventory -> Export) is
+# a different file from the Collection export: it has the listing's real
+# price, media/sleeve condition and seller comments, keyed by listing_id.
+DISCOGS_INVENTORY_EXPORT_FINGERPRINT={'listing_id','release_id','media_condition'}
+
+def is_discogs_inventory_export(df):
+    return DISCOGS_INVENTORY_EXPORT_FINGERPRINT.issubset(set(df.columns))
+
+def seller_discogs_release_counts(sid, page_size=1000):
+    # Release counts for every listing this seller has, read in pages:
+    # Supabase returns at most 1000 rows per request, and a big Discogs
+    # import takes a seller well past that. Returns None if a read fails,
+    # so the caller can refuse to import instead of importing duplicates.
+    if not hosted_enabled():
+        return existing_discogs_release_counts(df('SELECT external_release_url FROM products WHERE seller_id=?',(int(sid),)))
+    urls=[]
+    offset=0
+    while True:
+        params={'select':'id,external_release_url','seller_id':f'eq.{int(sid)}','order':'id.asc','limit':str(page_size),'offset':str(offset)}
+        data,detail=hosted_request('get','products',params=params,prefer='')
+        if not detail.get('ok'):
+            show_hosted_error('read','products',detail)
+            return None
+        data=data or []
+        urls.extend(row.get('external_release_url') for row in data)
+        if not data:
+            break
+        offset+=len(data)
+    return existing_discogs_release_counts(pd.DataFrame({'external_release_url':urls}))
+
+def parse_discogs_inventory_csv(df, sid, existing_release_counts=None):
+    # Always Draft (founder's call 2026-11-25): imported listings get a look
+    # before going public, even for a seller who could publish live.
+    remaining=dict(existing_release_counts or {})
+    rows=[]
+    stats={'imported':0,'already_listed':0,'not_for_sale':0}
+    for _,r in df.iterrows():
+        status=safe(r.get('status')).strip()
+        if status and status.lower()!='for sale':
+            stats['not_for_sale']+=1
+            continue
+        release_id=safe(r.get('release_id')).strip()
+        if release_id.endswith('.0'):
+            release_id=release_id[:-2]
+        if release_id and remaining.get(release_id,0)>0:
+            remaining[release_id]-=1
+            stats['already_listed']+=1
+            continue
+        fmt=safe(r.get('format'))
+        category='Cassettes' if 'Cass' in fmt else ('CDs' if re.search(r'\bCD\b',fmt) else 'Vinyl Records')
+        price,_price_err=parse_money_input(r.get('price',0),'Price')
+        rows.append({
+            'seller_id':sid,
+            'sku':'',
+            'barcode':'',
+            'catalog_number':safe(r.get('catno')),
+            'matrix_runout':'',
+            'category':category,
+            'artist':safe(r.get('artist')),
+            'title':safe(r.get('title')),
+            'format':fmt,
+            'label':safe(r.get('label')),
+            'release_year':'',
+            'genre':'',
+            'media_grade':map_discogs_condition(r.get('media_condition')),
+            'sleeve_grade':map_discogs_sleeve_condition(r.get('sleeve_condition')),
+            'condition_notes':safe(r.get('comments')),
+            'description':'',
+            'price':price,
+            'quantity':1,
+            'shipping_price':0,
+            'image_url':'',
+            'video_url':'',
+            'audio_url':'',
+            'external_release_url':f'https://www.discogs.com/release/{release_id}' if release_id else '',
+            'listing_status':'Draft',
+            'listing_type':'Fixed Price',
+            'created_at':now(),
+            'updated_at':now(),
+        })
+        stats['imported']+=1
+    return rows, stats
+
+DISCOGS_SYNC_PRODUCT_COLS='id,discogs_listing_id,external_release_url,listing_status,price,media_grade,sleeve_grade,condition_notes,image_url,artist,title'
+DISCOGS_SYNC_INSERT_COLS=['seller_id','sku','barcode','catalog_number','matrix_runout','category','artist','title','format','label','release_year','genre','media_grade','sleeve_grade','condition_notes','description','price','quantity','shipping_price','image_url','video_url','audio_url','external_release_url','discogs_listing_id','listing_status','listing_type','created_at','updated_at']
+
+def seller_products_for_sync(sid, page_size=1000):
+    cols=DISCOGS_SYNC_PRODUCT_COLS
+    if not hosted_enabled():
+        return df(f'SELECT {cols} FROM products WHERE seller_id=?',(int(sid),))
+    rows=[]
+    offset=0
+    while True:
+        params={'select':cols,'seller_id':f'eq.{int(sid)}','order':'id.asc','limit':str(page_size),'offset':str(offset)}
+        data,detail=hosted_request('get','products',params=params,prefer='')
+        if not detail.get('ok'):
+            show_hosted_error('read','products',detail)
+            return None
+        data=data or []
+        if not data:
+            break
+        rows.extend(data)
+        offset+=len(data)
+    return pd.DataFrame(rows)
+
+class AppDiscogsStore:
+    # House Of Wax side of the Discogs mirror for a signed-in seller (or
+    # local SQLite in dev). Every write is scoped to this seller_id.
+    def __init__(self, sid, chunk=100):
+        self.sid=int(sid); self.chunk=chunk
+    def read_products(self):
+        return seller_products_for_sync(self.sid)
+    def insert(self, rows):
+        saved=0
+        rows=[dict(r,seller_id=self.sid) for r in rows]
+        for i in range(0,len(rows),self.chunk):
+            batch=rows[i:i+self.chunk]
+            if hosted_enabled():
+                _,detail=hosted_request('post','products',data=[{k:r[k] for k in DISCOGS_SYNC_INSERT_COLS} for r in batch],prefer='return=minimal')
+                if detail.get('ok'): saved+=len(batch)
+                else: show_hosted_error('insert','products',detail)
+            else:
+                for r in batch:
+                    run(f"INSERT INTO products({','.join(DISCOGS_SYNC_INSERT_COLS)}) VALUES({','.join(['?']*len(DISCOGS_SYNC_INSERT_COLS))})",tuple(r[k] for k in DISCOGS_SYNC_INSERT_COLS))
+                    saved+=1
+        return saved
+    def update(self, pid, changes):
+        sets=','.join(f'{k}=?' for k in changes)
+        return bool(core_update('products',changes,{'id':int(pid),'seller_id':self.sid},f'UPDATE products SET {sets} WHERE id=? AND seller_id=?',tuple(changes.values())+(int(pid),self.sid)))
+    def set_status(self, ids, status):
+        changed=0
+        ids=list(ids)
+        for i in range(0,len(ids),self.chunk):
+            batch=ids[i:i+self.chunk]
+            if hosted_enabled():
+                data,detail=hosted_request('patch','products',params={'id':f"in.({','.join(str(x) for x in batch)})",'seller_id':f'eq.{self.sid}'},data={'listing_status':status,'updated_at':now()},prefer='return=representation')
+                if detail.get('ok'): changed+=len(data or [])  # rows actually changed (RLS can silently match none)
+                else: show_hosted_error('update','products',detail)
+            else:
+                run(f"UPDATE products SET listing_status=?,updated_at=? WHERE seller_id=? AND id IN ({','.join(['?']*len(batch))})",(status,now(),self.sid)+tuple(batch))
+                changed+=len(batch)
+        return changed
+
+def discogs_token():
+    try:
+        return st.secrets.get('DISCOGS_TOKEN','')
+    except Exception:
+        return os.environ.get('DISCOGS_TOKEN','')
+
+def discogs_sync_panel(sid):
+    st.markdown('#### Mirror your Discogs store')
+    st.caption('Discogs is the master copy, and this runs by itself once a day (early morning). New Discogs records go live here when they have a price, both grades and a cover photo (otherwise they wait as Drafts), prices and grades follow Discogs, and anything sold or removed on Discogs comes off here (moved to Draft, never deleted). Listings with no Discogs link, and anything a buyer is paying for here, are left alone. Use the buttons below to check it or run it now.')
+    username=st.text_input('Your Discogs username',value=setting(f'discogs_username_{int(sid)}',''),key='discogs_sync_username')
+    take_down_unlinked=st.checkbox('Also take down old listings from my Discogs collection that are not for sale on Discogs (one-time clean-up)',value=False,key='discogs_sync_take_down_unlinked')
+    seller=get_seller(int(sid))
+    seller_ok=bool(seller_can_publish_live(seller) and safe(seller.get('paypal_link') if seller is not None else ''))
+    if st.button('Preview sync',key='discogs_sync_preview'):
+        if safe(username).strip():
+            set_setting(f'discogs_username_{int(sid)}',safe(username).strip())
+        with st.spinner('Reading your Discogs store (about a minute for 1,500 records)...'):
+            report=run_discogs_mirror(AppDiscogsStore(sid),username,token=discogs_token(),seller_ok=seller_ok,take_down_unlinked=take_down_unlinked,dry_run=True)
+        st.session_state['discogs_sync_preview']={'sid':int(sid),'report':report}
+    saved=st.session_state.get('discogs_sync_preview')
+    if not saved or saved.get('sid')!=int(sid):
+        return
+    report=saved['report']; plan=report.get('plan')
+    if report['aborted'] and not plan:
+        st.error(report['aborted']); return
+    st.write(f"Discogs has **{report['discogs_count']}** records for sale.")
+    st.write(f"- New from Discogs: **{len(plan['add'])}** (live if complete, otherwise Draft)\n- Price/grade updates: **{len(plan['update'])}**\n- Coming off the site (gone from Discogs): **{len(plan['take_down'])}**\n- Left alone, buyer mid-purchase or sold here: **{len(plan['protected'])}**")
+    if report['aborted']:
+        st.warning(report['aborted'])
+    if plan['protected']:
+        st.warning('Check these on Discogs for a double sale: '+'; '.join(f"#{p['id']} ({p['reason']})" for p in plan['protected']))
+    with st.expander('See the new records'):
+        st.dataframe(pd.DataFrame(plan['add'])[['artist','title','format','price','media_grade','sleeve_grade']] if plan['add'] else pd.DataFrame(),width='stretch')
+    with st.expander('See the price/grade changes'):
+        st.dataframe(pd.DataFrame([dict(id=u['id'],**u['changes']) for u in plan['update']]),width='stretch')
+    with st.expander('See the listings coming off the site'):
+        st.write(', '.join(f'#{x}' for x in plan['take_down']) or 'None')
+    big=bool(report['aborted'])
+    confirm=st.checkbox(f"Run it now: {len(plan['take_down'])} listing(s) come off the site and {len(plan['add'])} come in"+(' (more than the safety brake allows in one run)' if big else ''),key='discogs_sync_confirm')
+    if st.button('Run sync now',key='discogs_sync_apply',disabled=not confirm):
+        with st.spinner('Syncing... this can take a while the first time (cover photos).'):
+            result=run_discogs_mirror(AppDiscogsStore(sid),username,token=discogs_token(),seller_ok=seller_ok,take_down_unlinked=take_down_unlinked,allow_big_changes=big,max_image_lookups=100)
+        st.session_state.pop('discogs_sync_preview',None)
+        if result['aborted']:
+            st.error(result['aborted']); return
+        msg=f"Done: {result['added']} added, {result['published']} published, {result['updated']} updated, {result['taken_down']} taken off, {result['photos_added']} photos added."
+        if result['failed']:
+            st.error(msg+f" {result['failed']} failed -- run it again; it only picks up what's still different.")
+        else:
+            st.success(msg)
+        if result['waiting']:
+            st.info(f"{len(result['waiting'])} Discogs record(s) are waiting as Drafts because something is missing (usually a cover photo). They go live on their own once it's there.")
+
 def seller_more_tools_tabs(sid):
     st.caption('My Store Profile, Add Inventory, My Inventory, Seller Messages/Inquiries, and Buyer Requests are in the radio above. A few less-frequent tools are below.')
-    tabs=st.tabs(['Bulk import','Announcements','Events/drops'])
+    tabs=st.tabs(['Discogs sync','Bulk import','Announcements','Events/drops'])
     with tabs[0]:
-        csv=st.file_uploader('Upload CSV',type=['csv']); st.caption('Supports barcode,catalog_number,matrix_runout,artist,title,format,label,release_year,genre,price,quantity,image_url -- or a Discogs collection export, detected automatically.')
+        discogs_sync_panel(sid)
+    tabs=tabs[1:]
+    with tabs[0]:
+        csv=st.file_uploader('Upload CSV',type=['csv']); st.caption('Supports barcode,catalog_number,matrix_runout,artist,title,format,label,release_year,genre,price,quantity,image_url -- or a Discogs collection or seller inventory export, detected automatically.')
         if csv is not None:
             data=pd.read_csv(csv); st.dataframe(data,width='stretch')
-            is_discogs=is_discogs_collection_export(data)
+            is_discogs_inventory=is_discogs_inventory_export(data)
+            is_discogs=is_discogs_collection_export(data) and not is_discogs_inventory
+            if is_discogs_inventory:
+                st.info('Detected a Discogs seller inventory export -- prices, conditions and notes come across. Only records marked For Sale are imported, copies you already have here are skipped, and everything comes in as a Draft so you can look it over before publishing.')
             if is_discogs:
                 st.info('Detected a Discogs collection export -- mapping fields automatically. Discogs collection exports have no price, so every item comes in as a Draft for you to price and publish yourself. Use "Fetch next batch from Discogs" on My Inventory afterward to pull in cover photos and price suggestions.')
             if st.button('Import CSV products'):
@@ -8500,7 +8682,19 @@ def seller_more_tools_tabs(sid):
                 failed=0
                 corrected=0
                 imported_seller=get_seller(int(sid))
-                if is_discogs:
+                inventory_stats=None
+                if is_discogs_inventory:
+                    row_cols=['seller_id','sku','barcode','catalog_number','matrix_runout','category','artist','title','format','label','release_year','genre','media_grade','sleeve_grade','condition_notes','description','price','quantity','shipping_price','image_url','video_url','audio_url','external_release_url','listing_status','listing_type','created_at','updated_at']
+                    existing_counts=seller_discogs_release_counts(sid)
+                    parsed_rows,inventory_stats=([],None) if existing_counts is None else parse_discogs_inventory_csv(data,sid,existing_counts)
+                    if existing_counts is None:
+                        st.error("Couldn't read your current listings, so nothing was imported (this keeps copies from being added twice). Try again in a minute.")
+                    imported_status='Draft'
+                    for row_data in parsed_rows:
+                        row_id=core_insert('products',row_data,f"INSERT INTO products({','.join(row_cols)}) VALUES({','.join(['?']*len(row_cols))})",tuple(row_data[k] for k in row_cols))
+                        if row_id or not hosted_enabled(): n+=1
+                        else: failed+=1
+                elif is_discogs:
                     row_cols=['seller_id','sku','barcode','catalog_number','matrix_runout','category','artist','title','format','label','release_year','genre','media_grade','sleeve_grade','condition_notes','description','price','quantity','shipping_price','image_url','video_url','audio_url','external_release_url','listing_status','listing_type','created_at','updated_at']
                     parsed_rows=parse_discogs_collection_csv(data,sid)
                     imported_status='Draft'
@@ -8524,6 +8718,12 @@ def seller_more_tools_tabs(sid):
                 failed_note=f' {failed} row(s) failed to save and were skipped -- Supabase error: {safe(SUPABASE_STATUS.get("last_error"),"Unknown error")}' if failed else ''
                 if failed and not n:
                     st.error('No rows could be imported.'+failed_note)
+                elif inventory_stats is not None:
+                    skipped_bits=[]
+                    if inventory_stats['already_listed']: skipped_bits.append(f"{inventory_stats['already_listed']} already on House Of Wax")
+                    if inventory_stats['not_for_sale']: skipped_bits.append(f"{inventory_stats['not_for_sale']} not marked For Sale on Discogs")
+                    skipped_note=(' Skipped '+' and '.join(skipped_bits)+'.') if skipped_bits else ''
+                    st.success(f'Imported {n} from your Discogs inventory as Draft.'+skipped_note+' Review them in My Inventory, then publish. Use "Fetch next batch from Discogs" there to pull in cover photos.'+failed_note)
                 elif is_discogs:
                     st.warning(f'Imported {n} as Draft. No price data in a Discogs collection export -- set a price on each before publishing.'+failed_note)
                 elif imported_status=='Live':

@@ -1,0 +1,50 @@
+name: Discogs sync
+
+# Mirrors the seller's Discogs store onto House Of Wax (see discogs_mirror.py).
+on:
+  schedule:
+    - cron: "15 10 * * *"  # once a day, about 5:15 a.m. Eastern
+  workflow_dispatch:
+    inputs:
+      allow_big_changes:
+        description: "Lift the safety brake for this run (first sync, or a big clear-out on Discogs)"
+        type: boolean
+        default: false
+      take_down_unlinked:
+        description: "Also take down old collection-import listings not for sale on Discogs (first run only)"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Plan only, change nothing"
+        type: boolean
+        default: false
+
+concurrency:
+  group: discogs-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests pandas
+      - name: Sync Discogs to House Of Wax
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DISCOGS_TOKEN: ${{ secrets.DISCOGS_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          DISCOGS_USERNAME: mojo71mojo
+          DISCOGS_SYNC_STORE_NAME: "Mojo's House Of Music"
+          ALLOW_BIG_CHANGES: ${{ inputs.allow_big_changes && '1' || '0' }}
+          TAKE_DOWN_UNLINKED: ${{ inputs.take_down_unlinked && '1' || '0' }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+        run: python scripts/discogs_sync.py
